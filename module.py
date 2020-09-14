@@ -58,7 +58,6 @@ class DepthEstimation(pl.LightningModule):
         result = pl.EvalResult(checkpoint_on=mse)
         result.log('mse', mse, logger=True, on_epoch=True, prog_bar=True) 
         result.log('rmse', rmse, logger=True, on_epoch=True, prog_bar=True) 
-        result.log('ssim', ssim, logger=True, on_epoch=True, prog_bar=True) 
         result.log('d1', d1, logger=True, on_epoch=True, prog_bar=True) 
         result.log('d2', d2, logger=True, on_epoch=True, prog_bar=True) 
         result.log('d3', d3, logger=True, on_epoch=True, prog_bar=True)     
