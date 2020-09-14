@@ -90,6 +90,6 @@ class DepthEstimation(pl.LightningModule):
         parser.add_argument('--pretrained', default=0, type=int, help='Use pretrained backbone')
         parser.add_argument('--latent_sz', default=128, type=int, help='Latent Space size after backbone')
         parser.add_argument('--im_feat_sz', default=128, type=int, help='Number image features')
-        parser.add_argument('--img_size', default=(720, 1280), nargs="+" type=int, help='Image size')
+        parser.add_argument('--img_size', default=(720, 1280), nargs="+", type=int, help='Image size')
 
         return parser
