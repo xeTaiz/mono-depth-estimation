@@ -16,6 +16,7 @@ if __name__=='__main__':
     parser.add_argument('--min_epochs', default=50, type=int, help='Minimum number of epochs.')
     parser.add_argument('--max_epochs', default=150, type=int, help='Maximum number ob epochs to train')
     parser.add_argument('--cache', action='store_true', help='Cache images')
+    parser.add_argument('--name', required=True, type=str)
     parser.add_argument('--path', default="D:/Documents/data/Structured3D/Structured3D", type=str, help="Path to Structured3D dataset")
     parser = DepthEstimation.add_model_specific_args(parser)
     args = parser.parse_args()
@@ -38,7 +39,7 @@ if __name__=='__main__':
         amp_level='O2',
         min_epochs=args.min_epochs,
         max_epochs=args.max_epochs,
-        logger=pl.loggers.TensorBoardLogger("logs", name="unet")
+        logger=pl.loggers.TensorBoardLogger("logs", name=args.name)
     )
 
     # Fit model
