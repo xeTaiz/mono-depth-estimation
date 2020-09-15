@@ -31,8 +31,8 @@ class Structured3DDataset(BaseDataset):
     def load_image(self, index):
         rgb_path = self.images[index]
         depth_path = rgb_path.replace("rgb_rawlight", "depth")
-        rgb_raw = Image.open(rgb_path).convert("RGB")#.resize(self.img_size, Image.BILINEAR)
-        depth_raw = Image.open(depth_path)#.resize(self.img_size, Image.BILINEAR)
+        rgb_raw = Image.open(rgb_path).convert("RGB")
+        depth_raw = Image.open(depth_path)
         depth_np = np.array(depth_raw, dtype=np.uint16)
         depth_np = depth_np / 1000.0 # mm -> meter
         depth_np = np.clip(depth_np, 0.0, 10.0) # clamp to range [0,10] meters
@@ -50,9 +50,9 @@ class Structured3DDataset(BaseDataset):
 
     def load_scene_names(self):
         if self.split == 'train':
-            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][0:3000]
+            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][0:100]
         else:
-            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][3000:]
+            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][100:110]
 
     def cache_images(self):
         self.cache = []

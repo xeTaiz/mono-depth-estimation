@@ -2,7 +2,8 @@ import torch.nn as nn
 import torch
 import numpy as np
 import torch.nn.functional as F
-from common import Down, Up, DoubleConv, OutConv
+from backend import ResidualBackend
+from common import Down, Up, DoubleConv, OutConv, Reshape
 
 class BaseLine(nn.Module):
     def __init__(self, hparams):
@@ -57,19 +58,73 @@ class UNet(nn.Module):
         logits = self.outc(x)
         return logits.sigmoid()
 
-class DetailedDepth(nn.Module):
-    def __init__(self):
-        pass
+class Projection3D(nn.Module):
+    def __init__(self, n_filter=64, vol_dim=16):
+        super(Projection3D, self).__init__()
+        self.reshape = Reshape(-1, n_filter, vol_dim, vol_dim, vol_dim)
+        self.project1 = nn.ConvTranspose3d(n_filter, 16, kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.project2 = nn.ConvTranspose3d(16,        8, kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.project3 = nn.ConvTranspose3d(8,         4, kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.project4 = nn.ConvTranspose3d(4,         1, kernel_size=3, stride=2, padding=1, output_padding=1)
 
     def forward(self, x):
+        x = self.reshape(x)
+        x = self.project1(x)
+        x = self.project2(x)
+        x = self.project3(x)
+        x = self.project4(x)
         return x
 
+class Projection2D(nn.Module):
+    def __init__(self, n_filter=256, dim=32):
+        super(Projection2D, self).__init__()
+        self.layer1 = nn.Sequential(
+            nn.AdaptiveMaxPool3d((n_filter, dim, dim)),
+            Reshape(-1, n_filter, dim, dim)
+        )
+
+        self.layer2 = nn.Sequential(
+            nn.ConvTranspose2d(n_filter, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU()
+        )
+
+        self.layer3 = nn.Sequential(
+            nn.ConvTranspose2d(64, 16, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU()
+        )
+
+        self.layer4 = nn.Sequential(
+            nn.ConvTranspose2d(16, 1, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.BatchNorm2d(1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        return x
+
+class DetailedDepth(nn.Module):
+    def __init__(self, n_filter=32, pretrained=False):
+        super(DetailedDepth, self).__init__()
+        self.backend = ResidualBackend(n_filter=n_filter, pretrained=pretrained)
+        self.project3d = Projection3D(n_filter=64, vol_dim=16)
+        self.project2d = Projection2D(n_filter=256, dim=32)
+        
+    def forward(self, x):
+        x = self.backend(x)
+        feat_3d = self.project3d(x)
+        feat_2d = self.project2d(feat_3d)
+        return feat_2d, feat_3d
+
 if __name__ == "__main__":
-    model = UNet(n_channels=3)
+    model = DetailedDepth(n_filter=32, pretrained=False)
 
-    img = np.random.uniform(0,1, (3, 255, 255)).astype('float32')
+    img = np.random.uniform(0,1, (4, 3, 256, 256)).astype('float32')
     img_t = torch.from_numpy(img)
-    img_t = torch.unsqueeze(img_t, 0)
-    y_hat = model(img_t)
-
-    print(y_hat)
+    y_hat, _ = model(img_t)
+    print(y_hat.shape)

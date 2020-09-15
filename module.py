@@ -5,7 +5,8 @@ import torch
 import cv2
 import numpy as np
 from datasets.structured3d import Structured3DLoader
-from depth import BaseLine, DetailedDepth, UNet
+from depth import BaseLine, DetailedDepth, UNet, Projection2D, Projection3D
+from backend import ResidualBackend
 from visualize import viz_depth_from_batch
 from metrics import delta1, delta2, delta3, log10
 
@@ -13,7 +14,9 @@ class DepthEstimation(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.hparams = hparams
-        self.depth = UNet(n_channels=3)
+        self.backend = ResidualBackend(n_filter=self.hparams.backbone_n_filter, pretrained=self.hparams.pretrained)
+        self.project3d = Projection3D(n_filter=64, vol_dim=16)
+        self.project2d = Projection2D(n_filter=256, dim=32)
         self.criterion = nn.MSELoss()
         self.training_loader = Structured3DLoader(path=self.hparams.path, 
                              split="train", 
@@ -31,10 +34,13 @@ class DepthEstimation(pl.LightningModule):
 
     def forward(self, data):
         img, _ = data
-        return self.depth(img)
+        feat = self.backend(img)
+        feat_3d = self.project3d(feat)
+        feat_2d = self.project2d(feat_3d)
+        return feat_2d, feat_3d
 
     def training_step(self, batch, batch_idx):
-        y_hat = self(batch)
+        y_hat, feat_3d = self(batch)
         _, y = batch
         loss = self.criterion(y_hat, y)
         l10 = log10(y_hat, y) 
@@ -46,7 +52,7 @@ class DepthEstimation(pl.LightningModule):
         return result
 
     def validation_step(self, batch, batch_idx):
-        y_hat = self(batch)
+        y_hat, feat_3d = self(batch)
         _, y = batch
         mse = pl.metrics.functional.mse(y_hat, y)
         rmse = pl.metrics.functional.rmse(y_hat, y)
@@ -71,7 +77,9 @@ class DepthEstimation(pl.LightningModule):
 
     def configure_optimizers(self):
         gen_params = [
-            {'params': self.depth.parameters(), 'lr': self.hparams.learning_rate}
+            {'params': self.backend.parameters(), 'lr': self.hparams.learning_rate},
+            {'params': self.project3d.parameters(), 'lr': self.hparams.learning_rate},
+            {'params': self.project2d.parameters(), 'lr': self.hparams.learning_rate}
         ]
         return torch.optim.Adam(gen_params)
 

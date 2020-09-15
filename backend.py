@@ -1,6 +1,5 @@
 import torch.nn as nn
 from torchvision.models.resnet import resnet50
-from .common import Reshape
 
 class ResidualBackend(nn.Module):
     def __init__(self, n_filter, pretrained=False):
