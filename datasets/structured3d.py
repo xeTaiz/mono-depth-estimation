@@ -97,13 +97,11 @@ class Structured3DDataset(BaseDataset):
 
 if __name__ == "__main__":
     import cv2
+    from visualize import viz_depth_from_batch
     structured3d = Structured3DDataset(path="D:/Documents/data/Structured3D/Structured3D", img_size=(360, 640), split="valid", cache=False)
-    rgb, depth = structured3d.__getitem__(0)
-    rgb_np = rgb.numpy()
-    rgb_np *= 255
-    print(rgb_np.shape)
-    rgb_np = np.transpose(rgb_np, (1,2,0))
-    print(rgb_np.shape)
-    rgb_np = cv2.cvtColor(rgb_np.astype(np.uint8), cv2.COLOR_RGB2BGR)
-    cv2.imshow("img", rgb_np)
+    img, depth = structured3d.__getitem__(0)
+    img = img.unsqueeze(0)
+    depth = depth.unsqueeze(0)
+    viz = viz_depth_from_batch((img, depth), None)
+    cv2.imshow("viz", viz)
     cv2.waitKey(0)

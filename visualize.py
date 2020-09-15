@@ -9,17 +9,20 @@ def to_img(array):
 def cmap(depth):
     d_min = np.min(depth)
     d_max = np.max(depth)
-    depth_relative = (depth - d_min) / (d_max - d_min)
+    a, b = (depth - d_min), (d_max - d_min)
+    depth_relative = np.divide(a, b, where=b!=0)
     depth_relative = 1 - depth_relative
     depth_relative *= 255
     return cv2.applyColorMap(depth_relative.astype(np.uint8), cv2.COLORMAP_JET)
 
-def viz_depth_from_batch(batch, pred):
+def viz_depth_from_batch(batch, pred=None):
     imgs, gt = batch
     imgs = imgs[0:8].cpu().numpy()
     gt = gt[0:8].cpu().numpy()
-    pred = pred[0:8].cpu().numpy()
-
+    if pred is None:
+        pred = np.zeros_like(gt)
+    else:
+        pred = pred[0:8].cpu().numpy()
     (c,h,w) = imgs[0].shape
     n = imgs.shape[0]
 
