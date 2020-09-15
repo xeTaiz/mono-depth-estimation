@@ -31,8 +31,8 @@ class Structured3DDataset(BaseDataset):
     def load_image(self, index):
         rgb_path = self.images[index]
         depth_path = rgb_path.replace("rgb_rawlight", "depth")
-        rgb_raw = Image.open(rgb_path).convert("RGB").resize(self.img_size, Image.BILINEAR)
-        depth_raw = Image.open(depth_path).resize(self.img_size, Image.BILINEAR)
+        rgb_raw = Image.open(rgb_path).convert("RGB")#.resize(self.img_size, Image.BILINEAR)
+        depth_raw = Image.open(depth_path)#.resize(self.img_size, Image.BILINEAR)
         depth_np = np.array(depth_raw, dtype=np.uint16)
         depth_np = depth_np / 1000.0 # mm -> meter
         depth_np = np.clip(depth_np, 0.0, 10.0) # clamp to range [0,10] meters
@@ -70,6 +70,7 @@ class Structured3DDataset(BaseDataset):
         rgb_pil, depth_pil = raw_data
 
         transform = transforms.Compose([
+            transforms.Resize(self.img_size, interpolation=Image.BILINEAR),
             transforms.RandomVerticalFlip(0.5),
             transforms.RandomHorizontalFlip(0.5),
             transforms.RandomRotation(degrees=5),
@@ -85,6 +86,7 @@ class Structured3DDataset(BaseDataset):
         rgb_pil, depth_pil = raw_data
 
         transform = transforms.Compose([
+            transforms.Resize(self.img_size, interpolation=Image.BILINEAR),
             transforms.ToTensor()
         ])
 
@@ -95,7 +97,7 @@ class Structured3DDataset(BaseDataset):
 
 if __name__ == "__main__":
     import cv2
-    structured3d = Structured3DDataset(path="D:/Documents/data/Structured3D/Structured3D", img_size=(256, 256), split="valid", cache=False)
+    structured3d = Structured3DDataset(path="D:/Documents/data/Structured3D/Structured3D", img_size=(360, 640), split="valid", cache=False)
     rgb, depth = structured3d.__getitem__(0)
     rgb_np = rgb.numpy()
     rgb_np *= 255
