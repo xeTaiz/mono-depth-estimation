@@ -50,9 +50,9 @@ class Structured3DDataset(BaseDataset):
 
     def load_scene_names(self):
         if self.split == 'train':
-            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][0:100]
+            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][0:3000]
         else:
-            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][100:110]
+            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][3000:]
 
     def cache_images(self):
         self.cache = []
@@ -96,12 +96,21 @@ class Structured3DDataset(BaseDataset):
         return rgb_t, depth_t
 
 if __name__ == "__main__":
+    def make_relative(m):
+        return (m - np.min(m)) / (np.max(m) - np.min(m))
+    def show(name, mat):
+        cv2.imshow(name, make_relative(mat))
     import cv2
-    from visualize import viz_depth_from_batch
-    structured3d = Structured3DDataset(path="D:/Documents/data/Structured3D/Structured3D", img_size=(360, 640), split="valid", cache=False)
-    img, depth = structured3d.__getitem__(0)
-    img = img.unsqueeze(0)
-    depth = depth.unsqueeze(0)
-    viz = viz_depth_from_batch((img, depth), None)
-    cv2.imshow("viz", viz)
+    depth = cv2.imread("D:/Documents/data/Structured3D/Structured3D/scene_00000/2D_rendering/490854/perspective/full/2/depth.png", cv2.IMREAD_ANYDEPTH)
+    depth_log = np.log(depth) + 1
+    min_ = np.min(depth_log)
+    max_ = np.max(depth_log)
+    depth_log = (depth_log - min_) / (max_ - min_)
+    depth_grad = np.abs(np.gradient(depth))
+    #depth_grad = make_relative(depth_grad)
+    show("depth_grad0", depth_grad[0])
+    show("depth_grad1", depth_grad[1])
+    show("depth_grad_sum", depth_grad[0] + depth_grad[1])
     cv2.waitKey(0)
+    
+    

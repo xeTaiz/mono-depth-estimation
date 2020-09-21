@@ -3,28 +3,53 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 from backend import ResidualBackend
-from common import Down, Up, DoubleConv, OutConv, Reshape
+from common import Down, Up, DoubleConv, OutConv, Reshape, UpProj
 
 class BaseLine(nn.Module):
-    def __init__(self, hparams):
+    def __init__(self, output_size, n_filter, pretrained):
         super().__init__()
-        self.encode0 = nn.Conv2d(3, 32,   kernel_size=(3,3), stride=(2,2))
-        self.encode1 = nn.Conv2d(32, 64,  kernel_size=(3,3), stride=(2,2))
-        self.encode2 = nn.Conv2d(64, 128, kernel_size=(3,3), stride=(2,2))
+        self.output_size = output_size
+        self.backend = ResidualBackend(n_filter=n_filter, pretrained=pretrained)
+        num_channels = 1024
+        self.conv2 = nn.Conv2d(num_channels, num_channels // 2, kernel_size=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(num_channels // 2)
 
-        self.decode0 = nn.ConvTranspose2d(128, 64, kernel_size=(3,3), stride=(2,2))
-        self.decode1 = nn.ConvTranspose2d(64, 32,  kernel_size=(3,3), stride=(2,2))
-        self.decode2 = nn.ConvTranspose2d(32, 1,   kernel_size=(3,3), stride=(2,2))
+        self.upSample = UpProj(num_channels // 2)
+
+        # setting bias=true doesn't improve accuracy
+        self.conv3 = nn.Conv2d(num_channels // 32, 1, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bilinear = nn.Upsample(size=self.output_size, mode='bilinear', align_corners=True)
 
     def forward(self, x):
-        x = self.encode0(x)
-        x = self.encode1(x)
-        x = self.encode2(x)
+        # resnet
+        x = self.backend(x)
 
-        x = self.decode0(x)
-        x = self.decode1(x)
-        x = self.decode2(x)
-        return x.sigmoid()
+        x = self.conv2(x)
+        x = self.bn2(x)
+
+        # UpProj
+        x = self.upSample(x)
+
+        x = self.conv3(x)
+        x = self.bilinear(x)
+
+        return x
+
+    def get_1x_lr_params(self):
+        """
+        This generator returns all the parameters of the net layer whose learning rate is 1x lr.
+        """
+        return self.backend.parameters()
+
+    def get_10x_lr_params(self):
+        """
+        This generator returns all the parameters of the net layer whose learning rate is 20x lr.
+        """
+        b = [self.conv2, self.bn2, self.upSample, self.conv3, self.bilinear]
+        for j in range(len(b)):
+            for k in b[j].parameters():
+                if k.requires_grad:
+                    yield k
         
 
 class UNet(nn.Module):
@@ -122,9 +147,9 @@ class DetailedDepth(nn.Module):
         return feat_2d, feat_3d
 
 if __name__ == "__main__":
-    model = DetailedDepth(n_filter=32, pretrained=False)
+    model = BaseLine(output_size=(256,256), n_filter=16, pretrained=False)
 
     img = np.random.uniform(0,1, (4, 3, 256, 256)).astype('float32')
     img_t = torch.from_numpy(img)
-    y_hat, _ = model(img_t)
+    y_hat = model(img_t)
     print(y_hat.shape)
