@@ -1,97 +1,84 @@
-from argparse import ArgumentParser
-import pytorch_lightning as pl
-import torch.nn as nn
 import torch
-import cv2
-import numpy as np
-from datasets.structured3d import Structured3DLoader
-from depth import BaseLine
-from visualize import viz_depth_from_batch
-from metrics import delta1, delta2, delta3, log10
+import pytorch_lightning as pl
+import criteria
+from datasets import nyu_dataloader
+from network import FCRN
+from argparse import ArgumentParser
+import visualize
+from metrics import MetricLogger
 
-class DepthEstimation(pl.LightningModule):
-    def __init__(self, hparams):
+class FCRNModule(pl.LightningModule):
+    def __init__(self, args):
         super().__init__()
-        self.hparams = hparams
-        self.depth = BaseLine(output_size=self.hparams.img_size, n_filter=self.hparams.backbone_n_filter, pretrained=self.hparams.pretrained)
-        self.criterion = nn.L1Loss()
-        self.training_loader = Structured3DLoader(path=self.hparams.path, 
-                             split="train", 
-                             batch_size=self.hparams.batch_size,
-                             img_size=self.hparams.img_size, 
-                             cache=self.hparams.cache,
-                             n_workers=self.hparams.n_worker)
-        self.validation_loader = Structured3DLoader(path=self.hparams.path, 
-                             split="val", 
-                             batch_size=1,
-                             cache=self.hparams.cache,
-                             img_size=self.hparams.img_size, 
-                             n_workers=self.hparams.n_worker)
-        self.visualization = [None] * 10
+        self.args = args
+        self.train_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='train'),
+                                                    batch_size=args.batch_size, 
+                                                    shuffle=True, 
+                                                    num_workers=args.worker, 
+                                                    pin_memory=True)
+        self.val_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='val'),
+                                                    batch_size=1, 
+                                                    shuffle=False, 
+                                                    num_workers=args.worker, 
+                                                    pin_memory=True)
+        self.skip = len(self.val_loader) // 9
+        print("=> creating Model")
+        self.model = FCRN.ResNet(output_size=self.train_loader.dataset.output_size)
+        print("=> model created.")
+        self.criterion = criteria.MaskedL1Loss()
+        self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
 
-    def forward(self, data):
-        img, _ = data
-        x = self.depth(img)
-        return x
-
-    def training_step(self, batch, batch_idx):
-        y_hat = self(batch)
-        _, y = batch
-        loss = self.criterion(y_hat, y)
-        l10 = log10(y_hat, y) 
-        rmse = pl.metrics.functional.rmse(y_hat, y)
-        result = pl.TrainResult(loss)
-        result.log('mse', loss, logger=True, on_epoch=True, prog_bar=True)
-        result.log('log10', l10, logger=True, on_epoch=True, prog_bar=True)
-        result.log('rmse', rmse, logger=True, on_epoch=True, prog_bar=True)
-        return result
-
-    def validation_step(self, batch, batch_idx):
-        y_hat = self(batch)
-        _, y = batch
-        mse = pl.metrics.functional.mse(y_hat, y)
-        rmse = pl.metrics.functional.rmse(y_hat, y)
-        ssim = pl.metrics.functional.ssim(y_hat, y)
-        d1 = delta1(y_hat, y)
-        d2 = delta2(y_hat, y)
-        d3 = delta3(y_hat, y)
-        l10 = log10(y_hat, y) 
-        result = pl.EvalResult(checkpoint_on=mse)
-        result.log('mse', mse, logger=True, on_epoch=True, prog_bar=True) 
-        result.log('rmse', rmse, logger=True, on_epoch=True, prog_bar=True) 
-        result.log('d1', d1, logger=True, on_epoch=True, prog_bar=True) 
-        result.log('d2', d2, logger=True, on_epoch=True, prog_bar=True) 
-        result.log('d3', d3, logger=True, on_epoch=True, prog_bar=True)     
-        result.log('log10', l10, logger=True, on_epoch=True, prog_bar=True)  
-        if batch_idx < len(self.visualization):
-            viz = viz_depth_from_batch(batch, y_hat)
-            self.visualization[batch_idx] = viz     
-        elif batch_idx == len(self.visualization):
-            cv2.imwrite("{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch), np.vstack(self.visualization))
-        return result
-
-    def configure_optimizers(self):
-        gen_params = [
-            {'params': self.depth.get_1x_lr_params(), 'lr': self.hparams.learning_rate},
-            {'params': self.depth.get_10x_lr_params(), 'lr': self.hparams.learning_rate * 10}
-        ]
-        return torch.optim.Adam(gen_params)
+    def forward(self, x):
+        y_hat = self.model(x)
+        return y_hat
 
     def train_dataloader(self):
-        return self.training_loader
+        return self.train_loader
 
     def val_dataloader(self):
-        return self.validation_loader
+        return self.val_loader
+
+    def training_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        y_hat = self(x)
+        loss = self.criterion(y_hat, y)
+        return self.metric_logger.log_train(y_hat, y, loss)
+
+    def validation_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        y_hat = self(x)
+        if batch_idx == 0:
+            self.img_merge = visualize.merge_into_row(x, y, y_hat)
+        elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
+            row = visualize.merge_into_row(x, y, y_hat)
+            self.img_merge = visualize.add_row(self.img_merge, row)
+        elif batch_idx == 8 * self.skip:
+            filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
+            visualize.save_image(self.img_merge, filename)
+        return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
+
+    def configure_optimizers(self):
+        # different modules have different learning rate
+        train_params = [{'params': self.model.get_1x_lr_params(), 'lr': self.args.learning_rate},
+                        {'params': self.model.get_10x_lr_params(), 'lr': self.args.learning_rate * 10}]
+
+        optimizer = torch.optim.Adam(train_params, lr=self.args.learning_rate)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.args.lr_patience)
+        scheduler = {
+            'scheduler': lr_scheduler,
+            'reduce_on_plateua': True,
+            'monitor': 'val_checkpoint_on'
+        }
+        return [optimizer], [scheduler]
 
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
-        parser.add_argument('--learning_rate', default=0.001, type=float, help='Learning Rate')
-        parser.add_argument('--batch_size',    default=8,     type=int,   help='Batch Size')
-        parser.add_argument('--backbone_n_filter', default=32,  type=int,   help='Number of filters for latent_space')
-        parser.add_argument('--pretrained', default=0, type=int, help='Use pretrained backbone')
-        parser.add_argument('--latent_sz', default=128, type=int, help='Latent Space size after backbone')
-        parser.add_argument('--im_feat_sz', default=128, type=int, help='Number image features')
-        parser.add_argument('--img_size', default=(720, 1280), nargs="+", type=int, help='Image size')
-
+        parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
+        parser.add_argument('--batch_size',    default=16,     type=int,   help='Batch Size')
+        parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')
+        parser.add_argument('--path', required=True, type=str, help='Path to NYU')
+        parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         return parser
