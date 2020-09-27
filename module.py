@@ -51,6 +51,8 @@ class FCRNModule(pl.LightningModule):
         y_hat = self(x)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
+            filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
+            visualize.save_image(self.img_merge, filename)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
             row = visualize.merge_into_row(x, y, y_hat)
             self.img_merge = visualize.add_row(self.img_merge, row)
