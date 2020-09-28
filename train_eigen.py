@@ -1,7 +1,7 @@
 import pytorch_lightning as pl
 from argparse import ArgumentParser
 import random
-from module import FCRNModule
+from modules import eigen
 
 if __name__ == "__main__":
     parser = ArgumentParser('Trains mono depth estimation models')
@@ -11,7 +11,7 @@ if __name__ == "__main__":
     parser.add_argument('--overfit', action='store_true', help='If this flag is set the network is overfit to 1 batch')
     parser.add_argument('--min_epochs', default=50, type=int, help='Minimum number of epochs.')
     parser.add_argument('--max_epochs', default=150, type=int, help='Maximum number ob epochs to train')
-    parser = FCRNModule.add_model_specific_args(parser)
+    parser = eigen.EigenModule.add_model_specific_args(parser)
     args = parser.parse_args()
     
     # Manage Random Seed
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     pl.seed_everything(args.seed)
 
     # Setup Model, Logger, Trainer
-    model = FCRNModule(args)
+    model = eigen.EigenModule(args)
 
     trainer = pl.Trainer.from_argparse_args(args,
         log_gpu_memory=False,
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         amp_level='O2',
         min_epochs=args.min_epochs,
         max_epochs=args.max_epochs,
-        logger=pl.loggers.TensorBoardLogger("result", name='fcrn')
+        logger=pl.loggers.TensorBoardLogger("result", name='eigen')
     )
 
     # Fit model

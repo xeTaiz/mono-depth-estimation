@@ -18,8 +18,8 @@ class MetricLogger(object):
         values = self.computer.compute(pred, target)
         result = pl.TrainResult(loss)
         for name, value in zip(self.computer.names, values):
-            result.log(name, value, logger=True, on_epoch=True)
-            result.log(name+"(AVG)", self.computer.avg(name), logger=False, prog_bar=True)
+            result.log("train_{}".format(name), value, logger=True, on_epoch=True)
+            result.log("train_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
         return result
 
     def log_val(self, pred, target, checkpoint_on=None):
@@ -29,8 +29,8 @@ class MetricLogger(object):
         else:
             result = pl.EvalResult()
         for name, value in zip(self.computer.names, values):
-            result.log(name, value, logger=True, on_epoch=True)
-            result.log(name+"(AVG)", self.computer.avg(name), logger=False, prog_bar=True)
+            result.log("val_{}".format(name), value, logger=True, on_epoch=True)
+            result.log("val_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
         return result
 
     def reset(self):

@@ -14,12 +14,13 @@ def h5_loader(path):
     return rgb, depth
 
 class NYUDataset(BaseDataset):
-    def __init__(self, path, *args, **kwargs):
+    def __init__(self, path, output_size=(228, 304), resize=250, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
         self.loader = h5_loader
         self.path = Path(path)/self.split
-        self.output_size = (228, 304)
+        self.output_size = output_size
         self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]
+        self.resize = resize
         assert len(self.images) > 0, "Found 0 images in subfolders of: " + path + "\n"
         print("Found {} images in {} folder.".format(len(self.images), self.split))
 
@@ -32,7 +33,7 @@ class NYUDataset(BaseDataset):
         # color jitter
         rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
         # Resize
-        resize = transforms.Resize(250)
+        resize = transforms.Resize(self.resize)
         rgb = resize(rgb)
         depth = resize(depth)
         # Random Rotation
@@ -40,7 +41,7 @@ class NYUDataset(BaseDataset):
         rgb = TF.rotate(rgb, angle)
         depth = TF.rotate(depth, angle)
         # Resize
-        resize = transforms.Resize(int(250 * s))
+        resize = transforms.Resize(int(self.resize * s))
         rgb = resize(rgb)
         depth = resize(depth)
         # Center crop
@@ -60,7 +61,7 @@ class NYUDataset(BaseDataset):
         rgb = transforms.ToPILImage()(rgb)
         depth = transforms.ToPILImage()(depth)
         # Resize
-        resize = transforms.Resize(250)
+        resize = transforms.Resize(self.resize)
         rgb = resize(rgb)
         depth = resize(depth)
         # Center crop
