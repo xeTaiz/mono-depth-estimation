@@ -73,8 +73,25 @@ class Log10(TensorMetric):
     def forward(self, pred, target):
         return (self.log10(pred) - self.log10(target)).abs().mean()
 
+def Delta1_multi_gpu(pred, target):
+    maxRatio = torch.max(pred / target, target / pred)
+    return (maxRatio < 1.25 ** 1).float().mean()
+
+def Delta2_multi_gpu(pred, target):
+    maxRatio = torch.max(pred / target, target / pred)
+    return (maxRatio < 1.25 ** 2).float().mean()
+
+def Delta3_multi_gpu(pred, target):
+    maxRatio = torch.max(pred / target, target / pred)
+    return (maxRatio < 1.25 ** 3).float().mean()
+
+def Log10_multi_gpu(pred, target):
+    def log10(x):
+        return torch.log(x) / torch.log(torch.tensor(10.0))
+    return (log10(pred) - log10(target)).abs().mean()
+
 METRICS = pl.metrics.functional.__dict__
-METRICS['delta1'] = Delta(exp=1, name="delta1")
-METRICS['delta2'] = Delta(exp=2, name="delta2")
-METRICS['delta3'] = Delta(exp=3, name="delta3")
-METRICS['log10'] = Log10(name="log10")
+METRICS['delta1'] = Delta1_multi_gpu#Delta(exp=1, name="delta1")
+METRICS['delta2'] = Delta2_multi_gpu#Delta(exp=2, name="delta2")
+METRICS['delta3'] = Delta3_multi_gpu#Delta(exp=3, name="delta3")
+METRICS['log10'] = Log10_multi_gpu#Log10(name="log10")
