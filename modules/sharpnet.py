@@ -26,7 +26,7 @@ class SharpNetModule(pl.LightningModule):
         print("=> creating Model")
         self.model = SharpNet.SharpNet(SharpNet.Bottleneck, [3, 4, 6, 3], [2, 2, 2, 2, 2], use_depth=True)
         print("=> model created.")
-        if self.loss == 'berHuLoss':
+        if self.args.loss == 'berHuLoss':
             self.criterion = criteria.berHuLoss()
         elif self.args.loss == 'L1':
             self.criterion = criteria.MaskedL1Loss()
