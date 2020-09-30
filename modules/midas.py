@@ -6,11 +6,15 @@ from network import MiDaS
 from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
+import urllib.request
+from pathlib import Path
+from tqdm import tqdm
 
 class MidasModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
+        assert self.args.loss in ['midas', 'eigen', 'laina']
         self.train_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='train', output_size=(384, 384), resize=400),
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
@@ -21,12 +25,39 @@ class MidasModule(pl.LightningModule):
                                                     shuffle=False, 
                                                     num_workers=args.worker, 
                                                     pin_memory=True)
+        if self.args.pretrained: 
+            weights_path = Path.cwd()/"model-f46da743.pt"
+            if not weights_path.exists():                                                             
+                self.download_weights(weights_path)
+            weights_path = weights_path.resolve().as_posix()
+            print("Using pretrained weights: ", weights_path)
+        else:
+            weights_path = None                   
+                                       
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
-        self.model = MiDaS.MidasNet(features=256)
+        self.model = MiDaS.MidasNet(path=weights_path, features=256)
         print("=> model created.")
-        self.criterion = criteria.ScaleAndShiftInvariantLoss()
+        if self.args.loss == 'midas':
+            self.criterion = criteria.ScaleAndShiftInvariantLoss()
+        elif self.args.loss == 'eigen':
+            self.criterion = criteria.MaskedDepthLoss()
+        elif self.args.loss == 'laina':
+            self.criterion = criteria.MaskedL1Loss()
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
+
+    def download_weights(self, filename):
+        def my_hook(t):
+            last_b = [0]
+            def update_to(b=1, bsize=1, tsize=None):
+                if tsize is not None:
+                    t.total = tsize
+                t.update((b - last_b[0]) * bsize)
+                last_b[0] = b
+            return update_to
+        # start download
+        with tqdm(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc="Downloading MiDaS weights: {}".format(filename.as_posix())) as t:
+            urllib.request.urlretrieve("https://github.com/intel-isl/MiDaS/releases/download/v2/model-f46da743.pt", filename = filename, reporthook = my_hook(t), data = None)
 
     def forward(self, x):
         y_hat = self.model(x)
@@ -81,4 +112,7 @@ class MidasModule(pl.LightningModule):
         parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')
         parser.add_argument('--path', required=True, type=str, help='Path to NYU')
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
+        parser.add_argument('--pretrained', default=0, type=int, help="Use pretrained MiDaS")
+        parser.add_argument('--features', default=256, type=int, help='Number of features')
+        parser.add_argument('--loss', default='midas', type=str, help='loss function: [midas, eigen, laina]')
         return parser
