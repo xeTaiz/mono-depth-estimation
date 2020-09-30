@@ -11,7 +11,7 @@ class SharpNetModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        assert self.loss in ['berHuLoss', 'L1']
+        assert self.args.loss in ['berHuLoss', 'L1']
         self.train_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='train'),
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
