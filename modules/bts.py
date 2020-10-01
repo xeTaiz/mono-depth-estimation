@@ -77,8 +77,6 @@ class BtsModule(pl.LightningModule):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
-        parser.add_argument('--backbone', default='vgg', type=str, help="Backbone")
-        parser.add_argument('--pretrained', default=1, type=int, help="Use pretrained backbone.")
         parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
         parser.add_argument('--batch_size',    default=8,     type=int,   help='Batch Size')
         parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')
