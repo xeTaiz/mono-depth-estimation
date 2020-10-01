@@ -7,11 +7,17 @@ from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
 
+sharpnetloss = criteria.SharpNetLoss(lamb=1, mu=0.5, use_depth=True)
+def SharpNetLoss(pred, target):
+    mask = target > 0
+    d_loss, grad_loss, n_loss, b_loss, geo_loss = sharpnetloss(mask, d_pred=pred, d_gt=target)
+    return d_loss + grad_loss + n_loss + b_loss + geo_loss
+
 class SharpNetModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        assert self.args.loss in ['berHuLoss', 'L1']
+        assert self.args.loss in ['berHuLoss', 'L1', 'SharpNetLoss']
         self.train_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='train'),
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
@@ -30,6 +36,8 @@ class SharpNetModule(pl.LightningModule):
             self.criterion = criteria.berHuLoss()
         elif self.args.loss == 'L1':
             self.criterion = criteria.MaskedL1Loss()
+        elif self.args.loss == 'SharpNetLoss':
+            self.criterion = SharpNetLoss
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
 
     def forward(self, x):
@@ -68,7 +76,7 @@ class SharpNetModule(pl.LightningModule):
         # different modules have different learning rate
         train_params = SharpNet.get_params(self.model)
 
-        optimizer = torch.optim.Adam(train_params, lr=self.args.learning_rate)
+        optimizer = torch.optim.Adam(train_params, lr=self.args.learning_rate, weight_decay=self.args.weight_decay)
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.args.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
@@ -85,5 +93,6 @@ class SharpNetModule(pl.LightningModule):
         parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')
         parser.add_argument('--path', required=True, type=str, help='Path to NYU')
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
-        parser.add_argument('--loss', default='berHuLoss', type=str, help='loss function: [berHuLoss, L1]')
+        parser.add_argument('--weight_decay', default=5e-5, type=float, help='Weight decay rate')
+        parser.add_argument('--loss', default='SharpNetLoss', type=str, help='loss function: [berHuLoss, L1, SharpNetLoss]')
         return parser

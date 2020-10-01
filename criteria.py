@@ -329,7 +329,7 @@ class SharpNetLoss(nn.Module):
                                                                   smooth_error=True)
 
         if self.use_depth:
-            self.masked_depth_loss = LainaBerHuLoss(use_logs=True)
+            self.masked_depth_loss = LainaBerHuLoss(use_logs=True, clamp_val=1e-7)
 
         if self.use_boundary_loss:
             self.boundary_loss = DoobNetLoss(beta=4, gamma=0.5, sigma=3)
@@ -393,9 +393,11 @@ class LainaBerHuLoss(nn.Module):
         self.use_log = use_logs
         self.clamp_val = clamp_val
 
-    def forward(self, input, target, mask):
+    def forward(self, input, target, mask=None):
+        if mask is None:
+            mask = target > 0
         if self.use_log:
-            n = thLog(input.clamp(min=self.clamp_val)) - thLog(target.clamp(min=self.clamp_val))
+            n = torch.log(input.clamp(min=self.clamp_val)) - torch.log(target.clamp(min=self.clamp_val))
         else:
             n = input - target
 
@@ -495,6 +497,8 @@ class SpatialGradientsLoss(nn.Module):
         grad_loss = 0
 
         if self.smooth_error:
+            print(input.clamp(min=self.clamp_value).shape)
+            print(target.clamp(min=self.clamp_value).shape)
             diff = thLog(input.clamp(min=self.clamp_value)) - thLog(target.clamp(min=self.clamp_value))
 
             gx_diff = F.conv2d(diff, (1.0 / 8.0) * sobel_x, padding=1)
