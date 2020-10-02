@@ -2,6 +2,7 @@ import pytorch_lightning as pl
 from argparse import ArgumentParser
 import random
 from modules import bts
+import torch
 
 if __name__ == "__main__":
     parser = ArgumentParser('Trains mono depth estimation models')
@@ -35,6 +36,17 @@ if __name__ == "__main__":
         max_epochs=args.max_epochs,
         logger=pl.loggers.TensorBoardLogger("result", name='bts')
     )
+
+    yaml = args.__dict__
+    yaml.update({
+            'random_seed': args.seed,
+            'gpu_name': torch.cuda.get_device_name(0),
+            'gpu_capability': torch.cuda.get_device_capability(0)
+            })
+   
+    if hasattr(trainer, 'logger'):
+        trainer.logger.log_hyperparams(yaml) # Log random seed
+
 
     # Fit model
     trainer.fit(model)
