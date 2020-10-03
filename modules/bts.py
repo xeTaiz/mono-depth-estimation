@@ -1,23 +1,36 @@
 import torch
 import pytorch_lightning as pl
 import criteria
-from datasets import nyu_dataloader
+from datasets.nyu_dataloader import NYUDataset
+from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
 from network import Bts
 from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
+
+def get_dataset(path, split, dataset):
+    if dataset == 'nyu':
+        return NYUDataset(path, split=split, output_size=(416, 544), resize=450)
+    elif dataset == 'noreflection':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(416, 544), resize=450)
+    elif dataset == 'isotropic':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(416, 544), resize=450)
+    elif dataset == 'mirror':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(416, 544), resize=450)
+    else:
+        raise ValueError('unknown dataset {}'.format(dataset))
 
 class BtsModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
         
-        self.train_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='train', output_size=(416, 544), resize=480),
+        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=args.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='val', output_size=(416, 544), resize=480),
+        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
                                                     batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=args.worker, 
@@ -88,4 +101,6 @@ class BtsModule(pl.LightningModule):
         parser.add_argument('--variance_focus', type=float, default=0.85, help='lambda in paper: [0, 1], higher value more focus on minimizing variance of error')
         parser.add_argument('--adam_eps', type=float, help='epsilon in Adam optimizer', default=1e-6)
         parser.add_argument('--weight_decay', type=float, help='weight decay factor for optimization', default=1e-2)
+        parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
         return parser

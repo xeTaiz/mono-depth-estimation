@@ -17,7 +17,7 @@ class Floorplan3DDataset(BaseDataset):
     def __init__(self, path, datast_type=DatasetType.NO_REFLECTION, output_size=(360, 640), resize=400, *args, **kwargs):
         super(Floorplan3DDataset, self).__init__(*args, **kwargs)
         self.path = Path(path)
-        self.output_size = (360, 640)
+        self.output_size = output_size
         self.resize = resize
         self.dataset_type = datast_type.value
         self.load_scene_names()

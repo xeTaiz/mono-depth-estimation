@@ -1,11 +1,24 @@
 import torch
 import pytorch_lightning as pl
 import criteria
-from datasets import nyu_dataloader
+from datasets.nyu_dataloader import NYUDataset
+from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
 from network import SharpNet
 from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
+
+def get_dataset(path, split, dataset):
+    if dataset == 'nyu':
+        return NYUDataset(path, split=split, output_size=(240, 320), resize=250)
+    elif dataset == 'noreflection':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(240, 320), resize=250)
+    elif dataset == 'isotropic':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(240, 320), resize=250)
+    elif dataset == 'mirror':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(240, 320), resize=250)
+    else:
+        raise ValueError('unknown dataset {}'.format(dataset))
 
 sharpnetloss = criteria.SharpNetLoss(lamb=1, mu=0.5, use_depth=True)
 def SharpNetLoss(pred, target):
@@ -18,12 +31,12 @@ class SharpNetModule(pl.LightningModule):
         super().__init__()
         self.args = args
         assert self.args.loss in ['berHuLoss', 'L1', 'SharpNetLoss']
-        self.train_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='train'),
+        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=args.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='val'),
+        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
                                                     batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=args.worker, 
@@ -95,4 +108,6 @@ class SharpNetModule(pl.LightningModule):
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--weight_decay', default=5e-5, type=float, help='Weight decay rate')
         parser.add_argument('--loss', default='SharpNetLoss', type=str, help='loss function: [berHuLoss, L1, SharpNetLoss]')
+        parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
         return parser

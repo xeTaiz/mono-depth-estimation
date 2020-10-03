@@ -1,7 +1,8 @@
 import torch
 import pytorch_lightning as pl
 import criteria
-from datasets import nyu_dataloader
+from datasets.nyu_dataloader import NYUDataset
+from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
 from network import MiDaS
 from argparse import ArgumentParser
 import visualize
@@ -10,17 +11,29 @@ import urllib.request
 from pathlib import Path
 from tqdm import tqdm
 
+def get_dataset(path, split, dataset):
+    if dataset == 'nyu':
+        return NYUDataset(path, split=split, output_size=(384, 384), resize=400)
+    elif dataset == 'noreflection':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(384, 384), resize=400)
+    elif dataset == 'isotropic':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(384, 384), resize=400)
+    elif dataset == 'mirror':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(384, 384), resize=400)
+    else:
+        raise ValueError('unknown dataset {}'.format(dataset))
+
 class MidasModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
         assert self.args.loss in ['midas', 'eigen', 'laina']
-        self.train_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='train', output_size=(384, 384), resize=400),
+        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=args.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='val', output_size=(384, 384), resize=400),
+        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
                                                     batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=args.worker, 
@@ -115,4 +128,6 @@ class MidasModule(pl.LightningModule):
         parser.add_argument('--pretrained', default=0, type=int, help="Use pretrained MiDaS")
         parser.add_argument('--features', default=256, type=int, help='Number of features')
         parser.add_argument('--loss', default='midas', type=str, help='loss function: [midas, eigen, laina]')
+        parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
         return parser

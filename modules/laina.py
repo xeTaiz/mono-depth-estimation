@@ -1,22 +1,35 @@
 import torch
 import pytorch_lightning as pl
 import criteria
-from datasets import nyu_dataloader
+from datasets.nyu_dataloader import NYUDataset
+from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
 from network import FCRN
 from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
 
+def get_dataset(path, split, dataset):
+    if dataset == 'nyu':
+        return NYUDataset(path, split=split, output_size=(240, 320), resize=250)
+    elif dataset == 'noreflection':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(240, 320), resize=250)
+    elif dataset == 'isotropic':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(240, 320), resize=250)
+    elif dataset == 'mirror':
+        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(240, 320), resize=250)
+    else:
+        raise ValueError('unknown dataset {}'.format(dataset))
+
 class FCRNModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.train_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='train'),
+        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=args.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='val'),
+        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
                                                     batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=args.worker, 
@@ -81,4 +94,6 @@ class FCRNModule(pl.LightningModule):
         parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')
         parser.add_argument('--path', required=True, type=str, help='Path to NYU')
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
+        parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
         return parser
