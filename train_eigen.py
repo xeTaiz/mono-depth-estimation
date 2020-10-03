@@ -2,6 +2,7 @@ import pytorch_lightning as pl
 from argparse import ArgumentParser
 import random
 from modules import eigen
+import torch
 
 if __name__ == "__main__":
     parser = ArgumentParser('Trains mono depth estimation models')

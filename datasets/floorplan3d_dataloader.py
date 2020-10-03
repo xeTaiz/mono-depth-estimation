@@ -1,108 +1,107 @@
+from pathlib import Path
+import h5py
 import numpy as np
-import dataloaders.transforms as transforms
-import torch.utils.data as data
-import os
 from PIL import Image
+from datasets.dataset import BaseDataset
+from torchvision import transforms
+import torchvision.transforms.functional as TF
+import torch
+from enum import Enum
 
-iheight, iwidth = 720, 1280  # raw image size
+class DatasetType(Enum):
+    NO_REFLECTION = '0'
+    ISOTROPIC_MATERIAL = '1'
+    ISOTROPIC_PLANAR_SURFACES = '2'
 
-def PILLoader(file):
-    assert os.path.exists(file), "file not found: {}".format(file)
-    return np.asarray(Image.open(file).convert('RGB'), dtype=np.uint8)
+class Floorplan3DDataset(BaseDataset):
+    def __init__(self, path, datast_type=DatasetType.NO_REFLECTION, output_size=(360, 640), resize=400, *args, **kwargs):
+        super(Floorplan3DDataset, self).__init__(*args, **kwargs)
+        self.path = Path(path)
+        self.output_size = (360, 640)
+        self.resize = resize
+        self.dataset_type = datast_type.value
+        self.load_scene_names()
+        self.load_images()
+        print("Found {} scenes containing {} images for {}".format(len(self.scene_names),self.__len__(), self.split))
 
-def DepthLoader(file):
-    # loads depth map D from png file
-    assert os.path.exists(file), "file not found: {}".format(file)
-    depth_png = np.array(Image.open(file), dtype=np.uint16)
-    depth = depth_png.astype(np.float32) / ((2**16) - 1)
-    depth *= 10.0 # rescale to range[0..10]
-    return depth
+    def load_scene_names(self):
+        scene_names = [scene for scene in self.path.glob('*/*')]
+        if self.split == 'train':
+            self.scene_names = scene_names[0:500]
+        else:
+            self.scene_names = scene_names[500:]
 
-to_tensor = transforms.ToTensor()
+    def load_images(self):
+        self.images = []
+        for scene_name in self.scene_names:
+            self.images += [f for f in scene_name.glob('**/*') if all([s in f.name for s in ['color', '.jpg']]) and f.parent.name == self.dataset_type]
 
-
-class Floorplan3DDataset(data.Dataset):
-    color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
-    def __init__(self, root, dataset_type, split):
-        self.output_size = (228, 405)
-        self.root = root
-        file_list = "{}/{}_{}.list".format(root, dataset_type, split)
-        with open(file_list, "r") as f:
-            self.imgs = f.readlines()
-
-        self.depth_loader = DepthLoader
-        self.color_loader = PILLoader
-
-        if split == 'train':
-            self.transform = self.train_transform
-        elif split == 'val':
-            self.transform = self.val_transform
-        
-
-    def train_transform(self, rgb, depth):       
-        s = np.random.uniform(1.0, 1.5)  # random scaling
-        depth_np = depth / s
-        angle = np.random.uniform(-5.0, 5.0)  # random rotation degrees
-        do_flip = np.random.uniform(0.0, 1.0) < 0.5  # random horizontal flip
-
-        # perform 1st step of data augmentation
-        transform = transforms.Compose([
-            transforms.Resize(250.0 / iheight),  # this is for computational efficiency, since rotation can be slow
-            transforms.Rotate(angle),
-            transforms.Resize(s),
-            transforms.CenterCrop(self.output_size),
-            transforms.HorizontalFlip(do_flip)
-        ])
-        
-        rgb_np = transform(rgb)
-        rgb_np = self.color_jitter(rgb_np)  # random color jittering
-        rgb_np = np.asfarray(rgb_np, dtype='float') / 255
-        
-        depth_np = transform(depth_np)
-    
-        return rgb_np, depth_np
-
-    def val_transform(self, rgb, depth):
-        depth_np = depth
-        transform = transforms.Compose([
-            transforms.Resize(240.0 / iheight),
-            transforms.CenterCrop(self.output_size),
-        ])
-        rgb_np = transform(rgb)
-        rgb_np = np.asfarray(rgb_np, dtype='float') / 255
-        depth_np = transform(depth_np)
-
-        return rgb_np, depth_np
-
-    def __getraw__(self, index):
-        """
-        Args:
-            index (int): Index
-
-        Returns:
-            tuple: (rgb, depth) the raw data.
-        """
-        (path, target) = self.imgs[index].strip().split("  ")
-        path = os.path.join(self.root, path)
-        target = os.path.join(self.root, target)
-        rgb = self.color_loader(path)
-        depth = self.depth_loader(target)
+    def training_preprocess(self, rgb, depth):
+        s = np.random.uniform(1, 1.5)
+        # color jitter
+        rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
+        # Resize
+        resize = transforms.Resize(self.resize)
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Random Rotation
+        angle = np.random.uniform(-5,5)
+        rgb = TF.rotate(rgb, angle)
+        depth = TF.rotate(depth, angle)
+        # Resize
+        resize = transforms.Resize(int(self.resize * s))
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Center crop
+        crop = transforms.CenterCrop(self.output_size)
+        rgb = crop(rgb)
+        depth = crop(depth)
+        # Random horizontal flipping
+        if np.random.uniform(0,1) > 0.5:
+            rgb = TF.hflip(rgb)
+            depth = TF.hflip(depth)
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = np.array(depth, dtype=np.float32)
+        depth /= 1000 
+        depth = np.clip(depth, 0, 10)
+        depth = depth / s
+        depth = TF.to_tensor(depth)
         return rgb, depth
 
-    def __getitem__(self, index):
-        rgb, depth = self.__getraw__(index)
-        if self.transform is not None:
-            rgb_np, depth_np = self.transform(rgb, depth)
-        else:
-            raise (RuntimeError("transform not defined"))
+    def validation_preprocess(self, rgb, depth):
+        # Resize
+        resize = transforms.Resize(self.resize)
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Center crop
+        crop = transforms.CenterCrop(self.output_size)
+        rgb = crop(rgb)
+        depth = crop(depth)
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = np.array(depth, dtype=np.float32)
+        depth /= 1000
+        depth = np.clip(depth, 0, 10)
+        depth = TF.to_tensor(depth)
+        return rgb, depth
 
-        input_tensor = to_tensor(rgb_np)
-        while input_tensor.dim() < 3:
-            input_tensor = input_tensor.unsqueeze(0)
-        depth_tensor = to_tensor(depth_np)
-        depth_tensor = depth_tensor.unsqueeze(0)
+    def get_raw(self, index):
+        path = self.images[index]
+        rgb = Image.open(path).convert('RGB')
+        depth_path = path.parent/path.name.replace('color', 'depth').replace('jpg', 'png')
+        depth = Image.open(depth_path)
+        return rgb, depth
 
-        return input_tensor, depth_tensor
+if __name__ == "__main__":
+    import visualize
+    import cv2
+    dataset = Floorplan3DDataset(path="G:/data/floorplan3d", split="train", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES)
+    img, depth = dataset.__getitem__(100)
+    print(torch.min(depth))
+    print(torch.max(depth))
+    viz = visualize.merge_into_row(img, depth, depth)
+    cv2.imshow("viz", viz.astype('uint8'))
+    cv2.waitKey(0)
 
-    def __len__(self):
-        return len(self.imgs)
+    

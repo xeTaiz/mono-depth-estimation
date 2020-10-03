@@ -1,0 +1,175 @@
+import torch
+import pytorch_lightning as pl
+import criteria
+from datasets import nyu_dataloader
+from network import VNL
+from argparse import ArgumentParser
+import visualize
+from metrics import MetricLogger
+import numpy as np
+
+
+class VNLModule(pl.LightningModule):
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        self.args.depth_min_log = np.log10(self.args.depth_min)
+        self.args.depth_bin_interval = (np.log10(self.args.depth_max) - np.log10(self.args.depth_min)) / self.args.dec_out_c
+        self.args.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.args.dec_out_c)] for j in np.arange(self.args.dec_out_c)]
+        self.args.depth_bin_border = np.array([np.log10(self.args.depth_min) + self.args.depth_bin_interval * (i + 0.5) for i in range(self.args.dec_out_c)])
+        self.train_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='train', output_size=(385, 385), resize=400),
+                                                    batch_size=args.batch_size, 
+                                                    shuffle=True, 
+                                                    num_workers=args.worker, 
+                                                    pin_memory=True)
+        self.val_loader = torch.utils.data.DataLoader(nyu_dataloader.NYUDataset(args.path, split='val', output_size=(385, 385), resize=400),
+                                                    batch_size=1, 
+                                                    shuffle=False, 
+                                                    num_workers=args.worker, 
+                                                    pin_memory=True)
+        self.skip = len(self.val_loader) // 9
+        print("=> creating Model")
+        self.model = VNL.MetricDepthModel(self.args)
+        print("=> model created.")
+        self.criterion = criteria.ModelLoss(self.args)
+        self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
+
+    def depth_to_bins(self, depth):
+        """
+        Discretize depth into depth bins
+        Mark invalid padding area as cfg.MODEL.DECODER_OUTPUT_C + 1
+        :param depth: 1-channel depth, [1, h, w]
+        :return: depth bins [1, h, w]
+        """
+        invalid_mask = depth < 0.
+        depth[depth < self.args.depth_min] = self.args.depth_min
+        depth[depth > self.args.depth_max] = self.args.depth_max
+        bins = ((torch.log10(depth) - self.args.depth_min_log) / self.args.depth_bin_interval).to(torch.int)
+        bins[invalid_mask] = self.args.dec_out_c + 1
+        bins[bins == self.args.dec_out_c] = self.args.dec_out_c - 1
+        depth[invalid_mask] = -1.0
+        return bins
+
+    def bins_to_depth(self, depth_bin):
+        """
+        Transfer n-channel discrate depth bins to 1-channel conitnuous depth
+        :param depth_bin: n-channel output of the network, [b, c, h, w]
+        :return: 1-channel depth, [b, 1, h, w]
+        """
+        depth_bin = depth_bin.permute(0, 2, 3, 1) #[b, h, w, c]
+        depth_bin_border = torch.tensor(self.args.depth_bin_border, dtype=torch.float32).cuda()
+        depth = depth_bin * depth_bin_border
+        depth = torch.sum(depth, dim=3, dtype=torch.float32, keepdim=True)
+        depth = 10 ** depth
+        depth = depth.permute(0, 3, 1, 2)  # [b, 1, h, w]
+        return depth
+
+    def forward(self, x):
+        y_hat = self.model(x)
+        return y_hat
+
+    def train_dataloader(self):
+        return self.train_loader
+
+    def val_dataloader(self):
+        return self.val_loader
+
+    def training_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        pred_logits, pred_cls = self(x)
+        loss = self.criterion(self.bins_to_depth(pred_cls), pred_logits, self.depth_to_bins(y), y)
+        y_hat = self.predicted_depth_map(pred_logits, pred_cls)
+        return self.metric_logger.log_train(y_hat, y, loss)
+
+    def predicted_depth_map(self, logits, cls):
+        if self.args.prediction_method == 'classification':
+            pred_depth = self.bins_to_depth(cls)
+        elif self.args.prediction_method == 'regression':
+            pred_depth = torch.nn.functional.sigmoid(logits)
+        else:
+            raise ValueError("Unknown prediction methods")
+        return pred_depth
+
+    def validation_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        pred_logits, pred_cls = self(x)
+        y_hat = self.predicted_depth_map(pred_logits, pred_cls)
+        if batch_idx == 0:
+            self.img_merge = visualize.merge_into_row(x, y, y_hat)
+        elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
+            row = visualize.merge_into_row(x, y, y_hat)
+            self.img_merge = visualize.add_row(self.img_merge, row)
+        elif batch_idx == 8 * self.skip:
+            filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
+            visualize.save_image(self.img_merge, filename)
+        return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
+
+    def configure_optimizers(self):
+        # different modules have different learning rate
+        encoder_params = []
+        encoder_params_names = []
+        decoder_params = []
+        decoder_params_names = []
+        nograd_param_names = []
+
+        for key, value in dict(self.model.named_parameters()).items():
+            if value.requires_grad:
+                if 'res' in key:
+                    encoder_params.append(value)
+                    encoder_params_names.append(key)
+                else:
+                    decoder_params.append(value)
+                    decoder_params_names.append(key)
+            else:
+                nograd_param_names.append(key)
+
+        lr_encoder = self.args.learning_rate
+        lr_decoder = self.args.learning_rate * self.args.scale_decoder_lr
+        weight_decay = self.args.weight_decay
+
+        net_params = [
+            {'params': encoder_params,
+             'lr': lr_encoder,
+             'weight_decay': weight_decay},
+            {'params': decoder_params,
+             'lr': lr_decoder,
+             'weight_decay': weight_decay},
+            ]
+        optimizer = torch.optim.SGD(net_params, momentum=0.9)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.args.lr_patience)
+        scheduler = {
+            'scheduler': lr_scheduler,
+            'reduce_on_plateua': True,
+            'monitor': 'val_checkpoint_on'
+        }
+        return [optimizer], [scheduler]
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = ArgumentParser(parents=[parent_parser], add_help=False)
+        parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
+        parser.add_argument('--weight_decay', default=0.0005, type=float, help='Weight decay')
+        parser.add_argument('--batch_size',    default=8,     type=int,   help='Batch Size')
+        parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')
+        parser.add_argument('--path', required=True, type=str, help='Path to NYU')
+        parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
+        parser.add_argument('--encoder', default='resnext50_32x4d_body_stride16', type=str, help='Encoder architecture')
+        parser.add_argument('--init_type', default='xavier', type=str, help='Weight initialization')
+        parser.add_argument('--pretrained', default=1, type=int, help='pretrained backbone')
+        parser.add_argument('--enc_dim_in', nargs='+', default=[64, 256, 512, 1024, 2048], help='encoder input features')
+        parser.add_argument('--enc_dim_out', nargs='+', default=[512, 256, 256, 256], help='encoder output features')
+        parser.add_argument('--dec_dim_in', nargs='+', default=[512, 256, 256, 256, 256, 256], help='decoder input features')
+        parser.add_argument('--dec_dim_out', nargs='+', default=[256, 256, 256, 256, 256], help='decoder output features')
+        parser.add_argument('--dec_out_c', default=150, type=int, help='decoder output channels')
+        parser.add_argument('--crop_size', default=(385, 385), help='Crop size for mobilenet')
+        parser.add_argument('--scale_decoder_lr', default=0.1, type=float, help='Scaling of LR for decoder')
+        parser.add_argument('--freeze_backbone', action='store_true', help='Freeze backbone')
+        parser.add_argument('--depth_min', default=0.01, type=float, help='minimum depth')
+        parser.add_argument('--depth_max', default=1.7, type=float, help='maximum depth')
+        parser.add_argument('--focal_x', default=519.0, type=float, help='focal x')
+        parser.add_argument('--focal_y', default=519.0, type=float, help='focal y')
+        parser.add_argument('--diff_loss_weight', default=6, type=float, help='diff loss weight')
+        parser.add_argument('--prediction_method', default='classification', type=str, help='type of prediction. classification or regression')
+        return parser
