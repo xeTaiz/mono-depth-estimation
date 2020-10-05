@@ -33,8 +33,16 @@ class Floorplan3DDataset(BaseDataset):
 
     def load_images(self):
         self.images = []
+        self.depth = []
         for scene_name in self.scene_names:
-            self.images += [f for f in scene_name.glob('**/*') if all([s in f.name for s in ['color', '.jpg']]) and f.parent.name == self.dataset_type]
+            images += [f for f in scene_name.glob('**/*') if all([s in f.name for s in ['color', '.jpg']]) and f.parent.name == self.dataset_type]
+            for img_path in images:
+                depth_path = img_path.parent/img_path.name.replace('color', 'depth').replace('jpg', 'png')
+                if img_path.exists() and depth_path.exists():
+                    self.images.append(img_path)
+                    self.depth.append(depth_path)
+                
+
 
     def training_preprocess(self, rgb, depth):
         s = np.random.uniform(1, 1.5)
@@ -87,9 +95,9 @@ class Floorplan3DDataset(BaseDataset):
         return rgb, depth
 
     def get_raw(self, index):
-        path = self.images[index]
-        rgb = Image.open(path).convert('RGB')
-        depth_path = path.parent/path.name.replace('color', 'depth').replace('jpg', 'png')
+        img_path = self.images[index]
+        depth_path = self.depth[index]
+        rgb = Image.open(img_path).convert('RGB')
         depth = Image.open(depth_path)
         return rgb, depth
 
