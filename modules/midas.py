@@ -3,6 +3,7 @@ import pytorch_lightning as pl
 import criteria
 from datasets.nyu_dataloader import NYUDataset
 from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
+from datasets.structured3d_dataset import Structured3DDataset
 from network import MiDaS
 from argparse import ArgumentParser
 import visualize
@@ -20,6 +21,8 @@ def get_dataset(path, split, dataset):
         return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(384, 384), resize=400)
     elif dataset == 'mirror':
         return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(384, 384), resize=400)
+    elif dataset == 'structured3d':
+        return Structured3DDataset(path, split=split, dataset_type='perspective', output_size=(384, 384), resize=400)
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
 
@@ -128,6 +131,6 @@ class MidasModule(pl.LightningModule):
         parser.add_argument('--pretrained', default=0, type=int, help="Use pretrained MiDaS")
         parser.add_argument('--features', default=256, type=int, help='Number of features')
         parser.add_argument('--loss', default='midas', type=str, help='loss function: [midas, eigen, laina]')
-        parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
-        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror, structured3d]')
+        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror, structured3d]')
         return parser

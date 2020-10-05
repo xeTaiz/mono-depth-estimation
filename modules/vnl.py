@@ -3,6 +3,7 @@ import pytorch_lightning as pl
 import criteria
 from datasets.nyu_dataloader import NYUDataset
 from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
+from datasets.structured3d_dataset import Structured3DDataset
 from network import VNL
 from argparse import ArgumentParser
 import visualize
@@ -18,6 +19,8 @@ def get_dataset(path, split, dataset):
         return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(385, 385), resize=400)
     elif dataset == 'mirror':
         return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(385, 385), resize=400)
+    elif dataset == 'structured3d':
+        return Structured3DDataset(path, split=split, dataset_type='perspective', output_size=(385, 385), resize=400)
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
 
