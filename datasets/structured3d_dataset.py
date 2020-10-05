@@ -6,26 +6,13 @@ from pathlib import Path
 from PIL import Image
 from tqdm import tqdm
 
-def PILLoader(file):
-    assert Path(file).exists(), "file not found: {}".format(file)
-    return Image.open(file).convert('RGB')
-
-def DepthLoader(file):
-    # loads depth map D from png file
-    assert Path(file).exists(), "file not found: {}".format(file)
-    depth_png = np.array(Image.open(file), dtype=np.float32) # uint16 --> [0,65535] in millimeters
-    depth = depth_png/1000 #conversion to meters [0, 65.535]
-    np.clip(depth, 0, 10, depth) # clip to range[0..10] in meters
-    depth /= 10.0 #normalize to range [0,1]
-    return depth
-
-
 class Structured3DDataset(BaseDataset):
-    def __init__(self, path, dataset_type='perspective', *args, **kwargs):
+    def __init__(self, path, dataset_type='perspective', output_size=(360, 640), resize=400, *args, **kwargs):
         super(Structured3DDataset, self).__init__(*args, **kwargs)
         assert dataset_type in ['perspective', 'panorama','panorama_empty', 'panorama_simple', 'panorama_full']
         self.dataset_type = dataset_type
-        self.output_size = (228, 405)
+        self.output_size = output_size
+        self.resize = resize
         self.path = path
         self.rgb_loader = PILLoader
         self.depth_loader = DepthLoader
@@ -47,13 +34,10 @@ class Structured3DDataset(BaseDataset):
         
     def training_preprocess(self, rgb, depth):
         s = np.random.uniform(1, 1.5)
-        depth = depth / s
-
-        depth = transforms.ToPILImage()(depth)
         # color jitter
         rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
         # Resize
-        resize = transforms.Resize(250)
+        resize = transforms.Resize(self.resize)
         rgb = resize(rgb)
         depth = resize(depth)
         # Random Rotation
@@ -61,7 +45,7 @@ class Structured3DDataset(BaseDataset):
         rgb = TF.rotate(rgb, angle)
         depth = TF.rotate(depth, angle)
         # Resize
-        resize = transforms.Resize(int(250 * s))
+        resize = transforms.Resize(int(self.resize * s))
         rgb = resize(rgb)
         depth = resize(depth)
         # Center crop
@@ -74,14 +58,16 @@ class Structured3DDataset(BaseDataset):
             depth = TF.hflip(depth)
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
-        depth = TF.to_tensor(np.array(depth))
+        depth = np.array(depth, dtype=np.float32)
+        depth /= 1000 
+        depth = np.clip(depth, 0, 10)
+        depth = depth / s
+        depth = TF.to_tensor(depth)
         return rgb, depth
 
     def validation_preprocess(self, rgb, depth):
-        rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
         # Resize
-        resize = transforms.Resize(250)
+        resize = transforms.Resize(self.resize)
         rgb = resize(rgb)
         depth = resize(depth)
         # Center crop
@@ -90,11 +76,16 @@ class Structured3DDataset(BaseDataset):
         depth = crop(depth)
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
-        depth = TF.to_tensor(np.array(depth))
+        depth = np.array(depth, dtype=np.float32)
+        depth /= 1000
+        depth = np.clip(depth, 0, 10)
+        depth = TF.to_tensor(depth)
         return rgb, depth
 
     def get_raw(self, index):
         rgb_path = self.images[index]
         depth_path = rgb_path.replace("rgb_rawlight", "depth")
-        return self.rgb_loader(rgb_path), self.depth_loader(depth_path)
+        rgb = Image.open(rgb_path).convert('RGB')
+        depth = Image.open(depth_path)
+        return rgb, depth
     
