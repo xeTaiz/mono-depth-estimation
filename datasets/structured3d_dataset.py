@@ -14,8 +14,6 @@ class Structured3DDataset(BaseDataset):
         self.output_size = output_size
         self.resize = resize
         self.path = path
-        self.rgb_loader = PILLoader
-        self.depth_loader = DepthLoader
         self.load_scene_names()
         self.load_images()
 
