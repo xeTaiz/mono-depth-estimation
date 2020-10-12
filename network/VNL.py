@@ -4,6 +4,8 @@ import torchvision
 from collections import OrderedDict
 import math
 from torch.nn import functional as F
+from pathlib import Path
+import numpy as np
 
 def get_func(args):
     if args.encoder == 'resnext50_32x4d_body_stride16':
@@ -15,50 +17,77 @@ def get_func(args):
     else:
         raise ValueError("Unknown bottom up model")
 
-def load_pretrained_imagenet_resnext_weights(model):
-    """Load pretrained weights
-    Args:
-        num_layers: 50 for res50 and so on.
-        model: the generalized rcnnn module
-    """
-    src_dict = dict(torchvision.models.resnext50_32x4d(pretrained=True).named_parameters())
-    pretrianed_state_dict = convert_state_dict(src_dict)
+
+def convert_state_dict_mobilenet(src_dict):
+        """Return the correct mapping of tensor name and value
+
+        Mapping from the names of torchvision model to our resnet conv_body and box_head.
+        """
+        dst_dict = {}
+        res_block_n = np.array([1, 4, 7, 14, 18])
+        for k, v in src_dict.items():
+            toks = k.split('.')
+            id_n = int(toks[1])
+            if id_n < 18 and '17.conv.7' not in k and 'classifier' not in k:
+                res_n = np.where(res_block_n > id_n)[0][0] + 1
+                n = res_n - 2 if res_n >= 2 else 0
+                res_n_m = 0 if id_n - res_block_n[n] < 0 else id_n - res_block_n[n]
+                toks[0] = 'res%s' % res_n
+                toks[1] = '%s' % res_n_m
+                name = '.'.join(toks)
+                dst_dict[name] = v
+        return dst_dict
+
+def convert_state_dict_resnext(src_dict):
+        """Return the correct mapping of tensor name and value
+
+        Mapping from the names of torchvision model to our resnet conv_body and box_head.
+        """
+        dst_dict = {}
+        res_id = 1
+        map1 = ['conv1.', 'bn1.', ' ', 'conv2.', 'bn2.']
+        map2 = [[' ', 'conv3.', 'bn3.'], ['shortcut.conv.', 'shortcut.bn.']]
+        for k, v in src_dict.items():
+            toks = k.split('.')
+            if int(toks[0]) == 0:
+                name = 'res%d.' % res_id + 'conv1.' + toks[-1]
+            elif int(toks[0]) == 1:
+                name = 'res%d.' % res_id + 'bn1.' + toks[-1]
+            elif int(toks[0]) >=4 and int(toks[0]) <= 7:
+                name_res = 'res%d.%d.' % (int(toks[0])-2, int(toks[1]))
+                if len(toks) == 7:
+                    name = name_res + map1[int(toks[-2])] + toks[-1]
+                elif len(toks) == 6:
+                    name = name_res + map2[int(toks[-3])][int(toks[-2])] + toks[-1]
+            else:
+                continue
+            dst_dict[name] = v
+
+        return dst_dict
+
+
+def load_pretrained_imagenet_weights(model, encoder):
+    net = "MobileNetV2-ImageNet" if "mobilenet" in encoder else "ResNeXt-ImageNet"
+    if "resnext50" in encoder:
+        weights_file = "resnext50_32x4d.pth"
+    elif "resnext101" in encoder:
+        weights_file = "resnext101_32x4d.pth"
+    elif "mobilenet" in encoder:
+        weights_file = "mobilenet_v2.pth.tar"
+    else:
+        raise ValueError("unknow encoder", encoder)
+    weights_file = Path(Path.cwd(), "network", "pretrained_models", net, weights_file)
+    convert_state_dict = convert_state_dict_mobilenet if "mobilenet" in encoder else convert_state_dict_resnext
+    pretrianed_state_dict = convert_state_dict(torch.load(weights_file))
 
     model_state_dict = model.state_dict()
-    
+
     for k, v in pretrianed_state_dict.items():
         if k in model_state_dict.keys():
             model_state_dict[k].copy_(pretrianed_state_dict[k])
         else:
             print('Weight %s is not in ResNeXt model.' % k)
-    print('Pretrained ResNeXt weight has been loaded')
-
-
-def convert_state_dict(src_dict):
-    """Return the correct mapping of tensor name and value
-
-    Mapping from the names of torchvision model to our resnet conv_body and box_head.
-    """
-    dst_dict = {}
-    res_id = 1
-    map1 = ['conv1.', 'bn1.', ' ', 'conv2.', 'bn2.']
-    map2 = [[' ', 'conv3.', 'bn3.'], ['shortcut.conv.', 'shortcut.bn.']]
-
-    for k, v in src_dict.items():
-        if 'fc' in k:continue
-        if 'downsample' in k:continue
-        toks = k.split('.')
-        if len(toks) == 6:
-            print(toks)
-        if 'layer' in k:
-            res_id = int(toks[0].replace('layer', '')) + 1 
-            name = "res{}.{}.{}.{}".format(res_id, toks[1], toks[2], toks[3])
-        else:
-            name = "res1.{}.{}".format(toks[0], toks[1])
-            
-        dst_dict[name] = v
-
-    return dst_dict
+    print('Pretrained {} weight has been loaded'.format(encoder))
 
 class lateral(nn.Module):
     def __init__(self, conv_body_func, args):
@@ -89,10 +118,7 @@ class lateral(nn.Module):
 
     def _init_modules(self, init_type):
         if self.pretrained:
-            if 'resnext' in self.encoder.lower():
-                load_pretrained_imagenet_resnext_weights(self.bottomup)
-            elif 'mobilenetv2' in self.encoder.lower():
-                load_pretrained_imagenet_resnext_weights(self.bottomup)
+            load_pretrained_imagenet_weights(self.bottomup, self.encoder)
 
         self._init_weights(init_type)
 
@@ -191,7 +217,7 @@ class ASPP_block(nn.Module):
         x5 = self.globalpool_conv1x1(x5)
         #x5 = self.globalpool_bn(x5)
         w, h = x1.size(2), x1.size(3)
-        x5 = F.upsample(input=x5, size=(w, h), mode='bilinear', align_corners=True)
+        x5 = F.interpolate(input=x5, size=(w, h), mode='bilinear', align_corners=True)
 
         out = torch.cat([x1, x2, x3, x4, x5], 1)
         return out
@@ -350,9 +376,9 @@ class fcn_last_block(nn.Module):
         self.ftb = FTB_block(dim_in, dim_out)
 
     def forward(self, input, backbone_stage_size):
-        out = F.upsample(input=input, size=(backbone_stage_size[4][0], backbone_stage_size[4][1]), mode='bilinear', align_corners=True)
+        out = F.interpolate(input=input, size=(backbone_stage_size[4][0], backbone_stage_size[4][1]), mode='bilinear', align_corners=True)
         out = self.ftb(out)
-        out = F.upsample(input=out, size=(backbone_stage_size[5][0], backbone_stage_size[5][1]), mode='bilinear', align_corners=True)
+        out = F.interpolate(input=out, size=(backbone_stage_size[5][0], backbone_stage_size[5][1]), mode='bilinear', align_corners=True)
         return out
 
 def MobileNetV2_body():
