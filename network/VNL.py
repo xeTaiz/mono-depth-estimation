@@ -215,7 +215,7 @@ class ASPP_block(nn.Module):
         
         x5 = self.globalpool(x)
         x5 = self.globalpool_conv1x1(x5)
-        #x5 = self.globalpool_bn(x5)
+        x5 = self.globalpool_bn(x5) # problem with bs = 1 !!
         w, h = x1.size(2), x1.size(3)
         x5 = F.interpolate(input=x5, size=(w, h), mode='bilinear', align_corners=True)
 
