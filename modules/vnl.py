@@ -93,6 +93,7 @@ class VNLModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
+        y /= 10.0
         pred_logits, pred_cls = self(x)
         loss = self.criterion(self.bins_to_depth(pred_cls), pred_logits, self.depth_to_bins(y), y)
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
@@ -110,6 +111,7 @@ class VNLModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
+        y /= 10.0
         pred_logits, pred_cls = self(x)
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         if batch_idx == 0:

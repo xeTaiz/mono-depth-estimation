@@ -676,21 +676,6 @@ class MetricDepthModel(nn.Module):
         self.b_fake_logit, self.b_fake_softmax = self.depth_model(self.a_real)
         return self.b_fake_logit, self.b_fake_softmax
 
-    def inference(self, data):
-        with torch.no_grad():
-            out = self.forward(data)
-
-            if cfg.MODEL.PREDICTION_METHOD == 'classification':
-                pred_depth = bins_to_depth(out['b_fake_softmax'])
-            elif cfg.MODEL.PREDICTION_METHOD == 'regression':
-                # for regression methods
-                pred_depth = torch.nn.functional.sigmoid(out['b_fake_logit'])
-            else:
-                raise ValueError("Unknown prediction methods")
-
-            out = pred_depth
-            return {'b_fake': out}
-
 class DepthModel(nn.Module):
     def __init__(self, args):
         super(DepthModel, self).__init__()
