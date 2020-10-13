@@ -683,7 +683,7 @@ class OrdinalRegressionLoss(object):
 
         # N, C, H, W = prob.shape
         valid_mask = gt > 0.
-        valid_mask = valid_mask.squeeze(0)
+        valid_mask = valid_mask.squeeze(1)
         ord_label, mask = self._create_ord_label(gt)
         # print("prob shape: {}, ord label shape: {}".format(prob.shape, ord_label.shape))
         entropy = -prob * ord_label
