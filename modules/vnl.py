@@ -96,14 +96,6 @@ class VNLModule(pl.LightningModule):
         pred_logits, pred_cls = self(x)
         loss = self.criterion(self.bins_to_depth(pred_cls), pred_logits, self.depth_to_bins(y), y)
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
-        if batch_idx == 0:
-            self.img_merge = visualize.merge_into_row(x, y, y_hat)
-        elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
-            row = visualize.merge_into_row(x, y, y_hat)
-            self.img_merge = visualize.add_row(self.img_merge, row)
-        elif batch_idx == 8 * self.skip:
-            filename = "{}/{}/version_{}/train_epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
-            visualize.save_image(self.img_merge, filename)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def predicted_depth_map(self, logits, cls):
