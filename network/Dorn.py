@@ -285,42 +285,34 @@ class OrdinalRegressionLayer(nn.Module):
 
     def forward(self, x):
         """
-        :param x: NxCxHxW, N is batch_size, C is channels of features
-        :return: ord_label is ordinal outputs for each spatial locations , N x 1 x H x W
-                 ord prob is the probability of each label, N x OrdNum x H x W
+        :param x: N X H X W X C, N is batch_size, C is channels of features
+        :return: ord_labels is ordinal outputs for each spatial locations , size is N x H X W X C (C = 2K, K is interval of SID)
+                 decode_label is the ordinal labels for each position of Image I
         """
         N, C, H, W = x.size()
         ord_num = C // 2
 
-        # implementation according to the paper
-        # A = x[:, ::2, :, :]
-        # B = x[:, 1::2, :, :]
-        #
-        # # A = A.reshape(N, 1, ord_num * H * W)
-        # # B = B.reshape(N, 1, ord_num * H * W)
-        # A = A.unsqueeze(dim=1)
-        # B = B.unsqueeze(dim=1)
-        # concat_feats = torch.cat((A, B), dim=1)
-        #
-        # if self.training:
-        #     prob = F.log_softmax(concat_feats, dim=1)
-        #     ord_prob = x.clone()
-        #     ord_prob[:, 0::2, :, :] = prob[:, 0, :, :, :]
-        #     ord_prob[:, 1::2, :, :] = prob[:, 1, :, :, :]
-        #     return ord_prob
-        #
-        # ord_prob = F.softmax(concat_feats, dim=1)[:, 0, ::]
-        # ord_label = torch.sum((ord_prob > 0.5), dim=1).reshape((N, 1, H, W))
-        # return ord_prob, ord_label
+        """
+        replace iter with matrix operation
+        fast speed methods
+        """
+        A = x[:, ::2, :, :].clone()
+        B = x[:, 1::2, :, :].clone()
 
-        # reimplementation for fast speed.
+        A = A.view(N, 1, ord_num * H * W)
+        B = B.view(N, 1, ord_num * H * W)
 
-        x = x.view(-1, 2, ord_num, H, W)
-        prob = F.log_softmax(x, dim=1).view(N, C, H, W)
+        C = torch.cat((A, B), dim=1)
+        C = torch.clamp(C, min=1e-8, max=1e4)  # prevent nans
 
-        ord_prob = F.softmax(x, dim=1)[:, 0, :, :, :]
-        ord_label = torch.sum((ord_prob > 0.5), dim=1)
-        return prob, ord_prob, ord_label
+        ord_c = nn.functional.softmax(C, dim=1)
+
+        ord_c1 = ord_c[:, 1, :].clone()
+        ord_c1 = ord_c1.view(-1, ord_num, H, W)
+
+        decode_c = torch.sum((ord_c1 > 0.5), dim=1).view(-1, 1, H, W)
+        # decode_c = torch.sum(ord_c1, dim=1).view(-1, 1, H, W)
+        return decode_c, ord_c1
 
 
 class DORN(nn.Module):
@@ -331,7 +323,7 @@ class DORN(nn.Module):
         assert len(self.args.input_size) == 2
         assert isinstance(self.args.kernel_size, int)
         self.ord_num = self.args.ord_num
-        self.gamma = self.args.gamma
+        self.alpha = self.args.alpha
         self.beta = self.args.beta
         self.discretization = self.args.discretization
 
@@ -344,34 +336,10 @@ class DORN(nn.Module):
         self.regression_layer = OrdinalRegressionLayer()
 
     def forward(self, image):
-        """
-        :param image: RGB image, torch.Tensor, Nx3xHxW
-        :param target: ground truth depth, torch.Tensor, NxHxW
-        :return: output: if training, return loss, torch.Float,
-                         else return {"target": depth, "prob": prob, "label": label},
-                         depth: predicted depth, torch.Tensor, NxHxW
-                         prob: probability of each label, torch.Tensor, NxCxHxW, C is number of label
-                         label: predicted label, torch.Tensor, NxHxW
-        """
-        N, C, H, W = image.shape
         feat = self.backbone(image)
         feat = self.SceneUnderstandingModule(feat)
-        # print("feat shape:", feat.shape)
-        # feat = F.interpolate(feat, size=(H, W), mode="bilinear", align_corners=True)
-
-        prob, ord_prob, label = self.regression_layer(feat)
-        # print("prob shape:", prob.shape, " label shape:", label.shape)
-        if self.discretization == "SID":
-            t0 = torch.exp(np.log(self.beta) * label.float() / self.ord_num)
-            t1 = torch.exp(np.log(self.beta) * (label.float() + 1) / self.ord_num)
-        else:
-            t0 = 1.0 + (self.beta - 1.0) * label.float() / self.ord_num
-            t1 = 1.0 + (self.beta - 1.0) * (label.float() + 1) / self.ord_num
-        depth = (t0 + t1) / 2 - self.gamma
-        depth = depth.unsqueeze(1)
-        # print("depth min:", torch.min(depth), " max:", torch.max(depth),
-        #       " label min:", torch.min(label), " max:", torch.max(label))
-        return prob, depth
+        prob, label = self.regression_layer(feat)
+        return prob, label
 
 
 if __name__ == "__main__":

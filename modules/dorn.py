@@ -8,6 +8,7 @@ from network import Dorn
 from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
+import numpy as np 
 
 def get_dataset(path, split, dataset, img_size):
     if dataset == 'nyu':
@@ -82,6 +83,9 @@ class DORNModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
+        self.alpha = torch.tensor(self.args.alpha).float()
+        self.beta = torch.tensor(self.args.beta).float()
+        self.ord_num = torch.tensor(self.args.ord_num).int()
         self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset, self.args.input_size),
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
@@ -96,8 +100,22 @@ class DORNModule(pl.LightningModule):
         print("=> creating Model")
         self.model = Dorn.DORN(self.args)
         print("=> model created.")
-        self.criterion = criteria.OrdinalRegressionLoss(self.args.ord_num, self.args.beta, self.args.discretization)
+        self.criterion = criteria.ordLoss()
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
+
+    def label_to_depth(self, label):
+        if self.args.discretization == "SID":
+            depth = torch.exp(torch.log(self.alpha) + torch.log(self.beta / self.alpha) * label / self.ord_num)
+        else:
+            depth = self.alpha + (self.beta - self.alpha) * label / self.ord_num
+        return depth
+
+    def depth_to_label(self, depth):
+        if self.args.discretization == "SID":
+            label = self.ord_num * torch.log(depth / self.alpha) / torch.log(self.beta / self.alpha)
+        else:
+            label = self.ord_num * (depth - self.alpha) / (self.beta - self.alpha)
+        return label
 
     def forward(self, x):
         y_hat = self.model(x)
@@ -112,14 +130,17 @@ class DORNModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
-        prob, y_hat = self(x)
-        loss = self.criterion(prob, y)
+        pred_d, pred_ord = self(x)
+        y_hat = self.label_to_depth(pred_d)
+        y_sid = self.depth_to_label(y)
+        loss = self.criterion(pred_ord, y_sid)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
-        _, y_hat = self(x)
+        pred_d, pred_ord = self(x)
+        y_hat = self.label_to_depth(pred_d)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
@@ -156,9 +177,9 @@ class DORNModule(pl.LightningModule):
         parser.add_argument('--weight_decay', default=0.0005, type=float, help='Weight decay')
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
-        parser.add_argument('--ord_num', default=90, type=float, help='ordinal number')
+        parser.add_argument('--ord_num', default=68, type=float, help='ordinal number')
+        parser.add_argument('--alpha', default=1.0, type=float, help='alpha')
         parser.add_argument('--beta', default=80.0, type=float, help='beta')
-        parser.add_argument('--gamma', default=1.0, type=float, help='gamma')
         parser.add_argument('--input_size', default=(257, 353), help='image size')
         parser.add_argument('--kernel_size', default=16, type=int, help='kernel size')
         parser.add_argument('--pyramid', default=[4, 8, 12], nargs='+', help='pyramid')
