@@ -339,7 +339,8 @@ class DORN(nn.Module):
         self.SceneUnderstandingModule = SceneUnderstandingModule(self.ord_num, size=self.args.input_size,
                                                                  kernel_size=self.args.kernel_size,
                                                                  pyramid=self.args.pyramid,
-                                                                 batch_norm=self.args.batch_norm)
+                                                                 batch_norm=self.args.batch_norm,
+                                                                 dropout_prob=self.args.dropout)
         self.regression_layer = OrdinalRegressionLayer()
 
     def forward(self, image):

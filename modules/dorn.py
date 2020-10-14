@@ -159,9 +159,10 @@ class DORNModule(pl.LightningModule):
         parser.add_argument('--ord_num', default=90, type=float, help='ordinal number')
         parser.add_argument('--beta', default=80.0, type=float, help='beta')
         parser.add_argument('--gamma', default=1.0, type=float, help='gamma')
-        parser.add_argument('--input_size', default=(385, 513), help='image size')
+        parser.add_argument('--input_size', default=(257, 353), help='image size')
         parser.add_argument('--kernel_size', default=16, type=int, help='kernel size')
         parser.add_argument('--pyramid', default=[4, 8, 12], nargs='+', help='pyramid')
         parser.add_argument('--batch_norm', default=0, type=int, help='Batch Normalization')
         parser.add_argument('--discretization', default="SID", type=str, help='Method for discretization')
+        parser.add_argument('--dropout', default=0.5, type=float, help='Dropout rate.')
         return parser
