@@ -67,13 +67,14 @@ class SharpNetModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        mask = (y > 0).detach().bool()
+        y /= 10.0
         loss = self.criterion(y_hat, y)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
+        y /= 10.0
         y_hat = self(x)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
