@@ -14,7 +14,7 @@ class DatasetType(Enum):
     ISOTROPIC_PLANAR_SURFACES = '2'
 
 class Floorplan3DDataset(BaseDataset):
-    def __init__(self, path, datast_type=DatasetType.NO_REFLECTION, output_size=(360, 640), resize=400, *args, **kwargs):
+    def __init__(self, path, datast_type, output_size, resize, *args, **kwargs):
         super(Floorplan3DDataset, self).__init__(*args, **kwargs)
         self.path = Path(path)
         self.output_size = output_size
@@ -27,9 +27,11 @@ class Floorplan3DDataset(BaseDataset):
     def load_scene_names(self):
         scene_names = [scene for scene in self.path.glob('*/*')]
         if self.split == 'train':
-            self.scene_names = scene_names[0:500]
-        else:
-            self.scene_names = scene_names[500:]
+            self.scene_names = scene_names[0:500] # 577
+        elif self.split == 'val':
+            self.scene_names = scene_names[500:540]
+        elif self.split == 'test':
+            self.scene_names = scene_names[540:]
 
     def load_images(self):
         self.images = []
