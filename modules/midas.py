@@ -104,9 +104,9 @@ class MidasModule(pl.LightningModule):
         self.model = MiDaS.MidasNet(path=weights_path, features=256)
         print("=> model created.")
         if self.args.loss == 'ssimse':
-            self.criterion = criteria.ScaleAndShiftInvariantLoss(alpha=0.5, loss='mse')
+            self.criterion = criteria.MidasLoss(alpha=0.5, loss='mse')
         if self.args.loss == 'ssitrim':
-            self.criterion = criteria.ScaleAndShiftInvariantLoss(alpha=0.5, loss='trimmed')
+            self.criterion = criteria.MidasLoss(alpha=0.5, loss='trimmed')
         elif self.args.loss == 'eigen':
             self.criterion = criteria.MaskedDepthLoss()
         elif self.args.loss == 'laina':
@@ -136,25 +136,30 @@ class MidasModule(pl.LightningModule):
     def val_dataloader(self):
         return self.val_loader
 
+    def scale_and_shift(self, prediction, target):
+        if prediction.ndim == 4:
+            prediction = prediction.squeeze(1)
+        if target.ndim == 4:
+            target = target.squeeze(1)
+        assert prediction.dim() == target.dim(), "inconsistent dimensions"
+        mask = (target > 0).type(torch.float32)
+        scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
+        prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
+        return prediction, target
+
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
+        y_hat, y = self.scale_and_shift(y_hat, y)
         loss = self.criterion(y_hat, y)
-        y_hat = y_hat.squeeze(1)
-        y = y.squeeze(1)
-        scale, shift = criteria.compute_scale_and_shift(y_hat, y)
-        y_hat = scale.view(-1, 1, 1) * y_hat + shift.view(-1, 1, 1)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat = y_hat.squeeze(1)
-        y = y.squeeze(1)
-        scale, shift = criteria.compute_scale_and_shift(y_hat, y)
-        y_hat = scale.view(-1, 1, 1) * y_hat + shift.view(-1, 1, 1)
+        y_hat, y = self.scale_and_shift(y_hat, y)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):

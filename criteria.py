@@ -283,7 +283,7 @@ class GradientLoss(nn.Module):
         return total
 
 
-class ScaleAndShiftInvariantLoss(nn.Module):
+class MidasLoss(nn.Module):
     def __init__(self, alpha=0.5, scales=4, loss='trimmed', reduction='batch-based'):
         super().__init__()
 
@@ -296,29 +296,14 @@ class ScaleAndShiftInvariantLoss(nn.Module):
         self.__regularization_loss = GradientLoss(scales=scales, reduction=reduction)
         self.__alpha = alpha
 
-        self.__prediction_ssi = None
-
     def forward(self, prediction, target):
-        if prediction.ndim == 4:
-            prediction = prediction.squeeze(1)
-        if target.ndim == 4:
-            target = target.squeeze(1)
-        assert prediction.dim() == target.dim(), "inconsistent dimensions"
         mask = (target > 0).type(torch.float32)
-        
-        scale, shift = compute_scale_and_shift(prediction, target, mask)
-        self.__prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
-
-        total = self.__data_loss(self.__prediction_ssi, target, mask)
+        total = self.__data_loss(prediction, target, mask)
         if self.__alpha > 0:
-            total += self.__alpha * self.__regularization_loss(self.__prediction_ssi, target, mask)
+            total += self.__alpha * self.__regularization_loss(prediction, target, mask)
 
         return total
 
-    def __get_prediction_ssi(self):
-        return self.__prediction_ssi
-
-    prediction_ssi = property(__get_prediction_ssi)
 
 class TrimmedProcrustesLoss(nn.Module):
     def __init__(self, alpha=0.5, scales=4, reduction="batch-based"):
