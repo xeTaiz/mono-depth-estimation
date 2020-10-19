@@ -33,3 +33,11 @@ def add_row(img_merge, row):
 
 def save_image(img_merge, filename):
     img_merge = cv2.imwrite(filename, img_merge.astype('uint8'))
+
+def show_pred(depth_pred):
+    depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())
+    d_min = np.min(depth_pred_cpu)
+    d_max = np.max(depth_pred_cpu)
+    depth_target_col = colored_depthmap(depth_pred_cpu, d_min, d_max)
+    cv2.imshow("pred", depth_target_col.astype('uint8'))
+    cv2.waitKey(0)

@@ -11,6 +11,47 @@ from metrics import MetricLogger
 import urllib.request
 from pathlib import Path
 from tqdm import tqdm
+import torchvision.transforms.functional as TF
+from torchvision import transforms
+import numpy as np
+
+midas_transform = torch.hub.load("intel-isl/MiDaS", "transforms").default_transform 
+
+def training_preprocess(rgb, depth):
+    if isinstance(rgb, np.ndarray):
+        rgb = transforms.ToPILImage()(rgb)
+    if isinstance(depth, np.ndarray):
+        depth = transforms.ToPILImage()(depth)
+
+    # Center crop
+    crop = transforms.RandomCrop((384,384))
+    rgb = crop(rgb)
+    depth = crop(depth)
+    # Random horizontal flipping
+    if np.random.uniform(0,1) > 0.5:
+        rgb = TF.hflip(rgb)
+        depth = TF.hflip(depth)
+    # Transform to tensor
+    rgb = TF.to_tensor(np.array(rgb)) #midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)
+    depth = TF.to_tensor(np.array(depth))
+    return rgb, depth
+
+def validation_preprocess(rgb, depth):
+    if isinstance(rgb, np.ndarray):
+        rgb = transforms.ToPILImage()(rgb)
+    if isinstance(depth, np.ndarray):
+        depth = transforms.ToPILImage()(depth)
+    # random crop
+    crop = transforms.RandomCrop((384, 384))
+    rgb = crop(rgb)
+    depth = crop(depth)
+    # Transform to tensor
+    rgb = TF.to_tensor(np.array(rgb))
+    depth = np.array(depth, dtype=np.float32)
+    depth /= 1000
+    depth = np.clip(depth, 0, 10)
+    depth = TF.to_tensor(depth)
+    return rgb, depth
 
 def get_dataset(path, split, dataset):
     if dataset == 'nyu':
@@ -30,17 +71,21 @@ class MidasModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        assert self.args.loss in ['midas', 'eigen', 'laina']
-        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
+        assert self.args.loss in ['ssitrim', 'ssimse', 'eigen', 'laina']
+        self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
+        self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
+        self.train_dataset.transform = training_preprocess
+        self.val_dataset.transform = validation_preprocess
+        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=args.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
+        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=args.worker, 
-                                                    pin_memory=True)
+                                                    pin_memory=True) 
         if self.args.pretrained: 
             weights_path = Path.cwd()/"model-f46da743.pt"
             if not weights_path.exists():                                                             
@@ -54,8 +99,10 @@ class MidasModule(pl.LightningModule):
         print("=> creating Model")
         self.model = MiDaS.MidasNet(path=weights_path, features=256)
         print("=> model created.")
-        if self.args.loss == 'midas':
-            self.criterion = criteria.ScaleAndShiftInvariantLoss()
+        if self.args.loss == 'ssimse':
+            self.criterion = criteria.ScaleAndShiftInvariantLoss(alpha=0.5, loss='mse')
+        if self.args.loss == 'ssitrim':
+            self.criterion = criteria.ScaleAndShiftInvariantLoss(alpha=0.5, loss='trimmed')
         elif self.args.loss == 'eigen':
             self.criterion = criteria.MaskedDepthLoss()
         elif self.args.loss == 'laina':
@@ -134,3 +181,12 @@ class MidasModule(pl.LightningModule):
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror, structured3d]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror, structured3d]')
         return parser
+
+if __name__ == "__main__":
+    import numpy as np
+    midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+    transform = midas_transforms.default_transform
+    img = np.random.uniform(0,255, size=(720, 1280, 3))
+    print(img.shape)
+    img = transform(img)
+    print(img.shape)

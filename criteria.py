@@ -131,6 +131,22 @@ class berHuLoss(nn.Module):
 
         return self.loss
 
+def normalize_prediction_robust(target, mask):
+    ssum = torch.sum(mask, (1, 2)).type(mask.dtype)
+    valid = ssum > 0
+
+    m = torch.zeros_like(ssum)
+    s = torch.ones_like(ssum)
+
+    m[valid] = torch.median(
+        (mask[valid] * target[valid]).view(valid.sum(), -1), dim=1
+    ).values
+    target = target - m.view(-1, 1, 1)
+
+    sq = torch.sum(mask * target.abs(), (1, 2)).type(s.dtype)
+    s[valid] = torch.clamp((sq[valid] / ssum[valid]), min=1e-6)
+
+    return target / (s.view(-1, 1, 1))
 
 def compute_scale_and_shift(prediction, target, mask):
     # system matrix: A = [[a_00, a_01], [a_10, a_11]]
@@ -177,6 +193,17 @@ def reduction_image_based(image_loss, M):
 
     return torch.mean(image_loss)
 
+def trimmed_mae_loss(prediction, target, mask, trim=0.2, reduction=reduction_batch_based):
+    M = torch.sum(mask, (1, 2))
+    res = prediction - target
+
+    res = res[mask.bool()].abs()
+
+    trimmed, _ = torch.sort(res.view(-1), descending=False)[
+        : int(len(res) * (1.0 - trim))
+    ]
+
+    return reduction(trimmed, 2 * M)
 
 def mse_loss(prediction, target, mask, reduction=reduction_batch_based):
 
@@ -219,6 +246,17 @@ class MSELoss(nn.Module):
     def forward(self, prediction, target, mask):
         return mse_loss(prediction, target, mask, reduction=self.__reduction)
 
+class TrimmedMAELoss(nn.Module):
+    def __init__(self, reduction='batch-based'):
+        super().__init__()
+
+        if reduction == 'batch-based':
+            self.__reduction = reduction_batch_based
+        else:
+            self.__reduction = reduction_image_based
+
+    def forward(self, prediction, target, mask):
+        return trimmed_mae_loss(prediction, target, mask, reduction=self.__reduction)
 
 class GradientLoss(nn.Module):
     def __init__(self, scales=4, reduction='batch-based'):
@@ -244,27 +282,74 @@ class GradientLoss(nn.Module):
 
 
 class ScaleAndShiftInvariantLoss(nn.Module):
-    def __init__(self, alpha=0.5, scales=4, reduction='batch-based'):
+    def __init__(self, alpha=0.5, scales=4, loss='trimmed', reduction='batch-based'):
         super().__init__()
 
-        self.__data_loss = MSELoss(reduction=reduction)
+        if loss=='trimmed':
+            self.__data_loss = TrimmedMAELoss(reduction=reduction)
+        elif loss == 'mse':
+            self.__data_loss = MSELoss(reduction=reduction)
+        else:
+            raise ValueError()
         self.__regularization_loss = GradientLoss(scales=scales, reduction=reduction)
         self.__alpha = alpha
 
         self.__prediction_ssi = None
 
     def forward(self, prediction, target):
-        prediction = prediction.squeeze(1)
-        target = target.squeeze(1)
+        if prediction.ndim == 4:
+            prediction = prediction.squeeze(1)
+        if target.ndim == 4:
+            target = target.squeeze(1)
         assert prediction.dim() == target.dim(), "inconsistent dimensions"
-        mask = torch.ones(target.size(), dtype=torch.bool, device=prediction.device)
-
+        mask = (target > 0)
+        
         scale, shift = compute_scale_and_shift(prediction, target, mask)
         self.__prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
 
         total = self.__data_loss(self.__prediction_ssi, target, mask)
         if self.__alpha > 0:
             total += self.__alpha * self.__regularization_loss(self.__prediction_ssi, target, mask)
+
+        return total
+
+    def __get_prediction_ssi(self):
+        return self.__prediction_ssi
+
+    prediction_ssi = property(__get_prediction_ssi)
+
+class TrimmedProcrustesLoss(nn.Module):
+    def __init__(self, alpha=0.5, scales=4, reduction="batch-based"):
+        super(TrimmedProcrustesLoss, self).__init__()
+
+        self.__data_loss = TrimmedMAELoss(reduction=reduction)
+        self.__regularization_loss = GradientLoss(scales=scales, reduction=reduction)
+        self.__alpha = alpha
+
+        self.__prediction_ssi = None
+
+    def forward(self, prediction, target):
+        if prediction.ndim == 4:
+            prediction = prediction.squeeze(1)
+        if target.ndim == 4:
+            target = target.squeeze(1)
+        assert prediction.dim() == target.dim(), "inconsistent dimensions"
+        mask = (target > 0)
+        #target[mask] = (target[mask] - target[mask].min()) / (target[mask].max() - target[mask].min()) * 9 + 1
+        #target[mask] = 10. / target[mask]
+        #target[~mask] = 0.
+       
+        scale, shift = compute_scale_and_shift(prediction, target, mask)
+        self.__prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
+        #self.__prediction_ssi = normalize_prediction_robust(prediction.type(torch.float32), mask.type(torch.float32))
+        
+        target_ = normalize_prediction_robust(target.type(torch.float32), mask.type(torch.float32))
+
+        total = self.__data_loss(self.__prediction_ssi, target_, mask)
+        if self.__alpha > 0:
+            total += self.__alpha * self.__regularization_loss(
+                self.__prediction_ssi, target_, mask
+            )
 
         return total
 
@@ -967,3 +1052,17 @@ class ModelLoss(nn.Module):
         loss['virtual_normal_loss'] = self.args.diff_loss_weight * loss_normal
         loss['total_loss'] = loss['metric_loss'] + loss['virtual_normal_loss']
         return loss['total_loss']
+
+
+if __name__ == "__main__":
+    
+    target = torch.rand((5,384,384))
+    pred = torch.zeros((5,384,384))
+
+    ssitrim = ScaleAndShiftInvariantLoss(alpha=0.5, loss='trimmed')
+    ssimse = ScaleAndShiftInvariantLoss(alpha=0.5, loss='mse')
+
+    loss = ssitrim(pred, target)
+    loss2 = ssimse(pred, target)
+    print(loss)
+    print(loss2)
