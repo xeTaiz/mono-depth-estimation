@@ -309,7 +309,7 @@ class ScaleAndShiftInvariantLoss(nn.Module):
         if target.ndim == 4:
             target = target.squeeze(1)
         assert prediction.dim() == target.dim(), "inconsistent dimensions"
-        mask = (target > 0)
+        mask = (target > 0).type(torch.float32)
         
         scale, shift = compute_scale_and_shift(prediction, target, mask)
         self.__prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
