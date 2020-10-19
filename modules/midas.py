@@ -124,7 +124,7 @@ class MidasModule(pl.LightningModule):
 
     def forward(self, x):
         y_hat = self.model(x)
-        return y_hat
+        return y_hat.type(torch.float32)
 
     def train_dataloader(self):
         return self.train_loader
