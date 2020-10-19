@@ -148,7 +148,9 @@ def normalize_prediction_robust(target, mask):
 
     return target / (s.view(-1, 1, 1))
 
-def compute_scale_and_shift(prediction, target, mask):
+def compute_scale_and_shift(prediction, target, mask=None):
+    if mask is None:
+        mask = (target > 0).type(torch.float32)
     # system matrix: A = [[a_00, a_01], [a_10, a_11]]
     a_00 = torch.sum(mask * prediction * prediction, (1, 2))
     a_01 = torch.sum(mask * prediction, (1, 2))
