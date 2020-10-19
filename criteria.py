@@ -165,13 +165,6 @@ def compute_scale_and_shift(prediction, target, mask):
     det = a_00 * a_11 - a_01 * a_01
     valid = torch.nonzero(det, as_tuple=True)
 
-    print(x_1.dtype)
-    print(a_01.dtype)
-    print(b_0.dtype)
-    print(b_1.dtype)
-    print(det.dtype)
-
-
     x_0[valid] = (a_11[valid] * b_0[valid] - a_01[valid] * b_1[valid]) / det[valid]
     x_1[valid] = (-a_01[valid] * b_0[valid] + a_00[valid] * b_1[valid]) / det[valid]
 
