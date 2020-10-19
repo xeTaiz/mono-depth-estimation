@@ -47,6 +47,7 @@ class Floorplan3DDataset(BaseDataset):
 
 
     def training_preprocess(self, rgb, depth):
+        depth = transforms.ToPILImage()(depth)
         s = np.random.uniform(1, 1.5)
         # color jitter
         rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
@@ -73,13 +74,12 @@ class Floorplan3DDataset(BaseDataset):
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
         depth = np.array(depth, dtype=np.float32)
-        depth /= 1000 
-        depth = np.clip(depth, 0, 10)
         depth = depth / s
         depth = TF.to_tensor(depth)
         return rgb, depth
 
     def validation_preprocess(self, rgb, depth):
+        depth = transforms.ToPILImage()(depth)
         # Resize
         resize = transforms.Resize(self.resize)
         rgb = resize(rgb)
@@ -91,8 +91,6 @@ class Floorplan3DDataset(BaseDataset):
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
         depth = np.array(depth, dtype=np.float32)
-        depth /= 1000
-        depth = np.clip(depth, 0, 10)
         depth = TF.to_tensor(depth)
         return rgb, depth
 
@@ -101,6 +99,9 @@ class Floorplan3DDataset(BaseDataset):
         depth_path = self.depth[index]
         rgb = Image.open(img_path).convert('RGB')
         depth = Image.open(depth_path)
+        depth = np.array(depth, dtype=np.float32)
+        depth /= 1000 
+        depth = np.clip(depth, 0, 10)
         return rgb, depth
 
 if __name__ == "__main__":
