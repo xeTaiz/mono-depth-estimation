@@ -65,7 +65,7 @@ def training_preprocess(rgb, depth):
     image = np.asarray(image, dtype=np.float32) / 255.0
     depth_gt = np.asarray(depth_gt, dtype=np.float32)
 
-    depth_gt = depth_gt / 1000.0
+    #depth_gt = depth_gt / 1000.0
 
     # Random gamma, brightness, color augmentation
     if np.random.uniform(0,1) > 0.5:
@@ -89,7 +89,7 @@ def validation_preprocess(rgb, depth):
     image = TF.to_tensor(np.array(image, dtype=np.float32))
     depth_gt = TF.to_tensor(np.array(depth_gt, dtype=np.float32))
     
-    depth_gt /= 1000.0
+    #depth_gt /= 1000.0
     return image, depth_gt
 
 
@@ -111,17 +111,20 @@ class BtsModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        
-        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
+        self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
+        self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
+        #self.train_dataset.transform = training_preprocess
+        #self.val_dataset.transform = validation_preprocess
+        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=args.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
+        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=args.worker, 
-                                                    pin_memory=True)
+                                                    pin_memory=True) 
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
         self.model = Bts.BtsModel(max_depth=self.args.max_depth, bts_size=self.args.bts_size, encoder_version=self.args.encoder)
@@ -195,7 +198,7 @@ class BtsModule(pl.LightningModule):
 if __name__ == "__main__":
     import visualize
     val_dataset = get_dataset('G:/data/nyudepthv2', 'train', 'nyu')
-    val_dataset.transform = validation_preprocess
+    val_dataset.transform = training_preprocess
     for i in range(100):
         item = val_dataset.__getitem__(i)
         visualize.show_item(item)
