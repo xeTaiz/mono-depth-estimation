@@ -77,13 +77,13 @@ def training_preprocess(rgb, depth):
 
 def validation_preprocess(rgb, depth):
     if isinstance(rgb, np.ndarray):
-        image = transforms.ToPILImage()(rgb)
+        rgb = transforms.ToPILImage()(rgb)
     if isinstance(depth, np.ndarray):
-        depth_gt = transforms.ToPILImage()(depth)
+        depth = transforms.ToPILImage()(depth)
     # Resize
     resize = transforms.Resize(450)
-    image = resize(image)
-    depth_gt = resize(depth_gt)
+    image = resize(rgb)
+    depth_gt = resize(depth)
     # Center crop
     crop = transforms.CenterCrop((416, 544))
     image = crop(image)
