@@ -113,8 +113,8 @@ class BtsModule(pl.LightningModule):
         self.args = args
         self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
         self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
-        #self.train_dataset.transform = training_preprocess
-        #self.val_dataset.transform = validation_preprocess
+        self.train_dataset.transform = training_preprocess
+        self.val_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
