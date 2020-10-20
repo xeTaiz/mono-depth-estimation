@@ -17,6 +17,7 @@ class MetricLogger(object):
     def log_train(self, pred, target, loss):
         values = self.computer.compute(pred, target)
         result = pl.TrainResult(loss)
+        result.log("train_loss", loss)
         for name, value in zip(self.computer.names, values):
             result.log("train_{}".format(name), value, logger=True, on_epoch=True)
             result.log("train_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
