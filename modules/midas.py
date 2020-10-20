@@ -53,7 +53,7 @@ def validation_preprocess(rgb, depth):
     rgb = crop(rgb)
     depth = crop(depth)
     # Transform to tensor
-    rgb = TF.to_tensor(np.array(rgb))
+    rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
     depth = np.array(depth, dtype=np.float32)
     depth = TF.to_tensor(depth)
     mask = depth > 0

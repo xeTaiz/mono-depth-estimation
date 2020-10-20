@@ -8,6 +8,90 @@ from network import Bts
 from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
+import numpy as np
+import torchvision.transforms as transforms
+import torchvision.transforms.functional as TF
+
+def augment_image(image):
+    # gamma augmentation
+    gamma = np.random.uniform(0.9, 1.1)
+    image_aug = image ** gamma
+
+    # brightness augmentation
+    brightness = np.random.uniform(0.75, 1.25)
+    image_aug = image_aug * brightness
+
+    # color augmentation
+    colors = np.random.uniform(0.9, 1.1, size=3)
+    white = np.ones((image.shape[0], image.shape[1]))
+    color_image = np.stack([white * colors[i] for i in range(3)], axis=2)
+    image_aug *= color_image
+    image_aug = np.clip(image_aug, 0, 1)
+
+    return image_aug
+
+def training_preprocess(rgb, depth):
+    if isinstance(rgb, np.ndarray):
+        image = transforms.ToPILImage()(rgb)
+    if isinstance(depth, np.ndarray):
+        depth_gt = transforms.ToPILImage()(depth)
+    
+    #height = image.height
+    #width = image.width
+    #top_margin = int(height - 400)
+    #left_margin = int((width - 1216) / 2)
+    #depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
+    #image       = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
+    
+    # To avoid blank boundaries due to pixel registration
+    depth_gt = depth_gt.crop((43, 45, 608, 472))
+    image = image.crop((43, 45, 608, 472))
+
+    # Random rotation
+    angle = transforms.RandomRotation.get_params([-2.5, 2.5])
+    image = TF.rotate(image, angle)
+    depth_gt = TF.rotate(depth_gt, angle)
+
+    # Random Crop
+    i, j, h, w = transforms.RandomCrop.get_params(image, output_size=(416, 544))
+    image = TF.crop(image, i, j, h, w)
+    depth_gt = TF.crop(depth_gt, i, j, h, w)
+
+    # Random flipping
+    if np.random.uniform(0,1) > 0.5:
+        image = TF.hflip(image)
+        depth_gt = TF.hflip(depth_gt)
+
+    image = np.asarray(image, dtype=np.float32) / 255.0
+    depth_gt = np.asarray(depth_gt, dtype=np.float32)
+
+    depth_gt = depth_gt / 1000.0
+
+    # Random gamma, brightness, color augmentation
+    if np.random.uniform(0,1) > 0.5:
+        image = augment_image(image)
+
+    image = TF.to_tensor(np.array(image))
+    depth_gt = TF.to_tensor(np.array(depth_gt))
+    return image, depth_gt
+
+def validation_preprocess(rgb, depth):
+    image = np.asarray(rgb, dtype=np.float32) / 255.0
+    depth_gt = np.asarray(depth, dtype=np.float32) 
+
+    #height = image.shape[0]
+    #width = image.shape[1]
+    #top_margin = int(height - 352)
+    #left_margin = int((width - 1216) / 2)
+    #image       = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
+    #depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216]
+    
+    image = TF.to_tensor(np.array(image, dtype=np.float32))
+    depth_gt = TF.to_tensor(np.array(depth_gt, dtype=np.float32))
+    
+    depth_gt /= 1000.0
+    return image, depth_gt
+
 
 def get_dataset(path, split, dataset):
     if dataset == 'nyu':
@@ -107,3 +191,11 @@ class BtsModule(pl.LightningModule):
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
         return parser
+
+if __name__ == "__main__":
+    import visualize
+    val_dataset = get_dataset('G:/data/nyudepthv2', 'train', 'nyu')
+    val_dataset.transform = validation_preprocess
+    for i in range(100):
+        item = val_dataset.__getitem__(i)
+        visualize.show_item(item)
