@@ -131,11 +131,6 @@ class berHuLoss(nn.Module):
 
         return self.loss
 
-def l1_loss(prediction, target, mask, reduction=reduction_batch_based):
-    diff = target - prediction
-    diff = diff[mask]
-    return diff.abs().mean()
-
 def normalize_prediction_robust(target, mask):
     ssum = torch.sum(mask, (1, 2)).type(mask.dtype)
     valid = ssum > 0
@@ -199,6 +194,11 @@ def reduction_image_based(image_loss, M):
     image_loss[valid] = image_loss[valid] / M[valid]
 
     return torch.mean(image_loss)
+
+def l1_loss(prediction, target, mask, reduction=reduction_batch_based):
+    diff = target - prediction
+    diff = diff[mask]
+    return diff.abs().mean()
 
 def trimmed_mae_loss(prediction, target, mask, trim=0.2, reduction=reduction_batch_based):
     M = torch.sum(mask, (1, 2))
