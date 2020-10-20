@@ -22,6 +22,10 @@ def training_preprocess(rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
     if isinstance(depth, np.ndarray):
         depth = transforms.ToPILImage()(depth)
+    # Resize
+    resize = transforms.Resize(400)
+    rgb = resize(rgb)
+    depth = resize(depth)
     # Random crop
     crop = transforms.RandomCrop((384,384))
     rgb = crop(rgb)
@@ -44,8 +48,12 @@ def validation_preprocess(rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
     if isinstance(depth, np.ndarray):
         depth = transforms.ToPILImage()(depth)
-    # random crop
-    crop = transforms.RandomCrop((384, 384))
+    # Resize
+    resize = transforms.Resize(400)
+    rgb = resize(rgb)
+    depth = resize(depth)
+    # center crop
+    crop = transforms.CenterCrop((384, 384))
     rgb = crop(rgb)
     depth = crop(depth)
     # Transform to tensor
@@ -75,7 +83,7 @@ class MidasModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        assert self.args.loss in ['ssitrim', 'ssimse', 'eigen', 'laina']
+        assert self.args.loss in ['ssil1', 'ssitrim', 'ssimse', 'eigen', 'laina']
         self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
         self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
         self.train_dataset.transform = training_preprocess
@@ -105,8 +113,10 @@ class MidasModule(pl.LightningModule):
         print("=> model created.")
         if self.args.loss == 'ssimse':
             self.criterion = criteria.MidasLoss(alpha=0.5, loss='mse')
-        if self.args.loss == 'ssitrim':
+        elif self.args.loss == 'ssitrim':
             self.criterion = criteria.MidasLoss(alpha=0.5, loss='trimmed')
+        elif self.args.loss == 'ssil1':
+            self.criterion = criteria.MidasLoss(alpha=0.5, loss='l1')
         elif self.args.loss == 'eigen':
             self.criterion = criteria.MaskedDepthLoss()
         elif self.args.loss == 'laina':

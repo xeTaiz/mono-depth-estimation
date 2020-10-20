@@ -131,6 +131,11 @@ class berHuLoss(nn.Module):
 
         return self.loss
 
+def l1_loss(prediction, target, mask, reduction=reduction_batch_based):
+    diff = target - prediction
+    diff = diff[mask]
+    return diff.abs().mean()
+
 def normalize_prediction_robust(target, mask):
     ssum = torch.sum(mask, (1, 2)).type(mask.dtype)
     valid = ssum > 0
@@ -248,6 +253,18 @@ class MSELoss(nn.Module):
     def forward(self, prediction, target, mask):
         return mse_loss(prediction, target, mask, reduction=self.__reduction)
 
+class L1Loss(nn.Module):
+    def __init__(self, reduction='batch-based'):
+        super().__init__()
+
+        if reduction == 'batch-based':
+            self.__reduction = reduction_batch_based
+        else:
+            self.__reduction = reduction_image_based
+
+    def forward(self, prediction, target, mask):
+        return l1_loss(prediction, target, mask, reduction=self.__reduction)
+
 class TrimmedMAELoss(nn.Module):
     def __init__(self, reduction='batch-based'):
         super().__init__()
@@ -291,6 +308,8 @@ class MidasLoss(nn.Module):
             self.__data_loss = TrimmedMAELoss(reduction=reduction)
         elif loss == 'mse':
             self.__data_loss = MSELoss(reduction=reduction)
+        elif loss == 'l1':
+            self.__data_loss = L1Loss(reduction=reduction)
         else:
             raise ValueError()
         self.__regularization_loss = GradientLoss(scales=scales, reduction=reduction)
