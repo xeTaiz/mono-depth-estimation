@@ -76,8 +76,18 @@ def training_preprocess(rgb, depth):
     return image, depth_gt
 
 def validation_preprocess(rgb, depth):
-    image = np.asarray(rgb, dtype=np.float32) / 255.0
-    depth_gt = np.asarray(depth, dtype=np.float32) 
+    if isinstance(rgb, np.ndarray):
+        image = transforms.ToPILImage()(rgb)
+    if isinstance(depth, np.ndarray):
+        depth_gt = transforms.ToPILImage()(depth)
+    # Resize
+    resize = transforms.Resize(450)
+    image = resize(image)
+    depth_gt = resize(depth_gt)
+    # Center crop
+    crop = transforms.CenterCrop((416, 544))
+    image = crop(image)
+    depth_gt = crop(depth_gt)
 
     #height = image.shape[0]
     #width = image.shape[1]
@@ -89,6 +99,7 @@ def validation_preprocess(rgb, depth):
     image = TF.to_tensor(np.array(image, dtype=np.float32))
     depth_gt = TF.to_tensor(np.array(depth_gt, dtype=np.float32))
     
+    image /= 255.0
     #depth_gt /= 1000.0
     return image, depth_gt
 
@@ -198,7 +209,7 @@ class BtsModule(pl.LightningModule):
 if __name__ == "__main__":
     import visualize
     val_dataset = get_dataset('G:/data/nyudepthv2', 'train', 'nyu')
-    val_dataset.transform = training_preprocess
+    val_dataset.transform = validation_preprocess
     for i in range(100):
         item = val_dataset.__getitem__(i)
         visualize.show_item(item)
