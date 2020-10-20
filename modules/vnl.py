@@ -121,8 +121,9 @@ class VNLModule(pl.LightningModule):
         self.args.depth_bin_border = np.array([np.log10(self.args.depth_min) + self.args.depth_bin_interval * (i + 0.5) for i in range(self.args.dec_out_c)])
         self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
         self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
-        self.train_dataset.transform = training_preprocess
-        self.val_dataset.transform = validation_preprocess
+        if self.args.data_augmentation == 'vnl':
+            self.train_dataset.transform = training_preprocess
+            self.val_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
@@ -282,4 +283,5 @@ class VNLModule(pl.LightningModule):
         parser.add_argument('--prediction_method', default='classification', type=str, help='type of prediction. classification or regression')
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or vnl')
         return parser
