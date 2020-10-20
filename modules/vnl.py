@@ -8,7 +8,93 @@ from network import VNL
 from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
+import torchvision.transforms.functional as TF
+from torchvision import transforms
 import numpy as np
+import cv2
+
+RGB_PIXEL_MEANS = (0.485, 0.456, 0.406)  # (102.9801, 115.9465, 122.7717)
+RGB_PIXEL_VARS = (0.229, 0.224, 0.225)  # (1, 1, 1)
+
+def set_reshape_crop(uniform_size, split):
+    flip_prob = np.random.uniform(0.0, 1.0)
+    flip_flg = True if flip_prob > 0.5 and split == 'train' else False
+    raw_size = np.array([385, 416, 448, 480, 512, 544, 576, 608, 640])
+    size_index = np.random.randint(0, 9) if split == 'train' else 8
+    # pad
+    pad_height = raw_size[size_index] - uniform_size[0] if raw_size[size_index] > uniform_size[0] else 0
+    pad = [pad_height, 0, 0, 0]  # [up, down, left, right]
+
+    # crop
+    crop_height = raw_size[size_index]
+    crop_width = raw_size[size_index]
+    start_x = np.random.randint(0, int(uniform_size[1] - crop_width)+1)
+    start_y = 0 if pad_height != 0 else np.random.randint(0, int(uniform_size[0] - crop_height) + 1)
+    crop_size = [start_x, start_y, crop_height, crop_width]
+    
+    resize_ratio = float(385 / crop_width)
+    return flip_flg, crop_size, pad, resize_ratio
+
+def flip_pad_reshape_crop(img, flip, crop_size, pad, pad_value=0):
+    """
+    Flip, pad, reshape, and crop the image.
+    :param img: input image, [C, H, W]
+    :param flip: flip flag
+    :param crop_size: crop size for the image, [x, y, width, height]
+    :param pad: pad the image, [up, down, left, right]
+    :param pad_value: padding value
+    :return:
+    """
+    # Flip
+    if flip:
+        img = np.flip(img, axis=1)
+
+    # Pad the raw image
+    if len(img.shape) == 3:
+        img_pad = np.pad(img, ((pad[0], pad[1]), (pad[2], pad[3]), (0, 0)), 'constant', constant_values=(pad_value, pad_value))
+    else:
+        img_pad = np.pad(img, ((pad[0], pad[1]), (pad[2], pad[3])), 'constant', constant_values=(pad_value, pad_value))
+    # Crop the resized image
+    img_crop = img_pad[crop_size[1]:crop_size[1] + crop_size[3], crop_size[0]:crop_size[0] + crop_size[2]]
+
+    # Resize the raw image
+    img_resize = cv2.resize(img_crop, (385, 385), interpolation=cv2.INTER_LINEAR)
+    return img_resize
+
+def scale_torch(img, scale):
+    """
+    Scale the image and output it in torch.tensor.
+    :param img: input image. [C, H, W]
+    :param scale: the scale factor. float
+    :return: img. [C, H, W
+    """
+    img = TF.to_tensor(np.array(img))
+    img /= scale
+    if img.size(0) == 3:
+        img = transforms.Normalize(RGB_PIXEL_MEANS, RGB_PIXEL_VARS)(img)
+    else:
+        img = transforms.Normalize((0,), (1,))(img)
+    return img
+
+def training_preprocess(rgb, depth):
+    rgb = np.array(rgb, dtype=np.float32)
+    depth = np.array(depth, dtype=np.float32)
+    flip, crop_size, pad, resize_ratio = set_reshape_crop(depth.shape[0:2], 'train')
+    rgb = flip_pad_reshape_crop(rgb, flip, crop_size, pad, pad_value=0)
+    depth = flip_pad_reshape_crop(depth, flip, crop_size, pad, pad_value=0)
+    rgb = scale_torch(rgb, 255.0)
+    depth = scale_torch(depth, resize_ratio)
+    return rgb, depth
+
+def validation_preprocess(rgb, depth):
+    rgb = np.array(rgb, dtype=np.float32)
+    depth = np.array(depth, dtype=np.float32)
+    flip, crop_size, pad, resize_ratio = set_reshape_crop(depth.shape[0:2], 'val')
+    rgb = flip_pad_reshape_crop(rgb, flip, crop_size, pad, pad_value=0)
+    depth = flip_pad_reshape_crop(depth, flip, crop_size, pad, pad_value=0)
+    rgb = scale_torch(rgb, 255.0)
+    depth = scale_torch(depth, resize_ratio)
+    return rgb, depth
 
 def get_dataset(path, split, dataset):
     if dataset == 'nyu':
@@ -33,16 +119,20 @@ class VNLModule(pl.LightningModule):
         self.args.depth_bin_interval = (np.log10(self.args.depth_max) - np.log10(self.args.depth_min)) / self.args.dec_out_c
         self.args.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.args.dec_out_c)] for j in np.arange(self.args.dec_out_c)]
         self.args.depth_bin_border = np.array([np.log10(self.args.depth_min) + self.args.depth_bin_interval * (i + 0.5) for i in range(self.args.dec_out_c)])
-        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
+        self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
+        self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
+        self.train_dataset.transform = training_preprocess
+        self.val_dataset.transform = validation_preprocess
+        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=args.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
+        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=args.worker, 
-                                                    pin_memory=True)
+                                                    pin_memory=True) 
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
         self.model = VNL.MetricDepthModel(self.args)
