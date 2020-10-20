@@ -34,6 +34,18 @@ def add_row(img_merge, row):
 def save_image(img_merge, filename):
     img_merge = cv2.imwrite(filename, img_merge.astype('uint8'))
 
+def show_item(item):
+    img, depth = item
+    img = 255 * np.transpose(np.squeeze(img.cpu().numpy()), (1, 2, 0))  # H, W, C
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    depth = depth.squeeze(0).cpu().numpy()
+    d_min = np.min(depth)
+    d_max = np.max(depth)
+    depth = colored_depthmap(depth, d_min, d_max)
+    cv2.imshow("item", np.hstack([img, depth]).astype('uint8'))
+    cv2.waitKey(0)
+
+
 def show_pred(depth_pred):
     depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())
     d_min = np.min(depth_pred_cpu)

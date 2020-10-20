@@ -22,20 +22,16 @@ def training_preprocess(rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
     if isinstance(depth, np.ndarray):
         depth = transforms.ToPILImage()(depth)
-    # Resize
-    resize = transforms.Resize(400)
-    rgb = resize(rgb)
-    depth = resize(depth)
     # Random crop
-    crop = transforms.RandomCrop((384,384))
-    rgb = crop(rgb)
-    depth = crop(depth)
+    i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(384,384))
+    rgb = TF.crop(rgb, i, j, h, w)
+    depth = TF.crop(depth, i, j, h, w)
     # Random horizontal flipping
     if np.random.uniform(0,1) > 0.5:
         rgb = TF.hflip(rgb)
         depth = TF.hflip(depth)
     # Transform to tensor
-    rgb = TF.to_tensor(np.array(rgb)) #midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)
+    rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
     depth = np.array(depth, dtype=np.float32)
     depth = TF.to_tensor(depth)
     mask = depth > 0
@@ -208,12 +204,3 @@ class MidasModule(pl.LightningModule):
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror, structured3d]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror, structured3d]')
         return parser
-
-if __name__ == "__main__":
-    import numpy as np
-    midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
-    transform = midas_transforms.default_transform
-    img = np.random.uniform(0,255, size=(720, 1280, 3))
-    print(img.shape)
-    img = transform(img)
-    print(img.shape)
