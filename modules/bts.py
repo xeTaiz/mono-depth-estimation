@@ -32,48 +32,48 @@ def augment_image(image):
 
 def training_preprocess(rgb, depth):
     if isinstance(rgb, np.ndarray):
-        image = transforms.ToPILImage()(rgb)
+        rgb = transforms.ToPILImage()(rgb)
     if isinstance(depth, np.ndarray):
-        depth_gt = transforms.ToPILImage()(depth)
+        depth = transforms.ToPILImage()(depth)
     
-    #height = image.height
-    #width = image.width
+    #height = rgb.height
+    #width = rgb.width
     #top_margin = int(height - 400)
     #left_margin = int((width - 1216) / 2)
-    #depth_gt = depth_gt.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
-    #image       = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
+    #depth = depth.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
+    #rgb       = rgb.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
     
     # To avoid blank boundaries due to pixel registration
-    depth_gt = depth_gt.crop((43, 45, 608, 472))
-    image = image.crop((43, 45, 608, 472))
+    #depth = depth.crop((43, 45, 608, 472))
+    #rgb = rgb.crop((43, 45, 608, 472))
 
     # Random rotation
     angle = transforms.RandomRotation.get_params([-2.5, 2.5])
-    image = TF.rotate(image, angle)
-    depth_gt = TF.rotate(depth_gt, angle)
+    rgb = TF.rotate(rgb, angle)
+    depth = TF.rotate(depth, angle)
 
     # Random Crop
-    i, j, h, w = transforms.RandomCrop.get_params(image, output_size=(416, 544))
-    image = TF.crop(image, i, j, h, w)
-    depth_gt = TF.crop(depth_gt, i, j, h, w)
+    i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(416, 544))
+    rgb = TF.crop(rgb, i, j, h, w)
+    depth = TF.crop(depth, i, j, h, w)
 
     # Random flipping
     if np.random.uniform(0,1) > 0.5:
-        image = TF.hflip(image)
-        depth_gt = TF.hflip(depth_gt)
+        rgb = TF.hflip(rgb)
+        depth = TF.hflip(depth)
 
-    image = np.asarray(image, dtype=np.float32) / 255.0
-    depth_gt = np.asarray(depth_gt, dtype=np.float32)
+    rgb = np.asarray(rgb, dtype=np.float32) / 255.0
+    depth = np.asarray(depth, dtype=np.float32)
 
-    #depth_gt = depth_gt / 1000.0
+    #depth = depth / 1000.0
 
     # Random gamma, brightness, color augmentation
     if np.random.uniform(0,1) > 0.5:
-        image = augment_image(image)
+        rgb = augment_image(rgb)
 
-    image = TF.to_tensor(np.array(image))
-    depth_gt = TF.to_tensor(np.array(depth_gt))
-    return image, depth_gt
+    rgb = TF.to_tensor(np.array(rgb))
+    depth = TF.to_tensor(np.array(depth))
+    return rgb, depth
 
 def validation_preprocess(rgb, depth):
     if isinstance(rgb, np.ndarray):
@@ -82,26 +82,26 @@ def validation_preprocess(rgb, depth):
         depth = transforms.ToPILImage()(depth)
     # Resize
     resize = transforms.Resize(450)
-    image = resize(rgb)
-    depth_gt = resize(depth)
+    rgb = resize(rgb)
+    depth = resize(depth)
     # Center crop
     crop = transforms.CenterCrop((416, 544))
-    image = crop(image)
-    depth_gt = crop(depth_gt)
+    rgb = crop(rgb)
+    depth = crop(depth)
 
-    #height = image.shape[0]
-    #width = image.shape[1]
+    #height = rgb.shape[0]
+    #width = rgb.shape[1]
     #top_margin = int(height - 352)
     #left_margin = int((width - 1216) / 2)
-    #image       = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
-    #depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216]
+    #rgb       = rgb[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
+    #depth = depth[top_margin:top_margin + 352, left_margin:left_margin + 1216]
     
-    image = TF.to_tensor(np.array(image, dtype=np.float32))
-    depth_gt = TF.to_tensor(np.array(depth_gt, dtype=np.float32))
+    rgb = TF.to_tensor(np.array(rgb, dtype=np.float32))
+    depth = TF.to_tensor(np.array(depth, dtype=np.float32))
     
-    image /= 255.0
-    #depth_gt /= 1000.0
-    return image, depth_gt
+    rgb /= 255.0
+    #depth /= 1000.0
+    return rgb, depth
 
 
 def get_dataset(path, split, dataset):
@@ -209,7 +209,7 @@ class BtsModule(pl.LightningModule):
 if __name__ == "__main__":
     import visualize
     val_dataset = get_dataset('G:/data/nyudepthv2', 'train', 'nyu')
-    val_dataset.transform = validation_preprocess
+    val_dataset.transform = training_preprocess
     for i in range(100):
         item = val_dataset.__getitem__(i)
         visualize.show_item(item)
