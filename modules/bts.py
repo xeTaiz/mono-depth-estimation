@@ -124,8 +124,9 @@ class BtsModule(pl.LightningModule):
         self.args = args
         self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
         self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
-        self.train_dataset.transform = training_preprocess
-        self.val_dataset.transform = validation_preprocess
+        if self.args.data_augmentation == 'bts':
+            self.train_dataset.transform = training_preprocess
+            self.val_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
@@ -204,6 +205,7 @@ class BtsModule(pl.LightningModule):
         parser.add_argument('--weight_decay', type=float, help='weight decay factor for optimization', default=1e-2)
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or bts')
         return parser
 
 if __name__ == "__main__":
