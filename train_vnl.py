@@ -34,7 +34,8 @@ if __name__ == "__main__":
         amp_level='O2',
         min_epochs=args.min_epochs,
         max_epochs=args.max_epochs,
-        logger=pl.loggers.TensorBoardLogger("result", name='vnl')
+        logger=pl.loggers.TensorBoardLogger("result", name='vnl'),
+        callbacks=[pl.callbacks.LearningRateLogger()]
     )
 
     yaml = args.__dict__
