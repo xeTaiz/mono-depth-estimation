@@ -69,7 +69,7 @@ def training_preprocess(rgb, depth):
     rgb = np.asarray(rgb, dtype=np.float32) / 255.0
     depth = np.asarray(depth, dtype=np.float32)
 
-    depth = depth / 1000.0
+    #depth = depth / 1000.0
 
     # Random gamma, brightness, color augmentation
     if np.random.uniform(0,1) > 0.5:
@@ -97,7 +97,7 @@ def validation_preprocess(rgb, depth):
     depth = TF.to_tensor(np.array(depth, dtype=np.float32))
     
     rgb /= 255.0
-    depth /= 1000.0
+    #depth /= 1000.0
     return rgb, depth
 
 
