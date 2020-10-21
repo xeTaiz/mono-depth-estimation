@@ -16,59 +16,15 @@ import cv2
 RGB_PIXEL_MEANS = (0.485, 0.456, 0.406)  # (102.9801, 115.9465, 122.7717)
 RGB_PIXEL_VARS = (0.229, 0.224, 0.225)  # (1, 1, 1)
 
-def set_reshape_crop(uniform_size, split):
-    flip_prob = np.random.uniform(0.0, 1.0)
-    flip_flg = True if flip_prob > 0.5 and split == 'train' else False
+def set_reshape_crop():
     raw_size = np.array([385, 416, 448, 480, 512, 544, 576, 608, 640])
-    size_index = np.random.randint(0, 9) if split == 'train' else 8
-    # pad
-    pad_height = raw_size[size_index] - uniform_size[0] if raw_size[size_index] > uniform_size[0] else 0
-    pad = [pad_height, 0, 0, 0]  # [up, down, left, right]
-
-    # crop
-    crop_height = raw_size[size_index]
-    crop_width = raw_size[size_index]
-    start_x = np.random.randint(0, int(uniform_size[1] - crop_width)+1)
-    start_y = 0 if pad_height != 0 else np.random.randint(0, int(uniform_size[0] - crop_height) + 1)
-    crop_size = [start_x, start_y, crop_height, crop_width]
-    
-    resize_ratio = float(385 / crop_width)
-    return flip_flg, crop_size, pad, resize_ratio
-
-def flip_pad_reshape_crop(img, flip, crop_size, pad, pad_value=0):
-    """
-    Flip, pad, reshape, and crop the image.
-    :param img: input image, [C, H, W]
-    :param flip: flip flag
-    :param crop_size: crop size for the image, [x, y, width, height]
-    :param pad: pad the image, [up, down, left, right]
-    :param pad_value: padding value
-    :return:
-    """
-    # Flip
-    if flip:
-        img = np.flip(img, axis=1)
-
-    # Pad the raw image
-    if len(img.shape) == 3:
-        img_pad = np.pad(img, ((pad[0], pad[1]), (pad[2], pad[3]), (0, 0)), 'constant', constant_values=(pad_value, pad_value))
-    else:
-        img_pad = np.pad(img, ((pad[0], pad[1]), (pad[2], pad[3])), 'constant', constant_values=(pad_value, pad_value))
-    # Crop the resized image
-    img_crop = img_pad[crop_size[1]:crop_size[1] + crop_size[3], crop_size[0]:crop_size[0] + crop_size[2]]
-
-    # Resize the raw image
-    img_resize = cv2.resize(img_crop, (385, 385), interpolation=cv2.INTER_LINEAR)
-    return img_resize
+    size_index = np.random.randint(0, 9)
+    crop_size = raw_size[size_index]
+    resize_ratio = float(385 / crop_size)
+    return crop_size, resize_ratio
 
 def scale_torch(img, scale):
-    """
-    Scale the image and output it in torch.tensor.
-    :param img: input image. [C, H, W]
-    :param scale: the scale factor. float
-    :return: img. [C, H, W
-    """
-    img = TF.to_tensor(np.array(img))
+    img = TF.to_tensor(np.array(img, dtype=np.float32))
     img /= scale
     if img.size(0) == 3:
         img = transforms.Normalize(RGB_PIXEL_MEANS, RGB_PIXEL_VARS)(img)
@@ -77,23 +33,44 @@ def scale_torch(img, scale):
     return img
 
 def training_preprocess(rgb, depth):
-    rgb = np.array(rgb, dtype=np.float32)
-    depth = np.array(depth, dtype=np.float32)
-    flip, crop_size, pad, resize_ratio = set_reshape_crop(depth.shape[0:2], 'train')
-    rgb = flip_pad_reshape_crop(rgb, flip, crop_size, pad, pad_value=0)
-    depth = flip_pad_reshape_crop(depth, flip, crop_size, pad, pad_value=0)
+    if isinstance(rgb, np.ndarray):
+        rgb = transforms.ToPILImage()(rgb)
+    if isinstance(depth, np.ndarray):
+        depth = transforms.ToPILImage()(depth)
+    crop_size, resize_ratio = set_reshape_crop()
+    # Resize 
+    resize = transforms.Resize(int(crop_size))
+    rgb = resize(rgb)
+    depth = resize(depth)
+    # Random Crop
+    i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(385, 385))
+    rgb = TF.crop(rgb, i, j, h, w)
+    depth = TF.crop(depth, i, j, h, w)
+    # Random flipping
+    if np.random.uniform(0,1) > 0.5:
+        rgb = TF.hflip(rgb)
+        depth = TF.hflip(depth)
+
     rgb = scale_torch(rgb, 255.0)
     depth = scale_torch(depth, resize_ratio)
     return rgb, depth
 
 def validation_preprocess(rgb, depth):
-    rgb = np.array(rgb, dtype=np.float32)
-    depth = np.array(depth, dtype=np.float32)
-    flip, crop_size, pad, resize_ratio = set_reshape_crop(depth.shape[0:2], 'val')
-    rgb = flip_pad_reshape_crop(rgb, flip, crop_size, pad, pad_value=0)
-    depth = flip_pad_reshape_crop(depth, flip, crop_size, pad, pad_value=0)
+    if isinstance(rgb, np.ndarray):
+        rgb = transforms.ToPILImage()(rgb)
+    if isinstance(depth, np.ndarray):
+        depth = transforms.ToPILImage()(depth)
+    # Resize 
+    resize = transforms.Resize(400)
+    rgb = resize(rgb)
+    depth = resize(depth)
+    # Random Crop
+    crop = transforms.CenterCrop((385, 385))
+    rgb = crop(rgb)
+    depth = crop(depth)
+
     rgb = scale_torch(rgb, 255.0)
-    depth = scale_torch(depth, resize_ratio)
+    depth = scale_torch(depth, 1)
     return rgb, depth
 
 def get_dataset(path, split, dataset):
@@ -285,3 +262,11 @@ class VNLModule(pl.LightningModule):
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or vnl')
         return parser
+
+if __name__ == "__main__":
+    import visualize
+    val_dataset = get_dataset('D:/Documents/data/floorplan3d', 'train', 'noreflection')
+    val_dataset.transform = validation_preprocess
+    for i in range(100):
+        item = val_dataset.__getitem__(i)
+        visualize.show_item(item)
