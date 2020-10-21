@@ -36,21 +36,25 @@ def training_preprocess(rgb, depth):
     if isinstance(depth, np.ndarray):
         depth = transforms.ToPILImage()(depth)
     
-    #height = rgb.height
-    #width = rgb.width
-    #top_margin = int(height - 400)
-    #left_margin = int((width - 1216) / 2)
-    #depth = depth.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
-    #rgb       = rgb.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
-    
-    # To avoid blank boundaries due to pixel registration
-    #depth = depth.crop((43, 45, 608, 472))
-    #rgb = rgb.crop((43, 45, 608, 472))
+    height = rgb.height
+    width = rgb.width
+    left_margin = width * 0.05
+    right_margin = width * (1.0 - 0.05)
+    top_margin = height * 0.05
+    bot_margin = height * (1.0 - 0.05)
+    depth = depth.crop((left_margin, top_margin, right_margin, bot_margin))
+    rgb     = rgb.crop((left_margin, top_margin, right_margin, bot_margin))
 
     # Random rotation
     angle = transforms.RandomRotation.get_params([-2.5, 2.5])
     rgb = TF.rotate(rgb, angle)
     depth = TF.rotate(depth, angle)
+
+    # Resize
+    h = int(np.random.choice([416, 452, 489, 507, 518, 550, 600, 650, 720]))
+    resize = transforms.Resize(h)
+    rgb = resize(rgb)
+    depth = resize(depth)
 
     # Random Crop
     i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(416, 544))
@@ -65,7 +69,7 @@ def training_preprocess(rgb, depth):
     rgb = np.asarray(rgb, dtype=np.float32) / 255.0
     depth = np.asarray(depth, dtype=np.float32)
 
-    #depth = depth / 1000.0
+    depth = depth / 1000.0
 
     # Random gamma, brightness, color augmentation
     if np.random.uniform(0,1) > 0.5:
@@ -88,19 +92,12 @@ def validation_preprocess(rgb, depth):
     crop = transforms.CenterCrop((416, 544))
     rgb = crop(rgb)
     depth = crop(depth)
-
-    #height = rgb.shape[0]
-    #width = rgb.shape[1]
-    #top_margin = int(height - 352)
-    #left_margin = int((width - 1216) / 2)
-    #rgb       = rgb[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
-    #depth = depth[top_margin:top_margin + 352, left_margin:left_margin + 1216]
     
     rgb = TF.to_tensor(np.array(rgb, dtype=np.float32))
     depth = TF.to_tensor(np.array(depth, dtype=np.float32))
     
     rgb /= 255.0
-    #depth /= 1000.0
+    depth /= 1000.0
     return rgb, depth
 
 
@@ -210,7 +207,7 @@ class BtsModule(pl.LightningModule):
 
 if __name__ == "__main__":
     import visualize
-    val_dataset = get_dataset('G:/data/nyudepthv2', 'train', 'nyu')
+    val_dataset = get_dataset('D:/Documents/data/floorplan3d', 'train', 'noreflection')
     val_dataset.transform = training_preprocess
     for i in range(100):
         item = val_dataset.__getitem__(i)
