@@ -22,6 +22,11 @@ def training_preprocess(rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
     if isinstance(depth, np.ndarray):
         depth = transforms.ToPILImage()(depth)
+    # Random resize
+    size = np.random.randint(384, 720)
+    resize = transforms.Resize(int(size))
+    rgb = resize(rgb)
+    depth = resize(depth)
     # Random crop
     i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(384,384))
     rgb = TF.crop(rgb, i, j, h, w)
@@ -45,7 +50,7 @@ def validation_preprocess(rgb, depth):
     if isinstance(depth, np.ndarray):
         depth = transforms.ToPILImage()(depth)
     # Resize
-    resize = transforms.Resize(400)
+    resize = transforms.Resize(384)
     rgb = resize(rgb)
     depth = resize(depth)
     # center crop
