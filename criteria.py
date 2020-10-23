@@ -197,7 +197,7 @@ def reduction_image_based(image_loss, M):
 
 def l1_loss(prediction, target, mask, reduction=reduction_batch_based):
     diff = target - prediction
-    diff = diff[mask]
+    diff = diff[mask.bool()]
     return diff.abs().mean()
 
 def trimmed_mae_loss(prediction, target, mask, trim=0.2, reduction=reduction_batch_based):
