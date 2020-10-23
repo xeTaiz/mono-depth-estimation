@@ -61,7 +61,7 @@ def validation_preprocess(rgb, depth):
     if isinstance(depth, np.ndarray):
         depth = transforms.ToPILImage()(depth)
     # Resize 
-    resize = transforms.Resize(400)
+    resize = transforms.Resize(385)
     rgb = resize(rgb)
     depth = resize(depth)
     # Random Crop
