@@ -218,7 +218,7 @@ def mse_loss(prediction, target, mask, reduction=reduction_batch_based):
     res = prediction - target
     image_loss = torch.sum(mask * res * res, (1, 2))
 
-    return reduction(image_loss, 2 * M)
+    return image_loss.mean()#reduction(image_loss, 2 * M)
 
 
 def gradient_loss(prediction, target, mask, reduction=reduction_batch_based):
