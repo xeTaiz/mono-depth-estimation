@@ -114,11 +114,11 @@ class MidasModule(pl.LightningModule):
         self.model = MiDaS.MidasNet(path=weights_path, features=256)
         print("=> model created.")
         if self.args.loss == 'ssimse':
-            self.criterion = criteria.MidasLoss(alpha=self.args.alpha, loss='mse')
+            self.criterion = criteria.MidasLoss(alpha=self.args.alpha, loss='mse', reduction=self.args.reduction)
         elif self.args.loss == 'ssitrim':
-            self.criterion = criteria.MidasLoss(alpha=self.args.alpha, loss='trimmed')
+            self.criterion = criteria.MidasLoss(alpha=self.args.alpha, loss='trimmed', reduction=self.args.reduction)
         elif self.args.loss == 'ssil1':
-            self.criterion = criteria.MidasLoss(alpha=self.args.alpha, loss='l1')
+            self.criterion = criteria.MidasLoss(alpha=self.args.alpha, loss='l1', reduction=self.args.reduction)
         elif self.args.loss == 'eigen':
             self.criterion = criteria.MaskedDepthLoss()
         elif self.args.loss == 'laina':
@@ -211,4 +211,5 @@ class MidasModule(pl.LightningModule):
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror, structured3d]')
         parser.add_argument('--data_augmentation', default='midas', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--alpha', default=0.5, type=float, help='alpha')
+        parser.add_argument('--reduction', default='batch-based', type=str, help='reduction method')
         return parser

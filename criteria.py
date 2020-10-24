@@ -196,9 +196,11 @@ def reduction_image_based(image_loss, M):
     return torch.mean(image_loss)
 
 def l1_loss(prediction, target, mask, reduction=reduction_batch_based):
+    M = torch.sum(mask, (1, 2))
     diff = target - prediction
     diff = diff[mask.bool()]
-    return diff.abs().mean()
+    image_loss = diff.abs()
+    return reduction(image_loss, 2 * M)
 
 def trimmed_mae_loss(prediction, target, mask, trim=0.2, reduction=reduction_batch_based):
     M = torch.sum(mask, (1, 2))
@@ -214,9 +216,9 @@ def trimmed_mae_loss(prediction, target, mask, trim=0.2, reduction=reduction_bat
 
 def mse_loss(prediction, target, mask, reduction=reduction_batch_based):
     M = torch.sum(mask, (1, 2))
-    diff = target - prediction
-    diff = diff[mask.bool()]
-    return (diff * diff).mean()#reduction(image_loss, 2 * M)
+    res = prediction - target
+    image_loss = mask * res * res#torch.sum(mask * res * res, (1, 2))
+    return reduction(image_loss, 2 * M)
 
 
 def gradient_loss(prediction, target, mask, reduction=reduction_batch_based):
