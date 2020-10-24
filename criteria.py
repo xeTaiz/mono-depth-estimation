@@ -213,12 +213,10 @@ def trimmed_mae_loss(prediction, target, mask, trim=0.2, reduction=reduction_bat
     return reduction(trimmed, 2 * M)
 
 def mse_loss(prediction, target, mask, reduction=reduction_batch_based):
-
     M = torch.sum(mask, (1, 2))
-    res = prediction - target
-    image_loss = torch.sum(mask * res * res, (1, 2))
-
-    return image_loss.mean()#reduction(image_loss, 2 * M)
+    diff = target - prediction
+    diff = diff[mask.bool()]
+    return (diff * diff).mean()#reduction(image_loss, 2 * M)
 
 
 def gradient_loss(prediction, target, mask, reduction=reduction_batch_based):
