@@ -157,7 +157,7 @@ class MidasModule(pl.LightningModule):
         mask = (target > 0).type(torch.float32)
         scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
         prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
-        return prediction, target
+        return prediction_ssi, target
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -206,7 +206,7 @@ class MidasModule(pl.LightningModule):
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--pretrained', default=0, type=int, help="Use pretrained MiDaS")
         parser.add_argument('--features', default=256, type=int, help='Number of features')
-        parser.add_argument('--loss', default='midas', type=str, help='loss function: [midas, eigen, laina]')
+        parser.add_argument('--loss', default='ssitrim', type=str, help='loss function: [ssitrim, ssimse, ssil1, eigen, laina]')
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror, structured3d]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror, structured3d]')
         parser.add_argument('--data_augmentation', default='midas', type=str, help='Choose data Augmentation Strategy: laina or midas')
