@@ -148,6 +148,23 @@ class MidasModule(pl.LightningModule):
     def val_dataloader(self):
         return self.val_loader
 
+    def normalize_prediction_robust(self, target, mask):
+        ssum = torch.sum(mask, (1, 2))
+        valid = ssum > 0
+
+        m = torch.zeros_like(ssum)
+        s = torch.ones_like(ssum)
+
+        m[valid] = torch.median(
+            (mask[valid] * target[valid]).view(valid.sum(), -1), dim=1
+        ).values
+        target = target - m.view(-1, 1, 1)
+
+        sq = torch.sum(mask * target.abs(), (1, 2))
+        s[valid] = torch.clamp((sq[valid] / ssum[valid]), min=1e-6)
+
+        return target / (s.view(-1, 1, 1))
+
     def scale_and_shift(self, prediction, target):
         if prediction.ndim == 4:
             prediction = prediction.squeeze(1)
@@ -155,8 +172,11 @@ class MidasModule(pl.LightningModule):
             target = target.squeeze(1)
         assert prediction.dim() == target.dim(), "inconsistent dimensions"
         mask = (target > 0).type(torch.float32)
-        scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
-        prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
+        
+        #scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
+        #prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
+        prediction_ssi = self.normalize_prediction_robust(prediction, mask)
+        target = self.normalize_prediction_robust(target, mask)
         return prediction_ssi, target, mask
 
     def training_step(self, batch, batch_idx):
