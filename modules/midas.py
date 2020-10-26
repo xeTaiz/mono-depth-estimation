@@ -39,9 +39,9 @@ def training_preprocess(rgb, depth):
     rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
     depth = np.array(depth, dtype=np.float32)
     depth = TF.to_tensor(depth)
-    mask = depth > 0
-    depth[mask] = 10. / depth[mask]
-    depth[~mask] = 0.
+    #mask = depth > 0
+    #depth[mask] = 10. / depth[mask]
+    #depth[~mask] = 0.
     return rgb, depth
 
 def validation_preprocess(rgb, depth):
@@ -61,9 +61,9 @@ def validation_preprocess(rgb, depth):
     rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
     depth = np.array(depth, dtype=np.float32)
     depth = TF.to_tensor(depth)
-    mask = depth > 0
-    depth[mask] = 10. / depth[mask]
-    depth[~mask] = 0.
+    #mask = depth > 0
+    #depth[mask] = 10. / depth[mask]
+    #depth[~mask] = 0.
     return rgb, depth
 
 def get_dataset(path, split, dataset):
@@ -157,8 +157,7 @@ class MidasModule(pl.LightningModule):
         mask = (target > 0).type(torch.float32)
         scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
         prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
-        target_ssi = scale.view(-1, 1, 1) * target + shift.view(-1, 1, 1)
-        return prediction_ssi, target_ssi, mask
+        return prediction_ssi, target, mask
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -172,7 +171,7 @@ class MidasModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat, y = self.scale_and_shift(y_hat, y)
+        y_hat, y, _ = self.scale_and_shift(y_hat, y)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
