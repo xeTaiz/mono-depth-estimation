@@ -8,6 +8,63 @@ from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
 
+
+RGB_PIXEL_MEANS = (0.485, 0.456, 0.406)  # (102.9801, 115.9465, 122.7717)
+RGB_PIXEL_VARS = (0.229, 0.224, 0.225)  # (1, 1, 1)
+
+def training_preprocess(rgb, depth):
+    if isinstance(rgb, np.ndarray):
+        rgb = transforms.ToPILImage()(rgb)
+    if isinstance(depth, np.ndarray):
+        depth = transforms.ToPILImage()(depth)
+    # Random resize
+    size = np.random.randint(240, 720)
+    resize = transforms.Resize(int(size))
+    rgb = resize(rgb)
+    depth = resize(depth)
+    # Random crop
+    i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(240, 320))
+    rgb = TF.crop(rgb, i, j, h, w)
+    depth = TF.crop(depth, i, j, h, w)
+    # Random horizontal flipping
+    if np.random.uniform(0,1) > 0.5:
+        rgb = TF.hflip(rgb)
+        depth = TF.hflip(depth)
+    # random rotation
+    angle = transforms.RandomRotation.get_params([-6,6])
+    rgb = TF.rotate(rgb, angle)
+    depth = TF.rotate(depth, angle)
+    # Transform to tensor
+    rgb = TF.to_tensor(np.array(rgb))
+    depth = np.array(depth, dtype=np.float32)
+    depth = TF.to_tensor(depth)
+    # random scale
+    s = np.random.uniform(0.5, 2)
+    rgb /= s
+    depth /= s
+    # normalize color
+    rgb = transforms.Normalize(RGB_PIXEL_MEANS, RGB_PIXEL_VARS)(rgb)
+    return rgb, depth
+
+def validation_preprocess(rgb, depth):
+    if isinstance(rgb, np.ndarray):
+        rgb = transforms.ToPILImage()(rgb)
+    if isinstance(depth, np.ndarray):
+        depth = transforms.ToPILImage()(depth)
+    # Resize
+    resize = transforms.Resize(240)
+    rgb = resize(rgb)
+    depth = resize(depth)
+    # center crop
+    crop = transforms.CenterCrop((240, 320))
+    rgb = crop(rgb)
+    depth = crop(depth)
+    # Transform to tensor
+    rgb = TF.to_tensor(np.array(rgb))
+    depth = np.array(depth, dtype=np.float32)
+    depth = TF.to_tensor(depth)
+    return rgb, depth
+
 def get_dataset(path, split, dataset):
     if dataset == 'nyu':
         return NYUDataset(path, split=split, output_size=(240, 320), resize=250)
@@ -20,23 +77,23 @@ def get_dataset(path, split, dataset):
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
 
-sharpnetloss = criteria.SharpNetLoss(lamb=1, mu=0.5, use_depth=True)
-def SharpNetLoss(pred, target):
-    mask = target > 0
-    d_loss, grad_loss, n_loss, b_loss, geo_loss = sharpnetloss(mask, d_pred=pred, d_gt=target)
-    return d_loss + grad_loss + n_loss + b_loss + geo_loss
 
 class SharpNetModule(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.args = args
         assert self.args.loss in ['berHuLoss', 'L1', 'SharpNetLoss']
-        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
+        self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
+        self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
+        if self.args.data_augmentation == 'sharpnet':
+            self.train_dataset.transform = training_preprocess
+            self.val_dataset.transform = validation_preprocess
+        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=args.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=args.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
+        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=args.worker, 
@@ -50,7 +107,7 @@ class SharpNetModule(pl.LightningModule):
         elif self.args.loss == 'L1':
             self.criterion = criteria.MaskedL1Loss()
         elif self.args.loss == 'SharpNetLoss':
-            self.criterion = SharpNetLoss
+            self.criterion = criteria.LainaBerHuLoss()
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
 
     def forward(self, x):
@@ -67,14 +124,14 @@ class SharpNetModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y /= 10.0
+        #y /= 10.0
         loss = self.criterion(y_hat, y)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
-        y /= 10.0
+        #y /= 10.0
         y_hat = self(x)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
@@ -111,4 +168,5 @@ class SharpNetModule(pl.LightningModule):
         parser.add_argument('--loss', default='SharpNetLoss', type=str, help='loss function: [berHuLoss, L1, SharpNetLoss]')
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--data_augmentation', default='sharpnet', type=str, help='Choose data Augmentation Strategy: sharpnet or laina')
         return parser
