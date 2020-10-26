@@ -158,14 +158,14 @@ class MidasModule(pl.LightningModule):
         scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
         prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
         target_ssi = scale.view(-1, 1, 1) * target + shift.view(-1, 1, 1)
-        return prediction_ssi, target_ssi
+        return prediction_ssi, target_ssi, mask
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat, y = self.scale_and_shift(y_hat, y)
-        loss = self.criterion(y_hat, y)
+        y_hat, y, mask = self.scale_and_shift(y_hat, y)
+        loss = self.criterion(y_hat, y, mask)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
