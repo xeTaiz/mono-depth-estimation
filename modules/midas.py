@@ -173,8 +173,8 @@ class MidasModule(pl.LightningModule):
         assert prediction.dim() == target.dim(), "inconsistent dimensions"
         mask = (target > 0).type(torch.float32)
         
-        #scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
-        #prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
+        scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
+        prediction = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
         prediction_ssi = self.normalize_prediction_robust(prediction, mask)
         target = self.normalize_prediction_robust(target, mask)
         return prediction_ssi, target, mask
