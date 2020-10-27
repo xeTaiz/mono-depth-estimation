@@ -24,19 +24,28 @@ def get_dataset(path, split, dataset):
         raise ValueError('unknown dataset {}'.format(dataset))
 
 class FCRNModule(pl.LightningModule):
-    def __init__(self, args):
+    def __init__(self, hparams):
         super().__init__()
-        self.args = args
-        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
-                                                    batch_size=args.batch_size, 
+        self.hparams = hparams
+        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
+        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
+        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
+        
+        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
+                                                    batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
+        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
-                                                    num_workers=args.worker, 
-                                                    pin_memory=True)
+                                                    num_workers=self.hparams.worker, 
+                                                    pin_memory=True) 
+        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
+                                                    batch_size=1, 
+                                                    shuffle=False, 
+                                                    num_workers=self.hparams.worker, 
+                                                    pin_memory=True)   
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
         self.model = FCRN.ResNet(output_size=self.train_loader.dataset.output_size)
@@ -53,6 +62,9 @@ class FCRNModule(pl.LightningModule):
 
     def val_dataloader(self):
         return self.val_loader
+
+    def test_dataloader(self):
+        return self.test_loader
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -75,13 +87,19 @@ class FCRNModule(pl.LightningModule):
             visualize.save_image(self.img_merge, filename)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
+    def test_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        y_hat = self(x)
+        return self.metric_logger.log_test(y_hat, y)
+
     def configure_optimizers(self):
         # different modules have different learning rate
-        train_params = [{'params': self.model.get_1x_lr_params(), 'lr': self.args.learning_rate},
-                        {'params': self.model.get_10x_lr_params(), 'lr': self.args.learning_rate * 10}]
+        train_params = [{'params': self.model.get_1x_lr_params(), 'lr': self.hparams.learning_rate},
+                        {'params': self.model.get_10x_lr_params(), 'lr': self.hparams.learning_rate * 10}]
 
-        optimizer = torch.optim.Adam(train_params, lr=self.args.learning_rate)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.args.lr_patience)
+        optimizer = torch.optim.Adam(train_params, lr=self.hparams.learning_rate)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.hparams.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
@@ -99,4 +117,7 @@ class FCRNModule(pl.LightningModule):
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or midas')
+        parser.add_argument('--loss', default='laina', type=str, help='loss function: [laina]')
         return parser
