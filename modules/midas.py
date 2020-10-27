@@ -66,6 +66,37 @@ def validation_preprocess(rgb, depth):
     #depth[~mask] = 0.
     return rgb, depth
 
+def normalize_prediction_robust(target, mask):
+        ssum = torch.sum(mask, (1, 2))
+        valid = ssum > 0
+
+        m = torch.zeros_like(ssum)
+        s = torch.ones_like(ssum)
+
+        m[valid] = torch.median(
+            (mask[valid] * target[valid]).view(valid.sum(), -1), dim=1
+        ).values
+        target = target - m.view(-1, 1, 1)
+
+        sq = torch.sum(mask * target.abs(), (1, 2))
+        s[valid] = torch.clamp((sq[valid] / ssum[valid]), min=1e-6)
+
+        return target / (s.view(-1, 1, 1))
+
+def scale_and_shift(prediction, target):
+    if prediction.ndim == 4:
+        prediction = prediction.squeeze(1)
+    if target.ndim == 4:
+        target = target.squeeze(1)
+    assert prediction.dim() == target.dim(), "inconsistent dimensions"
+    mask = (target > 0).type(torch.float32)
+    
+    scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
+    prediction = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
+    prediction_ssi = normalize_prediction_robust(prediction, mask)
+    target = normalize_prediction_robust(target, mask)
+    return prediction_ssi, target, mask
+
 def get_dataset(path, split, dataset):
     if dataset == 'nyu':
         return NYUDataset(path, split=split, output_size=(384, 384), resize=400)
@@ -81,26 +112,33 @@ def get_dataset(path, split, dataset):
         raise ValueError('unknown dataset {}'.format(dataset))
 
 class MidasModule(pl.LightningModule):
-    def __init__(self, args):
+    def __init__(self, hparams):
         super().__init__()
-        self.args = args
-        assert self.args.loss in ['ssil1', 'ssitrim', 'ssimse', 'eigen', 'laina']
-        self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
-        self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
-        if self.args.data_augmentation == 'midas':
+        self.hparams = hparams
+        assert self.hparams.loss in ['ssil1', 'ssitrim', 'ssimse', 'eigen', 'laina']
+        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
+        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
+        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
+        if self.hparams.data_augmentation == 'midas':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
+            self.test_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                    batch_size=args.batch_size, 
+                                                    batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True)
         self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True) 
-        if self.args.pretrained: 
+        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
+                                                    batch_size=1, 
+                                                    shuffle=False, 
+                                                    num_workers=self.hparams.worker, 
+                                                    pin_memory=True)                 
+        if self.hparams.pretrained: 
             weights_path = Path.cwd()/"model-f46da743.pt"
             if not weights_path.exists():                                                             
                 self.download_weights(weights_path)
@@ -113,15 +151,15 @@ class MidasModule(pl.LightningModule):
         print("=> creating Model")
         self.model = MiDaS.MidasNet(path=weights_path, features=256)
         print("=> model created.")
-        if self.args.loss == 'ssimse':
-            self.criterion = criteria.MidasLoss(alpha=self.args.alpha, loss='mse', reduction=self.args.reduction)
-        elif self.args.loss == 'ssitrim':
-            self.criterion = criteria.MidasLoss(alpha=self.args.alpha, loss='trimmed', reduction=self.args.reduction)
-        elif self.args.loss == 'ssil1':
-            self.criterion = criteria.MidasLoss(alpha=self.args.alpha, loss='l1', reduction=self.args.reduction)
-        elif self.args.loss == 'eigen':
+        if self.hparams.loss == 'ssimse':
+            self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss='mse', reduction=self.hparams.reduction)
+        elif self.hparams.loss == 'ssitrim':
+            self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss='trimmed', reduction=self.hparams.reduction)
+        elif self.hparams.loss == 'ssil1':
+            self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss='l1', reduction=self.hparams.reduction)
+        elif self.hparams.loss == 'eigen':
             self.criterion = criteria.MaskedDepthLoss()
-        elif self.args.loss == 'laina':
+        elif self.hparams.loss == 'laina':
             self.criterion = criteria.MaskedL1Loss()
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
 
@@ -148,42 +186,14 @@ class MidasModule(pl.LightningModule):
     def val_dataloader(self):
         return self.val_loader
 
-    def normalize_prediction_robust(self, target, mask):
-        ssum = torch.sum(mask, (1, 2))
-        valid = ssum > 0
-
-        m = torch.zeros_like(ssum)
-        s = torch.ones_like(ssum)
-
-        m[valid] = torch.median(
-            (mask[valid] * target[valid]).view(valid.sum(), -1), dim=1
-        ).values
-        target = target - m.view(-1, 1, 1)
-
-        sq = torch.sum(mask * target.abs(), (1, 2))
-        s[valid] = torch.clamp((sq[valid] / ssum[valid]), min=1e-6)
-
-        return target / (s.view(-1, 1, 1))
-
-    def scale_and_shift(self, prediction, target):
-        if prediction.ndim == 4:
-            prediction = prediction.squeeze(1)
-        if target.ndim == 4:
-            target = target.squeeze(1)
-        assert prediction.dim() == target.dim(), "inconsistent dimensions"
-        mask = (target > 0).type(torch.float32)
-        
-        scale, shift = criteria.compute_scale_and_shift(prediction, target, mask)
-        prediction = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
-        prediction_ssi = self.normalize_prediction_robust(prediction, mask)
-        target = self.normalize_prediction_robust(target, mask)
-        return prediction_ssi, target, mask
+    def test_dataloader(self):
+        return self.test_loader
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat, y, mask = self.scale_and_shift(y_hat, y)
+        y_hat, y, mask = scale_and_shift(y_hat, y)
         loss = self.criterion(y_hat, y, mask)
         return self.metric_logger.log_train(y_hat, y, loss)
 
@@ -191,7 +201,7 @@ class MidasModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat, y, _ = self.scale_and_shift(y_hat, y)
+        y_hat, y, _ = scale_and_shift(y_hat, y)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
@@ -202,13 +212,20 @@ class MidasModule(pl.LightningModule):
             visualize.save_image(self.img_merge, filename)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
+    def test_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        y_hat = self(x)
+        y_hat, y, _ = scale_and_shift(y_hat, y)
+        return self.metric_logger.log_test(y_hat, y)
+
     def configure_optimizers(self):
         # different modules have different learning rate
-        train_params = [{'params': self.model.pretrained.parameters(), 'lr': self.args.learning_rate * 0.1},
-                        {'params': self.model.scratch.parameters(), 'lr': self.args.learning_rate}]
+        train_params = [{'params': self.model.pretrained.parameters(), 'lr': self.hparams.learning_rate * 0.1},
+                        {'params': self.model.scratch.parameters(), 'lr': self.hparams.learning_rate}]
 
-        optimizer = torch.optim.Adam(train_params, lr=self.args.learning_rate)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.args.lr_patience)
+        optimizer = torch.optim.Adam(train_params, lr=self.hparams.learning_rate)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.hparams.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
@@ -229,6 +246,7 @@ class MidasModule(pl.LightningModule):
         parser.add_argument('--loss', default='ssitrim', type=str, help='loss function: [ssitrim, ssimse, ssil1, eigen, laina]')
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror, structured3d]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror, structured3d]')
+        parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--data_augmentation', default='midas', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--alpha', default=0.5, type=float, help='alpha')
         parser.add_argument('--reduction', default='batch-based', type=str, help='reduction method')
