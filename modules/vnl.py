@@ -89,33 +89,55 @@ def get_dataset(path, split, dataset):
 
 
 class VNLModule(pl.LightningModule):
-    def __init__(self, args):
+    def __init__(self, hparams):
         super().__init__()
-        self.args = args
-        self.args.depth_min_log = np.log10(self.args.depth_min)
-        self.args.depth_bin_interval = (np.log10(self.args.depth_max) - np.log10(self.args.depth_min)) / self.args.dec_out_c
-        self.args.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.args.dec_out_c)] for j in np.arange(self.args.dec_out_c)]
-        self.args.depth_bin_border = np.array([np.log10(self.args.depth_min) + self.args.depth_bin_interval * (i + 0.5) for i in range(self.args.dec_out_c)])
-        self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
-        self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
-        if self.args.data_augmentation == 'vnl':
+        self.hparams = hparams
+        self.params = pl.utilities.parsing.AttributeDict()
+        self.params.depth_min = self.hparams.depth_min
+        self.params.encoder = self.hparams.encoder
+        self.params.enc_dim_in = self.hparams.enc_dim_in
+        self.params.enc_dim_out = self.hparams.enc_dim_out
+        self.params.pretrained = self.hparams.pretrained
+        self.params.freeze_backbone = self.hparams.freeze_backbone
+        self.params.init_type = self.hparams.init_type
+        self.params.dec_dim_in = self.hparams.dec_dim_in
+        self.params.dec_dim_out = self.hparams.dec_dim_out
+        self.params.dec_out_c = self.hparams.dec_out_c        
+        self.params.focal_x = self.hparams.focal_x
+        self.params.focal_y = self.hparams.focal_y
+        self.params.crop_size = self.hparams.crop_size
+        self.params.diff_loss_weight = self.hparams.diff_loss_weight
+
+        self.params.depth_min_log = np.log10(self.hparams.depth_min)
+        self.params.depth_bin_interval = (np.log10(self.hparams.depth_max) - np.log10(self.hparams.depth_min)) / self.hparams.dec_out_c
+        self.params.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.hparams.dec_out_c)] for j in np.arange(self.hparams.dec_out_c)]
+        self.params.depth_bin_border = np.array([np.log10(self.hparams.depth_min) + self.params.depth_bin_interval * (i + 0.5) for i in range(self.hparams.dec_out_c)])
+        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
+        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
+        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
+        if self.hparams.data_augmentation == 'vnl':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                    batch_size=args.batch_size, 
+                                                    batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True)
         self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True) 
+        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
+                                                    batch_size=1, 
+                                                    shuffle=False, 
+                                                    num_workers=self.hparams.worker, 
+                                                    pin_memory=True)
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
-        self.model = VNL.MetricDepthModel(self.args)
+        self.model = VNL.MetricDepthModel(self.params)
         print("=> model created.")
-        self.criterion = criteria.ModelLoss(self.args)
+        self.criterion = criteria.ModelLoss(self.params)
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
 
     def depth_to_bins(self, depth):
@@ -126,11 +148,11 @@ class VNLModule(pl.LightningModule):
         :return: depth bins [1, h, w]
         """
         invalid_mask = depth < 0.
-        depth[depth < self.args.depth_min] = self.args.depth_min
-        depth[depth > self.args.depth_max] = self.args.depth_max
-        bins = ((torch.log10(depth) - self.args.depth_min_log) / self.args.depth_bin_interval).to(torch.int)
-        bins[invalid_mask] = self.args.dec_out_c + 1
-        bins[bins == self.args.dec_out_c] = self.args.dec_out_c - 1
+        depth[depth < self.hparams.depth_min] = self.hparams.depth_min
+        depth[depth > self.hparams.depth_max] = self.hparams.depth_max
+        bins = ((torch.log10(depth) - self.params.depth_min_log) / self.params.depth_bin_interval).to(torch.int)
+        bins[invalid_mask] = self.hparams.dec_out_c + 1
+        bins[bins == self.hparams.dec_out_c] = self.hparams.dec_out_c - 1
         depth[invalid_mask] = -1.0
         return bins
 
@@ -141,7 +163,7 @@ class VNLModule(pl.LightningModule):
         :return: 1-channel depth, [b, 1, h, w]
         """
         depth_bin = depth_bin.permute(0, 2, 3, 1) #[b, h, w, c]
-        depth_bin_border = torch.tensor(self.args.depth_bin_border, dtype=torch.float32).cuda()
+        depth_bin_border = torch.tensor(self.params.depth_bin_border, dtype=torch.float32).cuda()
         depth = depth_bin * depth_bin_border
         depth = torch.sum(depth, dim=3, dtype=torch.float32, keepdim=True)
         depth = 10 ** depth
@@ -158,6 +180,9 @@ class VNLModule(pl.LightningModule):
     def val_dataloader(self):
         return self.val_loader
 
+    def test_dataloader(self):
+        return self.test_loader
+
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
@@ -168,9 +193,9 @@ class VNLModule(pl.LightningModule):
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def predicted_depth_map(self, logits, cls):
-        if self.args.prediction_method == 'classification':
+        if self.hparams.prediction_method == 'classification':
             pred_depth = self.bins_to_depth(cls)
-        elif self.args.prediction_method == 'regression':
+        elif self.hparams.prediction_method == 'regression':
             pred_depth = torch.nn.functional.sigmoid(logits)
         else:
             raise ValueError("Unknown prediction methods")
@@ -192,6 +217,14 @@ class VNLModule(pl.LightningModule):
             visualize.save_image(self.img_merge, filename)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
+    def test_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        y /= 10.0
+        pred_logits, pred_cls = self(x)
+        y_hat = self.predicted_depth_map(pred_logits, pred_cls)
+        return self.metric_logger.log_test(y_hat, y)
+
     def configure_optimizers(self):
         # different modules have different learning rate
         encoder_params = []
@@ -211,9 +244,9 @@ class VNLModule(pl.LightningModule):
             else:
                 nograd_param_names.append(key)
 
-        lr_encoder = self.args.learning_rate
-        lr_decoder = self.args.learning_rate * self.args.scale_decoder_lr
-        weight_decay = self.args.weight_decay
+        lr_encoder = self.hparams.learning_rate
+        lr_decoder = self.hparams.learning_rate * self.hparams.scale_decoder_lr
+        weight_decay = self.hparams.weight_decay
 
         net_params = [
             {'params': encoder_params,
@@ -224,7 +257,7 @@ class VNLModule(pl.LightningModule):
              'weight_decay': weight_decay},
             ]
         optimizer = torch.optim.SGD(net_params, momentum=0.9)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.args.lr_patience)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.hparams.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
@@ -260,7 +293,9 @@ class VNLModule(pl.LightningModule):
         parser.add_argument('--prediction_method', default='classification', type=str, help='type of prediction. classification or regression')
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
-        parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or vnl')
+        parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--data_augmentation', default='vnl', type=str, help='Choose data Augmentation Strategy: laina or vnl')
+        parser.add_argument('--loss', default='vnl', type=str, help='loss function')
         return parser
 
 if __name__ == "__main__":
