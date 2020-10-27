@@ -10,6 +10,12 @@ import visualize
 from metrics import MetricLogger
 import numpy as np 
 
+def training_preprocess(rgb, depth):
+    pass
+
+def validation_preprocess(rgb, depth):
+    pass
+
 def get_dataset(path, split, dataset, img_size):
     if dataset == 'nyu':
         return NYUDataset(path, split=split, output_size=img_size, resize=img_size[0])
@@ -80,38 +86,49 @@ def get_labels_sid(dataset, depth):
     return labels.int()
 
 class DORNModule(pl.LightningModule):
-    def __init__(self, args):
+    def __init__(self, hparams):
         super().__init__()
-        self.args = args
-        self.alpha = torch.tensor(self.args.alpha).float()
-        self.beta = torch.tensor(self.args.beta).float()
-        self.ord_num = torch.tensor(self.args.ord_num).int()
-        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset, self.args.input_size),
-                                                    batch_size=args.batch_size, 
+        self.hparams = hparams
+        self.alpha = torch.tensor(self.hparams.alpha).float()
+        self.beta = torch.tensor(self.hparams.beta).float()
+        self.ord_num = torch.tensor(self.hparams.ord_num).int()
+        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
+        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
+        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
+        if self.hparams.data_augmentation == 'bts':
+            self.train_dataset.transform = training_preprocess
+            self.val_dataset.transform = validation_preprocess
+        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
+                                                    batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset, self.args.input_size),
+        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
-                                                    num_workers=args.worker, 
-                                                    pin_memory=True)
+                                                    num_workers=self.hparams.worker, 
+                                                    pin_memory=True) 
+        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
+                                                    batch_size=1, 
+                                                    shuffle=False, 
+                                                    num_workers=self.hparams.worker, 
+                                                    pin_memory=True)      
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
-        self.model = Dorn.DORN(self.args)
+        self.model = Dorn.DORN(self.hparams)
         print("=> model created.")
         self.criterion = criteria.ordLoss()
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
 
     def label_to_depth(self, label):
-        if self.args.discretization == "SID":
+        if self.hparams.discretization == "SID":
             depth = torch.exp(torch.log(self.alpha) + torch.log(self.beta / self.alpha) * label / self.ord_num)
         else:
             depth = self.alpha + (self.beta - self.alpha) * label / self.ord_num
         return depth
 
     def depth_to_label(self, depth):
-        if self.args.discretization == "SID":
+        if self.hparams.discretization == "SID":
             label = self.ord_num * torch.log(depth / self.alpha) / torch.log(self.beta / self.alpha)
         else:
             label = self.ord_num * (depth - self.alpha) / (self.beta - self.alpha)
@@ -126,6 +143,9 @@ class DORNModule(pl.LightningModule):
 
     def val_dataloader(self):
         return self.val_loader
+
+    def test_dataloader(self):
+        return self.test_loader
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -151,13 +171,20 @@ class DORNModule(pl.LightningModule):
             visualize.save_image(self.img_merge, filename)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
+    def test_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        pred_d, pred_ord = self(x)
+        y_hat = self.label_to_depth(pred_d)
+        return self.metric_logger.log_test(y_hat, y)
+
     def configure_optimizers(self):
         # different modules have different learning rate
-        train_params = [{'params': self.model.backbone.parameters(), 'lr': self.args.learning_rate},
-                        {'params': self.model.SceneUnderstandingModule.parameters(), 'lr': self.args.learning_rate * 10}]
+        train_params = [{'params': self.model.backbone.parameters(), 'lr': self.hparams.learning_rate},
+                        {'params': self.model.SceneUnderstandingModule.parameters(), 'lr': self.hparams.learning_rate * 10}]
 
-        optimizer = torch.optim.SGD(train_params, lr=self.args.learning_rate, weight_decay=self.args.weight_decay)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.args.lr_patience)
+        optimizer = torch.optim.SGD(train_params, lr=self.hparams.learning_rate, weight_decay=self.hparams.weight_decay)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.hparams.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
@@ -186,4 +213,8 @@ class DORNModule(pl.LightningModule):
         parser.add_argument('--batch_norm', default=0, type=int, help='Batch Normalization')
         parser.add_argument('--discretization', default="SID", type=str, help='Method for discretization')
         parser.add_argument('--dropout', default=0.5, type=float, help='Dropout rate.')
+        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--data_augmentation', default='dorn', type=str, help='Choose data Augmentation Strategy: laina or bts')
+        parser.add_argument('--loss', default='dorn', type=str, help='loss function')
         return parser
