@@ -34,6 +34,13 @@ class MetricLogger(object):
             result.log("val_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
         return result
 
+    def log_test(self, pred, target):
+        values = self.computer.compute(pred, target)
+        result = pl.EvalResult()
+        for name, value in zip(self.computer.names, values):
+            result.log("{}".format(name), value)
+        return result
+
     def reset(self):
         self.computer.reset()
 
