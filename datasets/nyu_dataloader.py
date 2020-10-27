@@ -17,7 +17,7 @@ class NYUDataset(BaseDataset):
     def __init__(self, path, output_size=(228, 304), resize=250, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
         self.loader = h5_loader
-        self.path = Path(path)/self.split
+        self.path = Path(path)/(self.split if self.split in ['train', 'val'] else 'val')
         self.output_size = output_size
         self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]
         self.resize = resize
