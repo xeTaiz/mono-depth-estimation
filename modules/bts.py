@@ -7,7 +7,7 @@ from datasets.structured3d_dataset import Structured3DDataset
 from network import Bts
 from argparse import ArgumentParser
 import visualize
-from metrics import MetricLogger
+from metrics import MetricLogger, MetricComputation
 import numpy as np
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
@@ -116,29 +116,36 @@ def get_dataset(path, split, dataset):
         raise ValueError('unknown dataset {}'.format(dataset))
 
 class BtsModule(pl.LightningModule):
-    def __init__(self, args):
+    def __init__(self, hparams):
         super().__init__()
-        self.args = args
-        self.train_dataset = get_dataset(self.args.path, 'train', self.args.dataset)
-        self.val_dataset = get_dataset(self.args.path, 'val', self.args.eval_dataset)
-        if self.args.data_augmentation == 'bts':
+        self.hparams = hparams
+        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
+        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
+        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
+        if self.hparams.data_augmentation == 'bts':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
+            self.test_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                    batch_size=args.batch_size, 
+                                                    batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True)
         self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True) 
+        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
+                                                    batch_size=1, 
+                                                    shuffle=False, 
+                                                    num_workers=self.hparams.worker, 
+                                                    pin_memory=True)                                     
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
-        self.model = Bts.BtsModel(max_depth=self.args.max_depth, bts_size=self.args.bts_size, encoder_version=self.args.encoder)
+        self.model = Bts.BtsModel(max_depth=self.hparams.max_depth, bts_size=self.hparams.bts_size, encoder_version=self.hparams.encoder)
         print("=> model created.")
-        self.criterion = criteria.silog_loss(variance_focus=self.args.variance_focus)
+        self.criterion = criteria.silog_loss(variance_focus=self.hparams.variance_focus)
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
 
     def forward(self, x):
@@ -150,6 +157,9 @@ class BtsModule(pl.LightningModule):
 
     def val_dataloader(self):
         return self.val_loader
+
+    def test_dataloader(self):
+        return self.test_loader
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -173,12 +183,18 @@ class BtsModule(pl.LightningModule):
             visualize.save_image(self.img_merge, filename)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
+    def test_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        y_hat = self(x)
+        return self.metric_logger.log_test(y_hat, y)
+
     def configure_optimizers(self):
-        train_param = [{'params': self.model.encoder.parameters(), 'weight_decay': self.args.weight_decay},
+        train_param = [{'params': self.model.encoder.parameters(), 'weight_decay': self.hparams.weight_decay},
                        {'params': self.model.decoder.parameters(), 'weight_decay': 0}]
         # Training parameters
-        optimizer = torch.optim.AdamW(train_param, lr=self.args.learning_rate, eps=self.args.adam_eps)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.args.lr_patience)
+        optimizer = torch.optim.AdamW(train_param, lr=self.hparams.learning_rate, eps=self.hparams.adam_eps)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.hparams.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
@@ -202,7 +218,9 @@ class BtsModule(pl.LightningModule):
         parser.add_argument('--weight_decay', type=float, help='weight decay factor for optimization', default=1e-2)
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
-        parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or bts')
+        parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--data_augmentation', default='bts', type=str, help='Choose data Augmentation Strategy: laina or bts')
+        parser.add_argument('--loss', default='bts', type=str, help='loss function')
         return parser
 
 if __name__ == "__main__":
