@@ -25,22 +25,31 @@ def get_dataset(path, split, dataset):
 
 
 class EigenModule(pl.LightningModule):
-    def __init__(self, args):
+    def __init__(self, hparams):
         super().__init__()
-        self.args = args 
-        self.train_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'train', self.args.dataset),
-                                                    batch_size=args.batch_size, 
+        self.hparams = hparams 
+        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
+        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
+        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
+        
+        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
+                                                    batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(get_dataset(self.args.path, 'val', self.args.eval_dataset),
+        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
-                                                    num_workers=args.worker, 
+                                                    num_workers=self.hparams.worker, 
+                                                    pin_memory=True) 
+        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
+                                                    batch_size=1, 
+                                                    shuffle=False, 
+                                                    num_workers=self.hparams.worker, 
                                                     pin_memory=True)
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
-        self.model = Eigen.Eigen(scale1=self.args.backbone, pretrained=self.args.pretrained)
+        self.model = Eigen.Eigen(scale1=self.hparams.backbone, pretrained=self.hparams.pretrained)
         print("=> model created.")
         self.criterion = criteria.MaskedDepthLoss()
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
@@ -54,6 +63,9 @@ class EigenModule(pl.LightningModule):
 
     def val_dataloader(self):
         return self.val_loader
+
+    def test_dataloader(self):
+        return self.test_loader
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -82,14 +94,23 @@ class EigenModule(pl.LightningModule):
             visualize.save_image(self.img_merge, filename)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
+    def test_step(self, batch, batch_idx):
+        if batch_idx == 0: self.metric_logger.reset()
+        x, y = batch
+        y_hat = self(x)
+        (_, c, h, w) = y.size()
+        # bilinerar upsample
+        y_hat = torch.nn.functional.interpolate(y_hat, (h, w), mode='bilinear')
+        return self.metric_logger.log_test(y_hat, y)
+
     def configure_optimizers(self):
         # different modules have different learning rate
-        train_params = [{'params': self.model.scale1.parameters(), 'lr': self.args.learning_rate},
-                        {'params': self.model.scale2.parameters(), 'lr': self.args.learning_rate},
-                        {'params': self.model.scale3.parameters(), 'lr': self.args.learning_rate}]
+        train_params = [{'params': self.model.scale1.parameters(), 'lr': self.hparams.learning_rate},
+                        {'params': self.model.scale2.parameters(), 'lr': self.hparams.learning_rate},
+                        {'params': self.model.scale3.parameters(), 'lr': self.hparams.learning_rate}]
 
-        optimizer = torch.optim.Adam(train_params, lr=self.args.learning_rate)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.args.lr_patience)
+        optimizer = torch.optim.Adam(train_params, lr=self.hparams.learning_rate)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.hparams.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
@@ -109,4 +130,7 @@ class EigenModule(pl.LightningModule):
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
+        parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or eigen')
+        parser.add_argument('--loss', default='eigen', type=str, help='loss function')
         return parser
