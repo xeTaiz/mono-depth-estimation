@@ -194,9 +194,8 @@ class DORNModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
-        #pred_d, pred_ord = self(x)
-        #y_hat = self.label_to_depth(pred_d)
-        y_hat = self.overlapping_window_method(x)
+        pred_d, pred_ord = self(x)
+        y_hat = self.label_to_depth(pred_d)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
