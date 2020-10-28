@@ -75,7 +75,7 @@ if __name__ == "__main__":
                 hparams = yaml.load(yamlf, Loader=yaml.FullLoader)
             line = "{},{},{},{},{},".format(method.name, hparams['loss'], hparams['data_augmentation'], hparams['dataset'], hparams['test_dataset'])
             for metric in args.metrics:
-                line += "{},".format(result[metric])
+                line += "{},".format(round(result[metric], 3))
             line += "\n"
             txt_file.write(line)
     txt_file.close()
