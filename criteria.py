@@ -316,6 +316,8 @@ class MidasLoss(nn.Module):
         self.__alpha = alpha
 
     def forward(self, prediction, target, mask):
+        scale, shift = compute_scale_and_shift(prediction, target, mask)
+        prediction = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
         total = self.__data_loss(prediction, target, mask)
         if self.__alpha > 0:
             total += self.__alpha * self.__regularization_loss(prediction, target, mask)
