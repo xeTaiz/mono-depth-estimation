@@ -37,7 +37,7 @@ class Floorplan3DDataset(BaseDataset):
         self.images = []
         self.depth = []
         for scene_name in self.scene_names:
-            images = [f for f in scene_name.glob('**/*') if all([s in f.name for s in ['color', '.jpg']]) and f.parent.name == self.dataset_type]
+            images = [f for f in scene_name.glob('**/*') if all([s in f.name for s in ['color', '.jpg']]) and self.dataset_type in f.parent.name]
             for img_path in images:
                 depth_path = img_path.parent/img_path.name.replace('color', 'depth').replace('jpg', 'png')
                 if img_path.exists() and depth_path.exists():
