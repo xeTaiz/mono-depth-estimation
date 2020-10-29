@@ -24,14 +24,17 @@ class Floorplan3DDataset(BaseDataset):
         self.load_images()
         print("Found {} scenes containing {} images for {}".format(len(self.scene_names),self.__len__(), self.split))
 
+    def load_cubicasa_split(self):
+        split_file = Path(self.path, "{}.txt".format(self.split))
+        assert split_file.exists(), "Missing cubicasa split file: {}".format(split_file.as_posix())
+        with open(split_file.as_posix(), "r") as txt_file:
+            lines = txt_file.readlines()
+            return [line.split("/")[2] for line in lines]
+
     def load_scene_names(self):
-        scene_names = [scene for scene in self.path.glob('*/*')]
-        if self.split == 'train':
-            self.scene_names = scene_names[0:500] # 577
-        elif self.split == 'val':
-            self.scene_names = scene_names[500:540]
-        elif self.split == 'test':
-            self.scene_names = scene_names[540:]
+        scene_names = self.load_cubicasa_split()
+        self.scene_names = [scene for scene in self.path.glob('*/*') if scene.name in scene_names]
+        
 
     def load_images(self):
         self.images = []
