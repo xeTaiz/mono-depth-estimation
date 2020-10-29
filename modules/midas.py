@@ -189,12 +189,20 @@ class MidasModule(pl.LightningModule):
     def test_dataloader(self):
         return self.test_loader
 
+    def normalize(y_hat, y):
+        d_min = min(torch.min(y_hat), torch.min(y))
+        d_max = max(torch.max(y_hat), torch.max(y))
+        y_hat = (y_hat - d_min) / (d_max - d_min)
+        y = (y - d_min) / (d_max - d_min)
+        return y_hat, y
+
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
         y_hat, y, mask = scale_and_shift(y_hat, y)
         loss = self.criterion(y_hat, y, mask)
+        y_hat, y = self.normalize(y_hat, y)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
@@ -202,6 +210,7 @@ class MidasModule(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         y_hat, y, _ = scale_and_shift(y_hat, y)
+        y_hat, y = self.normalize(y_hat, y)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
@@ -217,6 +226,7 @@ class MidasModule(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         y_hat, y, _ = scale_and_shift(y_hat, y)
+        y_hat, y = self.normalize(y_hat, y)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
