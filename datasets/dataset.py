@@ -33,7 +33,7 @@ class ConcatDataset(Dataset):
     def __init__(self, datasets):
         self.transform = None
         self.datasets = datasets
-        self.indices = np.array([[dataset_index] * len(d) for dataset_index, d in enumerate(self.datasets)]).flatten()
+        self.indices = np.hstack([[dataset_index] * len(d) for dataset_index, d in enumerate(self.datasets)])
         np.random.shuffle(self.indices)
 
     def __getitem__(self, i):
