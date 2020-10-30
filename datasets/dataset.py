@@ -30,7 +30,7 @@ class BaseDataset(Dataset):
         return len(self.images)
 
 class ConcatDataset(Dataset):
-    def __init__(self, *datasets):
+    def __init__(self, datasets):
         self.transform = None
         self.datasets = datasets
         self.indices = np.array([[dataset_index] * len(d) for dataset_index, d in enumerate(self.datasets)]).flatten()

@@ -1,6 +1,7 @@
 import torch
 import pytorch_lightning as pl
 import criteria
+from datasets.dataset import ConcatDataset
 from datasets.nyu_dataloader import NYUDataset
 from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
 from datasets.structured3d_dataset import Structured3DDataset
@@ -13,25 +14,24 @@ from torchvision import transforms
 import numpy as np 
 
 
-def training_preprocess(rgb, depth):
-    pass
-
-def validation_preprocess(rgb, depth):
-    pass
-
 def get_dataset(path, split, dataset, img_size):
+    path = path.split('+')
     if dataset == 'nyu':
-        return NYUDataset(path, split=split, output_size=img_size, resize=img_size[0])
+        return NYUDataset(path[0], split=split, output_size=img_size, resize=img_size[0])
     elif dataset == 'noreflection':
-        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.NO_REFLECTION, output_size=img_size, resize=img_size[0])
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=img_size, resize=img_size[0])
     elif dataset == 'isotropic':
-        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=img_size, resize=img_size[0])
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=img_size, resize=img_size[0])
     elif dataset == 'mirror':
-        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=img_size, resize=img_size[0])
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=img_size, resize=img_size[0])
     elif dataset == 'structured3d':
-        return Structured3DDataset(path, split=split, dataset_type='perspective', output_size=img_size, resize=img_size[0])
+        return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=img_size, resize=img_size[0])
+    elif '+' in dataset:
+        datasets = [get_dataset(p, split, d, img_size) for p, d in zip(path, dataset.split('+'))]
+        return ConcatDataset(datasets)
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
+
 
 def get_depth_sid(dataset, labels):
     if dataset == 'kitti':
@@ -254,43 +254,41 @@ class DORNModule(pl.LightningModule):
 
 
 if __name__ == "__main__":
-    import cv2
-    import torchvision.transforms as transforms
-    import torchvision.transforms.functional as TF
-    depth_original = np.random.uniform(0,10, size=(512, 512, 1)).astype(np.float32)
-    depth_original = cv2.imread("D:/Downloads/download.jpg", cv2.IMREAD_GRAYSCALE)
-    depth = transforms.ToPILImage()(depth_original)
+    def overlapping_window_method_2(x):
+        x = x.squeeze(0) # (1,3,H,W) -> (3,H,W)
+        # Resize
+        x_pil = transforms.ToPILImage()(x.cpu())
+        # Resize
+        s = np.random.uniform(1,1.5)
+        input_size = x.shape[-2:]
+        [h, w] = np.array(input_size) * s
+        h = int(h)
+        w = int(w)
+        resize = transforms.Resize((h,w))
+        x_pil = resize(x_pil)
+        c = 10
+        counts  = torch.zeros((h, w), device=x.device)
+        y_hat = torch.zeros((1, h, w), device=x.device)
+
+        for q in range(c):
+            i, j, h, w = transforms.RandomCrop.get_params(x_pil, output_size=input_size)
+            crop = TF.crop(x_pil, i, j, h, w)
+            crop = transforms.ToTensor()(crop).cuda()
+            counts[i:i+h, j:j+w] += 1
+            y_hat[:, i:i+h, j:j+w] += crop
+        counts = counts.type(torch.float32)
+        y_hat = y_hat.type(torch.float32)
+        mask = counts > 0
+        print(torch.max(y_hat))
+        y_hat[mask.unsqueeze(0)] = y_hat[mask.unsqueeze(0)] / counts[mask]
+        print(torch.max(y_hat))
+        y_hat = y_hat.unsqueeze(0)
+        y_hat = torch.nn.functional.interpolate(y_hat, x.shape[-2:])
+        return y_hat
+    from datasets.nyu_dataloader import NYUDataset
+    from visualize import show_item
+    dataset = NYUDataset(path="G:/data/nyudepthv2", split="test")
+    img, depth = dataset.__getitem__(0)
+    y_hat = overlapping_window_method_2(depth.cuda())
     
-    # Resize
-    depth = transforms.Resize(int(257))(depth)
-    depth_t = transforms.ToTensor()(depth)
-    
-    counts  = torch.zeros(depth_t.shape[1:])
-    values = torch.zeros(depth_t.shape)
-
-    for i in range(255):
-        s = np.random.uniform(1/1.5, 1)
-        [h,w] = np.array(depth.size) * s
-        i, j, h, w = transforms.RandomCrop.get_params(depth, output_size=(int(w), int(h)))
-        crop = TF.crop(depth, i, j, h, w)
-        crop = transforms.ToTensor()(crop)
-        mask = torch.ones(crop.shape[1:])
-        counts[i:i+h, j:j+w] += mask
-        values[:, i:i+h, j:j+w] += crop
-    counts = counts.type(torch.uint8)
-    values = values.type(torch.float32)
-    mask = counts > 0
-    values[mask.unsqueeze(0)] = values[mask.unsqueeze(0)] / counts[mask]
-    
-    counts = counts.numpy()
-    values = values.numpy()
-    values = np.transpose(values, (1,2,0))
-
-    print(np.max(depth_original))
-    print(np.max(values))
-
-
-    cv2.imshow("counts", counts)
-    cv2.imshow("values", values)
-    cv2.imshow("depth_original", depth_original)
-    cv2.waitKey(0)
+    show_item((img, y_hat.squeeze(1)))

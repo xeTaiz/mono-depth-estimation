@@ -11,21 +11,20 @@ import visualize
 from metrics import MetricLogger
 
 def get_dataset(path, split, dataset):
+    path = path.split('+')
     if dataset == 'nyu':
-        return NYUDataset(path, split=split, output_size=(240, 320), resize=250)
+        return NYUDataset(path[0], split=split, output_size=(240, 320), resize=250)
     elif dataset == 'noreflection':
-        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(240, 320), resize=250)
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(240, 320), resize=250)
     elif dataset == 'isotropic':
-        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(240, 320), resize=250)
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(240, 320), resize=250)
     elif dataset == 'mirror':
-        return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(240, 320), resize=250)
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(240, 320), resize=250)
     elif dataset == 'structured3d':
-        return Structured3DDataset(path, split=split, dataset_type='perspective', output_size=(240, 320), resize=250)
-    elif dataset == 'nyu+mirror':
-        [nyu_path, floorplan3d_path] = path.split("+")
-        nyu = NYUDataset(nyu_path, split=split, output_size=(240, 320), resize=250)
-        floorplan3d = NYUDataset(floorplan3d_path, split=split, output_size=(240, 320), resize=250)#Floorplan3DDataset(floorplan3d_path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(240, 320), resize=250)
-        return ConcatDataset(nyu, floorplan3d)
+        return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=(240, 320), resize=250)
+    elif '+' in dataset:
+        datasets = [get_dataset(p, split, d) for p, d in zip(path, dataset.split('+'))]
+        return ConcatDataset(datasets)
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
 
@@ -127,6 +126,3 @@ class FCRNModule(pl.LightningModule):
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--loss', default='laina', type=str, help='loss function: [laina]')
         return parser
-
-if __name__ == "__main__":
-    dataset = get_dataset(path="G:/data/nyudepthv2+G:/data/nyudepthv2", split="test", dataset="nyu+mirror")
