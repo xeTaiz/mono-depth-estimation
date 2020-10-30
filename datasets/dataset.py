@@ -39,7 +39,7 @@ class ConcatDataset(Dataset):
     def __getitem__(self, i):
         if not self.transform is None:
             for dataset in self.datasets:
-                dataset.transform = lambda x: x
+                dataset.transform = lambda x,y: x,y
         item_index = (self.indices[0:i] == self.indices[i]).sum()
         item = self.datasets[self.indices[i]][item_index]
         if self.transform is None:
