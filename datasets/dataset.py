@@ -41,11 +41,11 @@ class ConcatDataset(Dataset):
             for dataset in self.datasets:
                 dataset.transform = lambda x,y: (x,y)
         item_index = (self.indices[0:i] == self.indices[i]).sum()
-        item = self.datasets[self.indices[i]][item_index]
+        rgb, depth = self.datasets[self.indices[i]][item_index]
         if self.transform is None:
-            return item
+            return rgb, depth
         else:
-            return self.transform(item)
+            return self.transform(rgb, depth)
 
     def __len__(self):
         return sum(len(d) for d in self.datasets)
