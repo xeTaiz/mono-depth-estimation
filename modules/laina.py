@@ -1,6 +1,7 @@
 import torch
 import pytorch_lightning as pl
 import criteria
+from datasets.dataset import ConcatDataset
 from datasets.nyu_dataloader import NYUDataset
 from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
 from datasets.structured3d_dataset import Structured3DDataset
@@ -20,6 +21,11 @@ def get_dataset(path, split, dataset):
         return Floorplan3DDataset(path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(240, 320), resize=250)
     elif dataset == 'structured3d':
         return Structured3DDataset(path, split=split, dataset_type='perspective', output_size=(240, 320), resize=250)
+    elif dataset == 'nyu+mirror':
+        [nyu_path, floorplan3d_path] = path.split("+")
+        nyu = NYUDataset(nyu_path, split=split, output_size=(240, 320), resize=250)
+        floorplan3d = NYUDataset(floorplan3d_path, split=split, output_size=(240, 320), resize=250)#Floorplan3DDataset(floorplan3d_path, split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(240, 320), resize=250)
+        return ConcatDataset(nyu, floorplan3d)
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
 
@@ -121,3 +127,6 @@ class FCRNModule(pl.LightningModule):
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--loss', default='laina', type=str, help='loss function: [laina]')
         return parser
+
+if __name__ == "__main__":
+    dataset = get_dataset(path="G:/data/nyudepthv2+G:/data/nyudepthv2", split="test", dataset="nyu+mirror")
