@@ -11,8 +11,6 @@ from modules.eigen import EigenModule
 import pytorch_lightning as pl
 import yaml
 
-METHODS = ['bts', 'vnl', 'laina', 'eigen', 'midas', 'dorn']
-
 def get_checkpoint(version_path):
     checkpoints = [ckpt for ckpt in Path(version_path, "checkpoints").glob('*')]
     checkpoints.sort(key=lambda x: int(x.name.replace("epoch=", "").replace(".ckpt", "")))
@@ -39,7 +37,7 @@ def get_model(method, ckpt, hparams):
     if method == 'bts':
         return BtsModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams)
     elif method == 'midas':
-        return MidasModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams)
+        return MidasModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path="G:/data/Floorplan3D")
     elif method == 'laina':
         return FCRNModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams)
     elif method == 'vnl':
@@ -57,6 +55,7 @@ if __name__ == "__main__":
     parser.add_argument('--results', required=True, type=str, help='directory where snapshots are located.')
     parser.add_argument('--output', required=True, type=str, help='Text File to write test output to.')
     parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae'], nargs='+', help='which metrics to evaluate')
+    parser.add_argument('--methods', default=['bts', 'vnl', 'laina', 'eigen', 'midas', 'dorn'], nargs='+', help='Methods to test')
     args = parser.parse_args()
     results_directory = Path(args.results)
     assert results_directory.exists(), "{} does not exist!".format(results_directory.as_posix())
@@ -67,7 +66,7 @@ if __name__ == "__main__":
     txt_file.write("method,loss,aug,train,test,{},\n".format(",".join(args.metrics)))
 
     for method in results_directory.glob('*'):
-        if not method.name in METHODS:continue
+        if not method.name in args.methods:continue
         for version in method.glob('*'):
             result = test_method(method.name, version)
             if not result:continue

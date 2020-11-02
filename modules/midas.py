@@ -68,21 +68,27 @@ def validation_preprocess(rgb, depth):
     return rgb, depth
 
 def normalize_prediction_robust(target, mask):
-        ssum = torch.sum(mask, (1, 2))
-        valid = ssum > 0
+    ssum = torch.sum(mask, (1, 2))
+    valid = ssum > 0
 
-        m = torch.zeros_like(ssum)
-        s = torch.ones_like(ssum)
+    m = torch.zeros_like(ssum)
+    s = torch.ones_like(ssum)
 
-        m[valid] = torch.median(
-            (mask[valid] * target[valid]).view(valid.sum(), -1), dim=1
-        ).values
-        target = target - m.view(-1, 1, 1)
+    m[valid] = torch.median(
+        (mask[valid] * target[valid]).view(valid.sum(), -1), dim=1
+    ).values
+    target = target - m.view(-1, 1, 1)
 
-        sq = torch.sum(mask * target.abs(), (1, 2))
-        s[valid] = torch.clamp((sq[valid] / ssum[valid]), min=1e-6)
+    sq = torch.sum(mask * target.abs(), (1, 2))
+    s[valid] = torch.clamp((sq[valid] / ssum[valid]), min=1e-6)
 
-        return target / (s.view(-1, 1, 1))
+    return target / (s.view(-1, 1, 1))
+
+def scale_shift(pred, target):
+    pred = (pred - torch.min(pred)) / (torch.max(pred) - torch.min(pred))
+    pred = 1.0 - pred
+    pred = pred * (torch.max(target) - torch.min(target)) + torch.min(target)
+    return pred
 
 def normalize(prediction, target):
     if prediction.ndim == 4:
@@ -210,7 +216,7 @@ class MidasModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat, y, _ = normalize(y_hat, y)
+        y_hat, y = scale_shift(y_hat, y)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
@@ -225,7 +231,7 @@ class MidasModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat, y, _ = normalize(y_hat, y)
+        y_hat = scale_shift(y_hat, y)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
