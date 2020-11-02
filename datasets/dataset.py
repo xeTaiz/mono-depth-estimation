@@ -33,19 +33,19 @@ class ConcatDataset(Dataset):
     def __init__(self, datasets):
         self.transform = None
         self.datasets = datasets
-        self.indices = np.array([[dataset_index] * len(d) for dataset_index, d in enumerate(self.datasets)]).flatten()
+        self.indices = np.hstack([[dataset_index] * len(d) for dataset_index, d in enumerate(self.datasets)])
         np.random.shuffle(self.indices)
 
     def __getitem__(self, i):
         if not self.transform is None:
             for dataset in self.datasets:
-                dataset.transform = lambda x: x
+                dataset.transform = lambda x,y: (x,y)
         item_index = (self.indices[0:i] == self.indices[i]).sum()
-        item = self.datasets[self.indices[i]][item_index]
+        rgb, depth = self.datasets[self.indices[i]][item_index]
         if self.transform is None:
-            return item
+            return rgb, depth
         else:
-            return self.transform(item)
+            return self.transform(rgb, depth)
 
     def __len__(self):
         return sum(len(d) for d in self.datasets)
