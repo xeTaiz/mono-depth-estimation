@@ -38,7 +38,11 @@ def show_item(item):
     img, depth = item
     img = 255 * np.transpose(np.squeeze(img.cpu().numpy()), (1, 2, 0))  # H, W, C
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    depth = depth.squeeze(0).cpu().numpy()
+    if depth.ndim == 4:
+        depth = depth.squeeze(0).squeeze(0)
+    elif depth.ndim == 3:
+        depth = depth.squeeze(0)
+    depth = depth.cpu().numpy()
     d_min = np.min(depth)
     d_max = np.max(depth)
     depth = colored_depthmap(depth, d_min, d_max)

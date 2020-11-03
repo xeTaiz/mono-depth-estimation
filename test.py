@@ -19,13 +19,13 @@ def get_checkpoint(version_path):
     else:
         return None
 
-def test_method(method, version_path):
+def test_method(method, version_path, test_dataset, path):
     hparams = Path(version_path, "hparams.yaml")
     checkpoint = get_checkpoint(version_path)
     trainer = pl.Trainer(gpus=1)
     if checkpoint:
         print("Testing {} {} {}".format(method, version_path.name, checkpoint.name))
-        model = get_model(method, checkpoint.as_posix(), hparams.as_posix())
+        model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset)
         if model:
             result = trainer.test(model)
             return result[0]
@@ -33,19 +33,19 @@ def test_method(method, version_path):
             print("Model unavailable: ", method)
     return None
 
-def get_model(method, ckpt, hparams):
+def get_model(method, ckpt, hparams, path, test_dataset):
     if method == 'bts':
-        return BtsModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams)
+        return BtsModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
     elif method == 'midas':
-        return MidasModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path="G:/data/Floorplan3D")
+        return MidasModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
     elif method == 'laina':
-        return FCRNModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams)
+        return FCRNModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
     elif method == 'vnl':
-        return VNLModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams)
+        return VNLModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
     elif method == 'eigen':
-        return EigenModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams)
+        return EigenModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
     elif method == 'dorn':
-        return DORNModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams)
+        return DORNModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path)
     else:
         return None
 
@@ -54,8 +54,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--results', required=True, type=str, help='directory where snapshots are located.')
     parser.add_argument('--output', required=True, type=str, help='Text File to write test output to.')
-    parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae'], nargs='+', help='which metrics to evaluate')
+    parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
     parser.add_argument('--methods', default=['bts', 'vnl', 'laina', 'eigen', 'midas', 'dorn'], nargs='+', help='Methods to test')
+    parser.add_argument('--path', required=True, type=str, help='Path to Floorplan3D')
+    parser.add_argument('--test_dataset', default=['noreflection', 'isotropic', 'mirror'], nargs='+', help='test dataset(s)')
+
     args = parser.parse_args()
     results_directory = Path(args.results)
     assert results_directory.exists(), "{} does not exist!".format(results_directory.as_posix())
@@ -68,13 +71,14 @@ if __name__ == "__main__":
     for method in results_directory.glob('*'):
         if not method.name in args.methods:continue
         for version in method.glob('*'):
-            result = test_method(method.name, version)
-            if not result:continue
-            with open(Path(version, "hparams.yaml").as_posix(), "r") as yamlf:
-                hparams = yaml.load(yamlf, Loader=yaml.FullLoader)
-            line = "{},{},{},{},{},".format(method.name, hparams['loss'], hparams['data_augmentation'], hparams['dataset'], hparams['test_dataset'])
-            for metric in args.metrics:
-                line += "{},".format(round(result[metric], 3))
-            line += "\n"
-            txt_file.write(line)
+            for test_dataset in args.test_dataset:
+                result = test_method(method.name, version, test_dataset, args.path)
+                if not result:continue
+                with open(Path(version, "hparams.yaml").as_posix(), "r") as yamlf:
+                    hparams = yaml.load(yamlf, Loader=yaml.FullLoader)
+                line = "{},{},{},{},{},".format(method.name, hparams['loss'], hparams['data_augmentation'], hparams['dataset'], test_dataset)
+                for metric in args.metrics:
+                    line += "{},".format(round(result[metric], 3))
+                line += "\n"
+                txt_file.write(line)
     txt_file.close()

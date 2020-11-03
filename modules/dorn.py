@@ -135,38 +135,48 @@ class DORNModule(pl.LightningModule):
             label = self.ord_num * (depth - self.alpha) / (self.beta - self.alpha)
         return label
 
-    def overlapping_window_method(self, x):
-        x = x.squeeze(0) # (1,3,H,W) -> (3,H,W)
-        # Resize
-        x_pil = transforms.ToPILImage()(x.cpu())
-        # Resize
+    def overlapping_window_method(self, image):
+        def get_crop(x, size):
+            (h,w) = x.shape[-2:]
+            (height, width) = size
+            h_diff = h - height
+            w_diff = w - width
+            assert h_diff >= 0, "wrong size"
+            assert w_diff >= 0, "wrong size"
+            i = np.random.randint(0, h_diff+1)
+            j = np.random.randint(0, w_diff+1)
+            return i,j,height,width
         s = np.random.uniform(1,1.5)
-        [h, w] = np.array(self.hparams.input_size) * s
-        h = int(h)
-        w = int(w)
-        resize = transforms.Resize((h,w))
-        x_pil = resize(x_pil)
-        
-        counts  = torch.zeros((h, w), device=x.device)
-        y_hat = torch.zeros((1, h, w), device=x.device)
+        input_size = image.shape[-2:]
+        [height, width] = (np.array(input_size) * s).astype(int)
+        pred_d, pred_ord = self(image)
+        y_hat = self.label_to_depth(pred_d)
 
-        for i in range(10):
-            i, j, h, w = transforms.RandomCrop.get_params(x_pil, output_size=self.hparams.input_size)
-            crop = TF.crop(x_pil, i, j, h, w)
-            crop = transforms.ToTensor()(crop).cuda()
-            crop = crop.unsqueeze(0) # (3,h,w) -> (1,3,h,w)
-            pred_d, pred_ord = self(crop)
-            crop_hat = self.label_to_depth(pred_d)
-            crop_hat = crop_hat.squeeze(0) # (1,1,h,w) -> (1,h,w)
-            mask = torch.ones(crop.shape[-2:], device=x.device)
-            counts[i:i+h, j:j+w] += mask
-            y_hat[:, i:i+h, j:j+w] += crop_hat
-        counts = counts.type(torch.uint8)
+        resized = torch.nn.functional.interpolate(image, (height, width), mode='bilinear')
+        y_hat = torch.nn.functional.interpolate(y_hat, (height, width), mode='bilinear')
+        c = 20
+        counts  = torch.ones((1, 1, height,width), device=image.device)
+
+        batch = []
+        params = []
+        for q in range(c):
+            i,j,h,w = get_crop(resized, input_size)
+            batch.append(resized[:, :, i:i+h, j:j+w])
+            params.append((i,j,h,w))
+        batch = torch.cat(batch, dim=0)
+        pred_d, pred_ord = self(batch)
+        y_hat_crop = self.label_to_depth(pred_d)
+        y_hat_crop = y_hat_crop * s
+        
+        for q in range(c):
+            (i,j,h,w) = params[q]
+            counts[..., i:i+h, j:j+w] += 1
+            y_hat[..., i:i+h, j:j+w] += y_hat_crop[q]
+            
+        counts = counts.type(torch.float32)
         y_hat = y_hat.type(torch.float32)
-        mask = counts > 0
-        y_hat[mask.unsqueeze(0)] = y_hat[mask.unsqueeze(0)] / counts[mask]
-        y_hat = y_hat.unsqueeze(0)
-        y_hat = torch.nn.functional.interpolate(y_hat, x.shape[-2:])
+        y_hat = y_hat / counts
+        y_hat = torch.nn.functional.interpolate(y_hat, image.shape[-2:])
         return y_hat
 
     def forward(self, x):
@@ -207,6 +217,7 @@ class DORNModule(pl.LightningModule):
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
     def test_step(self, batch, batch_idx):
+        self.skip = 1
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self.overlapping_window_method(x)
@@ -254,36 +265,42 @@ class DORNModule(pl.LightningModule):
 
 
 if __name__ == "__main__":
-    def overlapping_window_method_2(x):
-        x = x.squeeze(0) # (1,3,H,W) -> (3,H,W)
-        # Resize
-        x_pil = transforms.ToPILImage()(x.cpu())
-        # Resize
+
+    def get_crop(x, size):
+        (h,w) = x.shape[-2:]
+        (height, width) = size
+        h_diff = h - height
+        w_diff = w - width
+        assert h_diff >= 0, "wrong size"
+        assert w_diff >= 0, "wrong size"
+        i = np.random.randint(0, h_diff+1)
+        j = np.random.randint(0, w_diff+1)
+        return i,j,height,width
+
+            
+    def overlapping_window_method_2(image):
         s = np.random.uniform(1,1.5)
-        input_size = x.shape[-2:]
-        [h, w] = np.array(input_size) * s
-        h = int(h)
-        w = int(w)
-        resize = transforms.Resize((h,w))
-        x_pil = resize(x_pil)
-        c = 10
-        counts  = torch.zeros((h, w), device=x.device)
-        y_hat = torch.zeros((1, h, w), device=x.device)
+        input_size = image.shape[-2:]
+        [h, w] = np.array(input_size) * 1.5
+        height = int(h)
+        width = int(w)
+
+        resized = torch.nn.functional.interpolate(image, (height, width), mode='bilinear')
+        y_hat = torch.zeros((1,1, height, width))
+        c = 1000
+        counts  = torch.ones((1, 1, height,width), device=x.device)
 
         for q in range(c):
-            i, j, h, w = transforms.RandomCrop.get_params(x_pil, output_size=input_size)
-            crop = TF.crop(x_pil, i, j, h, w)
-            crop = transforms.ToTensor()(crop).cuda()
-            counts[i:i+h, j:j+w] += 1
-            y_hat[:, i:i+h, j:j+w] += crop
+            i,j,h,w = get_crop(resized, input_size)
+            x_crop = resized[:, :, i:i+h, j:j+w]
+            pred_d, pred_ord = self(crop)
+            y_hat_crop = self.label_to_depth(pred_d)
+            counts[..., i:i+h, j:j+w] += 1
+            y_hat[..., i:i+h, j:j+w] += y_hat_crop
         counts = counts.type(torch.float32)
         y_hat = y_hat.type(torch.float32)
-        mask = counts > 0
-        print(torch.max(y_hat))
-        y_hat[mask.unsqueeze(0)] = y_hat[mask.unsqueeze(0)] / counts[mask]
-        print(torch.max(y_hat))
-        y_hat = y_hat.unsqueeze(0)
-        y_hat = torch.nn.functional.interpolate(y_hat, x.shape[-2:])
+        y_hat = y_hat / counts
+        y_hat = torch.nn.functional.interpolate(y_hat, image.shape[-2:])
         return y_hat
     from datasets.nyu_dataloader import NYUDataset
     from visualize import show_item
