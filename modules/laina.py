@@ -53,7 +53,7 @@ class FCRNModule(pl.LightningModule):
                                                     pin_memory=True)   
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
-        self.model = FCRN.ResNet(output_size=self.train_loader.dataset.output_size)
+        self.model = FCRN.ResNet(output_size=(240, 320))
         print("=> model created.")
         self.criterion = criteria.MaskedL1Loss()
         self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
