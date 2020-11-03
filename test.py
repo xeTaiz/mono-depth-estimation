@@ -19,13 +19,13 @@ def get_checkpoint(version_path):
     else:
         return None
 
-def test_method(method, version_path, test_dataset, path):
+def test_method(method, version_path, test_dataset, path, metrics):
     hparams = Path(version_path, "hparams.yaml")
     checkpoint = get_checkpoint(version_path)
     trainer = pl.Trainer(gpus=1)
     if checkpoint:
         print("Testing {} {} {}".format(method, version_path.name, checkpoint.name))
-        model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset)
+        model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset, metrics)
         if model:
             result = trainer.test(model)
             return result[0]
@@ -33,28 +33,22 @@ def test_method(method, version_path, test_dataset, path):
             print("Model unavailable: ", method)
     return None
 
-def get_model(method, ckpt, hparams, path, test_dataset):
-    if method == 'bts':
-        return BtsModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
-    elif method == 'midas':
-        return MidasModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
-    elif method == 'laina':
-        return FCRNModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
-    elif method == 'vnl':
-        return VNLModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
-    elif method == 'eigen':
-        return EigenModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, test_dataset=test_dataset)
-    elif method == 'dorn':
-        return DORNModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path)
-    else:
-        return None
+def get_model(method, ckpt, hparams, path, test_dataset, metrics):
+    if   method == 'bts':   Module = BtsModule
+    elif method == 'midas': Module = MidasModule
+    elif method == 'laina': Module = FCRNModule
+    elif method == 'vnl':   Module = VNLModule
+    elif method == 'eigen': Module = EigenModule
+    elif method == 'dorn':  Module = DORNModule
+    else:return None
+    return Module.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, metrics=metrics)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--results', required=True, type=str, help='directory where snapshots are located.')
     parser.add_argument('--output', required=True, type=str, help='Text File to write test output to.')
-    parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
+    parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'rmsle', 'log10', 'absrel'], nargs='+', help='which metrics to evaluate')
     parser.add_argument('--methods', default=['bts', 'vnl', 'laina', 'eigen', 'midas', 'dorn'], nargs='+', help='Methods to test')
     parser.add_argument('--path', required=True, type=str, help='Path to Floorplan3D')
     parser.add_argument('--test_dataset', default=['noreflection', 'isotropic', 'mirror'], nargs='+', help='test dataset(s)')
@@ -72,7 +66,7 @@ if __name__ == "__main__":
         if not method.name in args.methods:continue
         for version in method.glob('*'):
             for test_dataset in args.test_dataset:
-                result = test_method(method.name, version, test_dataset, args.path)
+                result = test_method(method.name, version, test_dataset, args.path, args.metrics)
                 if not result:continue
                 with open(Path(version, "hparams.yaml").as_posix(), "r") as yamlf:
                     hparams = yaml.load(yamlf, Loader=yaml.FullLoader)

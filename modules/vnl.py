@@ -143,7 +143,7 @@ class VNLModule(pl.LightningModule):
         self.model = VNL.MetricDepthModel(self.params)
         print("=> model created.")
         self.criterion = criteria.ModelLoss(self.params)
-        self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
+        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
 
     def depth_to_bins(self, depth):
         """
@@ -301,6 +301,7 @@ class VNLModule(pl.LightningModule):
         parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--data_augmentation', default='vnl', type=str, help='Choose data Augmentation Strategy: laina or vnl')
         parser.add_argument('--loss', default='vnl', type=str, help='loss function')
+        parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
         return parser
 
 if __name__ == "__main__":

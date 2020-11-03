@@ -56,7 +56,7 @@ class FCRNModule(pl.LightningModule):
         self.model = FCRN.ResNet(output_size=(240, 320))
         print("=> model created.")
         self.criterion = criteria.MaskedL1Loss()
-        self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
+        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
 
     def forward(self, x):
         y_hat = self.model(x)
@@ -125,4 +125,5 @@ class FCRNModule(pl.LightningModule):
         parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--loss', default='laina', type=str, help='loss function: [laina]')
+        parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
         return parser

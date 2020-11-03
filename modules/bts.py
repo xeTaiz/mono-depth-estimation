@@ -150,7 +150,7 @@ class BtsModule(pl.LightningModule):
         self.model = Bts.BtsModel(max_depth=self.hparams.max_depth, bts_size=self.hparams.bts_size, encoder_version=self.hparams.encoder)
         print("=> model created.")
         self.criterion = criteria.silog_loss(variance_focus=self.hparams.variance_focus)
-        self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
+        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
 
     def forward(self, x):
         _, _, _, _, y_hat = self.model(x)
@@ -225,6 +225,7 @@ class BtsModule(pl.LightningModule):
         parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--data_augmentation', default='bts', type=str, help='Choose data Augmentation Strategy: laina or bts')
         parser.add_argument('--loss', default='bts', type=str, help='loss function')
+        parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
         return parser
 
 if __name__ == "__main__":

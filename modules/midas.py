@@ -169,7 +169,7 @@ class MidasModule(pl.LightningModule):
             self.criterion = criteria.MaskedDepthLoss()
         elif self.hparams.loss == 'laina':
             self.criterion = criteria.MaskedL1Loss()
-        self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
+        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
 
     def download_weights(self, filename):
         def my_hook(t):
@@ -265,4 +265,5 @@ class MidasModule(pl.LightningModule):
         parser.add_argument('--data_augmentation', default='midas', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--alpha', default=0.5, type=float, help='alpha')
         parser.add_argument('--reduction', default='batch-based', type=str, help='reduction method')
+        parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
         return parser

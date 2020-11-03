@@ -119,7 +119,7 @@ class DORNModule(pl.LightningModule):
         self.model = Dorn.DORN(self.hparams)
         print("=> model created.")
         self.criterion = criteria.ordLoss()
-        self.metric_logger = MetricLogger(metrics=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'log10'])
+        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
 
     def label_to_depth(self, label):
         if self.hparams.discretization == "SID":
@@ -261,6 +261,7 @@ class DORNModule(pl.LightningModule):
         parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or bts')
         parser.add_argument('--loss', default='dorn', type=str, help='loss function')
+        parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
         return parser
 
 

@@ -35,6 +35,8 @@ class MetricLogger(object):
         return result
 
     def log_test(self, pred, target):
+        pred = torch.clamp_min(pred, 1e-08)
+        target = torch.clamp_min(target, 1e-08)
         values = self.computer.compute(pred, target)
         result = pl.EvalResult()
         for name, value in zip(self.computer.names, values):
@@ -94,12 +96,16 @@ def Delta3_multi_gpu(pred, target):
     return (maxRatio < 1.25 ** 3).float().mean()
 
 def Log10_multi_gpu(pred, target):
-    def log10(x):
-        return torch.log(x) / torch.log(torch.tensor(10.0))
-    return (log10(pred) - log10(target)).abs().mean()
+    return (torch.log10(pred) - torch.log10(target)).abs().mean()
+
+def AbsoluteRelativeError(pred, target):
+    if (target == 0).any():
+        raise NotComputableError("The ground truth has 0.")
+    return (torch.abs(pred - target) / torch.abs(target)).mean()
 
 METRICS = pl.metrics.functional.__dict__
 METRICS['delta1'] = Delta1_multi_gpu#Delta(exp=1, name="delta1")
 METRICS['delta2'] = Delta2_multi_gpu#Delta(exp=2, name="delta2")
 METRICS['delta3'] = Delta3_multi_gpu#Delta(exp=3, name="delta3")
 METRICS['log10'] = Log10_multi_gpu#Log10(name="log10")
+METRICS['absrel'] = AbsoluteRelativeError
