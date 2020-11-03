@@ -49,12 +49,12 @@ class NYUDataset(BaseDataset):
         super(NYUDataset, self).__init__(*args, **kwargs)
         self.output_size = output_size
         self.resize = resize
-        self.data = None
-        if self.split == 'trainh5':
+        self.nyu_depth_v2_labeled_file = None
+        if self.split == 'train':
             self.loader = h5_loader
             self.path = Path(path)/'train'
             self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]
-        elif self.split in ['train', 'val', 'test']:
+        elif self.split in ['val', 'test']:
             self.path = Path(path)
             self.loader = mat_loader
             self.images = self.load_images()
