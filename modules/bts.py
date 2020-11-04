@@ -149,7 +149,12 @@ class BtsModule(pl.LightningModule):
         print("=> creating Model")
         self.model = Bts.BtsModel(max_depth=self.hparams.max_depth, bts_size=self.hparams.bts_size, encoder_version=self.hparams.encoder)
         print("=> model created.")
-        self.criterion = criteria.silog_loss(variance_focus=self.hparams.variance_focus)
+        if self.hparams.loss == 'bts':
+            self.criterion = criteria.silog_loss(variance_focus=self.hparams.variance_focus)
+        elif self.hparams.loss == 'laina':
+            self.criterion = criteria.MaskedL1Loss()
+        else:
+            raise ValueError()
         self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
 
     def forward(self, x):
@@ -169,8 +174,7 @@ class BtsModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        mask = y > 0.1
-        loss = self.criterion(y_hat, y, mask.bool())
+        loss = self.criterion(y_hat, y)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
