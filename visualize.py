@@ -36,7 +36,9 @@ def save_image(img_merge, filename):
 
 def show_item(item):
     img, depth = item
-    img = 255 * np.transpose(np.squeeze(img.cpu().numpy()), (1, 2, 0))  # H, W, C
+    if img.ndim == 4:
+        img = img.squeeze(0)
+    img = 255 * np.transpose(img.cpu().numpy(), (1, 2, 0))  # H, W, C
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     if depth.ndim == 4:
         depth = depth.squeeze(0).squeeze(0)
