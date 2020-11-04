@@ -48,7 +48,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--results', required=True, type=str, help='directory where snapshots are located.')
     parser.add_argument('--output', required=True, type=str, help='Text File to write test output to.')
-    parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'rmsle', 'log10', 'absrel'], nargs='+', help='which metrics to evaluate')
+    parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'rmse', 'rmsle', 'log10', 'absrel', 'sqrel'], nargs='+', help='which metrics to evaluate')
     parser.add_argument('--methods', default=['bts', 'vnl', 'laina', 'eigen', 'midas', 'dorn'], nargs='+', help='Methods to test')
     parser.add_argument('--path', required=True, type=str, help='Path to Floorplan3D')
     parser.add_argument('--test_dataset', default=['noreflection', 'isotropic', 'mirror'], nargs='+', help='test dataset(s)')

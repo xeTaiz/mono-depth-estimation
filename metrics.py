@@ -35,8 +35,6 @@ class MetricLogger(object):
         return result
 
     def log_test(self, pred, target):
-        pred = torch.clamp_min(pred, 1e-08)
-        target = torch.clamp_min(target, 1e-08)
         values = self.computer.compute(pred, target)
         result = pl.EvalResult()
         for name, value in zip(self.computer.names, values):
@@ -57,7 +55,9 @@ class MetricComputation(object):
         self.sum = [0.0 for _ in self.metrics]
 
     def compute(self, pred, target):
-        current_values = [metric(pred.data, target.data) for metric in self.metrics]
+        pred = torch.clamp_min(pred, 1e-08)
+        valid_mask = target>0
+        current_values = [metric(pred[valid_mask].data, target[valid_mask].data) for metric in self.metrics]
         self.count += 1
         for i, value in enumerate(current_values):
             self.sum[i] += value
@@ -101,7 +101,12 @@ def Log10_multi_gpu(pred, target):
 def AbsoluteRelativeError(pred, target):
     if (target == 0).any():
         raise NotComputableError("The ground truth has 0.")
-    return (torch.abs(pred - target) / torch.abs(target)).mean()
+    return (torch.abs(pred - target) / target).mean()
+
+def RelativeSquareError(pred, target):
+    if (target == 0).any():
+        raise NotComputableError("The ground truth has 0.")
+    return ((pred - target)**2 / target).mean()
 
 METRICS = pl.metrics.functional.__dict__
 METRICS['delta1'] = Delta1_multi_gpu#Delta(exp=1, name="delta1")
@@ -109,3 +114,4 @@ METRICS['delta2'] = Delta2_multi_gpu#Delta(exp=2, name="delta2")
 METRICS['delta3'] = Delta3_multi_gpu#Delta(exp=3, name="delta3")
 METRICS['log10'] = Log10_multi_gpu#Log10(name="log10")
 METRICS['absrel'] = AbsoluteRelativeError
+METRICS['sqrel'] = RelativeSquareError
