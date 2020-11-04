@@ -146,18 +146,19 @@ class MidasModule(pl.LightningModule):
                                                     shuffle=False, 
                                                     num_workers=self.hparams.worker, 
                                                     pin_memory=True)                 
-        if self.hparams.pretrained: 
-            weights_path = Path.cwd()/"model-f46da743.pt"
-            if not weights_path.exists():                                                             
-                self.download_weights(weights_path)
-            weights_path = weights_path.resolve().as_posix()
-            print("Using pretrained weights: ", weights_path)
-        else:
-            weights_path = None                   
+        #if self.hparams.pretrained: 
+        #    weights_path = Path.cwd()/"model-f46da743.pt"
+        #    if not weights_path.exists():                                                             
+        #        self.download_weights(weights_path)
+        #    weights_path = weights_path.resolve().as_posix()
+        #    print("Using pretrained weights: ", weights_path)
+        #else:
+        #    weights_path = None                   
                                        
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
-        self.model = MiDaS.MidasNet(path=weights_path, features=256)
+        if self.hparams.pretrained: self.model = torch.hub.load("intel-isl/MiDaS", "MiDaS")
+        else:                       self.model = MiDaS.MidasNet(features=256)
         print("=> model created.")
         if self.hparams.loss == 'ssimse':
             self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss='mse', reduction=self.hparams.reduction)
@@ -186,6 +187,7 @@ class MidasModule(pl.LightningModule):
 
     def forward(self, x):
         y_hat = self.model(x)
+        if y_hat.ndim < 4: y_hat = y_hat.unsqueeze(0)
         return y_hat.type(torch.float32)
 
     def train_dataloader(self):
