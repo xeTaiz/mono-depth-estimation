@@ -151,8 +151,8 @@ class BtsModule(pl.LightningModule):
         print("=> model created.")
         if self.hparams.loss == 'bts':
             self.criterion = criteria.silog_loss(variance_focus=self.hparams.variance_focus)
-        elif self.hparams.loss == 'laina':
-            self.criterion = criteria.MaskedL1Loss()
+        elif self.hparams.loss in ['mse', 'trim', 'l1']:
+            self.criterion = criteria.MidasLoss(loss=self.hparams.loss)
         else:
             raise ValueError()
         self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
