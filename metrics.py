@@ -57,6 +57,10 @@ class MetricComputation(object):
     def compute(self, pred, target):
         pred = torch.clamp_min(pred, 1e-08)
         valid_mask = target>0
+        if torch.sum(valid_mask) == 0:
+            pred = torch.ones_like(pred) * 1e-08
+            target = torch.ones_like(target) * 1e-08
+            valid_mask = torch.ones_like(target).bool()
         current_values = [metric(pred[valid_mask].data, target[valid_mask].data) for metric in self.metrics]
         self.count += 1
         for i, value in enumerate(current_values):
