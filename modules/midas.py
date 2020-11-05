@@ -67,39 +67,12 @@ def validation_preprocess(rgb, depth):
     #depth[~mask] = 0.
     return rgb, depth
 
-def normalize_prediction_robust(target, mask):
-    ssum = torch.sum(mask, (1, 2))
-    valid = ssum > 0
-
-    m = torch.zeros_like(ssum)
-    s = torch.ones_like(ssum)
-
-    m[valid] = torch.median(
-        (mask[valid] * target[valid]).view(valid.sum(), -1), dim=1
-    ).values
-    target = target - m.view(-1, 1, 1)
-
-    sq = torch.sum(mask * target.abs(), (1, 2))
-    s[valid] = torch.clamp((sq[valid] / ssum[valid]), min=1e-6)
-
-    return target / (s.view(-1, 1, 1))
-
 def scale_shift(pred, target):
-    pred = (pred - torch.min(pred)) / (torch.max(pred) - torch.min(pred))
-    pred = 1.0 - pred
-    pred = pred * (torch.max(target) - torch.min(target)) + torch.min(target)
-    return pred
-
-def normalize(prediction, target):
-    if prediction.ndim == 4:
-        prediction = prediction.squeeze(1)
-    if target.ndim == 4:
-        target = target.squeeze(1)
-    assert prediction.dim() == target.dim(), "inconsistent dimensions"
-    mask = (target > 0).type(torch.float32)
-    prediction = normalize_prediction_robust(prediction, mask)
-    target     = normalize_prediction_robust(target, mask)
-    return prediction, target, mask
+    if pred.ndim == 4: pred = pred.squeeze(1)
+    if target.ndim == 4: target = target.squeeze(1)
+    scale, shift = criteria.compute_scale_and_shift(pred, target)
+    pred = scale.view(-1, 1, 1) * pred + shift.view(-1, 1, 1)
+    return pred.unsqueeze(1)
 
 def get_dataset(path, split, dataset):
     path = path.split('+')
@@ -146,15 +119,7 @@ class MidasModule(pl.LightningModule):
                                                     shuffle=False, 
                                                     num_workers=self.hparams.worker, 
                                                     pin_memory=True)                 
-        #if self.hparams.pretrained: 
-        #    weights_path = Path.cwd()/"model-f46da743.pt"
-        #    if not weights_path.exists():                                                             
-        #        self.download_weights(weights_path)
-        #    weights_path = weights_path.resolve().as_posix()
-        #    print("Using pretrained weights: ", weights_path)
-        #else:
-        #    weights_path = None                   
-                                       
+                                               
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
         if self.hparams.pretrained: self.model = torch.hub.load("intel-isl/MiDaS", "MiDaS")
@@ -199,19 +164,12 @@ class MidasModule(pl.LightningModule):
     def test_dataloader(self):
         return self.test_loader
 
-    def normalize(self, y_hat, y):
-        d_min = min(torch.min(y_hat), torch.min(y))
-        d_max = max(torch.max(y_hat), torch.max(y))
-        y_hat = (y_hat - d_min) / (d_max - d_min)
-        y = (y - d_min) / (d_max - d_min)
-        return y_hat, y
-
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat, y, mask = normalize(y_hat, y)
-        loss = self.criterion(y_hat, y, mask)
+        loss = self.criterion(y_hat, y)
+        y_hat = scale_shift(y_hat, y)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):

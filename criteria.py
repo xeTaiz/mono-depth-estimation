@@ -315,7 +315,10 @@ class MidasLoss(nn.Module):
         self.__regularization_loss = GradientLoss(scales=scales, reduction=reduction)
         self.__alpha = alpha
 
-    def forward(self, prediction, target, mask):
+    def forward(self, prediction, target):
+        if prediction.ndim == 4: prediction = prediction.squeeze(1)
+        if target.ndim == 4: target = target.squeeze(1)
+        mask = (target > 0).type(torch.float32)
         scale, shift = compute_scale_and_shift(prediction, target, mask)
         prediction = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
         total = self.__data_loss(prediction, target, mask)

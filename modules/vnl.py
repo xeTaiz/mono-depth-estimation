@@ -123,6 +123,7 @@ class VNLModule(pl.LightningModule):
         if self.hparams.data_augmentation == 'vnl':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
+            self.test_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
