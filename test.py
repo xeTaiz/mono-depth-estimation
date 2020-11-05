@@ -41,7 +41,7 @@ def get_model(method, ckpt, hparams, path, test_dataset, metrics):
     elif method == 'eigen': Module = EigenModule
     elif method == 'dorn':  Module = DORNModule
     else:return None
-    return Module.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, metrics=metrics)
+    return Module.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, metrics=metrics, test_dataset=test_dataset)
 
 
 if __name__ == "__main__":
