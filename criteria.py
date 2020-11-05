@@ -301,14 +301,14 @@ class GradientLoss(nn.Module):
 
 
 class MidasLoss(nn.Module):
-    def __init__(self, alpha=0.5, scales=4, loss='trimmed', reduction='batch-based'):
+    def __init__(self, alpha=0.5, scales=4, loss='ssimse', reduction='batch-based'):
         super().__init__()
-
-        if loss=='trimmed':
+        self.loss = loss
+        if 'trim' in self.loss:
             self.__data_loss = TrimmedMAELoss(reduction=reduction)
-        elif loss == 'mse':
+        elif 'mse' in self.loss:
             self.__data_loss = MSELoss(reduction=reduction)
-        elif loss == 'l1':
+        elif 'l1' in self.loss:
             self.__data_loss = L1Loss(reduction=reduction)
         else:
             raise ValueError()
@@ -319,8 +319,9 @@ class MidasLoss(nn.Module):
         if prediction.ndim == 4: prediction = prediction.squeeze(1)
         if target.ndim == 4: target = target.squeeze(1)
         mask = (target > 0).type(torch.float32)
-        scale, shift = compute_scale_and_shift(prediction, target, mask)
-        prediction = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
+        if "ssi" in self.loss:
+            scale, shift = compute_scale_and_shift(prediction, target, mask)
+            prediction = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
         total = self.__data_loss(prediction, target, mask)
         if self.__alpha > 0:
             total += self.__alpha * self.__regularization_loss(prediction, target, mask)

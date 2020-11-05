@@ -96,7 +96,7 @@ class MidasModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.hparams = hparams
-        assert self.hparams.loss in ['ssil1', 'ssitrim', 'ssimse', 'eigen', 'laina']
+        assert self.hparams.loss in ['ssil1', 'ssitrim', 'ssimse', 'mse', 'trim', 'l1', 'eigen', 'laina']
         self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
         self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
         self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
@@ -125,13 +125,9 @@ class MidasModule(pl.LightningModule):
         if self.hparams.pretrained: self.model = torch.hub.load("intel-isl/MiDaS", "MiDaS")
         else:                       self.model = MiDaS.MidasNet(features=256)
         print("=> model created.")
-        if self.hparams.loss == 'ssimse':
-            self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss='mse', reduction=self.hparams.reduction)
-        elif self.hparams.loss == 'ssitrim':
-            self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss='trimmed', reduction=self.hparams.reduction)
-        elif self.hparams.loss == 'ssil1':
-            self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss='l1', reduction=self.hparams.reduction)
-        elif self.hparams.loss == 'eigen':
+        if self.hparams.loss in ['ssil1', 'ssitrim', 'ssimse', 'l1', 'trim', 'mse']:
+            self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss=self.hparams.loss, reduction=self.hparams.reduction)
+        if self.hparams.loss == 'eigen':
             self.criterion = criteria.MaskedDepthLoss()
         elif self.hparams.loss == 'laina':
             self.criterion = criteria.MaskedL1Loss()
@@ -169,14 +165,16 @@ class MidasModule(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.criterion(y_hat, y)
-        y_hat = scale_shift(y_hat, y)
+        if "ssi" in self.hparams.loss:
+            y_hat = scale_shift(y_hat, y)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat = scale_shift(y_hat, y)
+        if "ssi" in self.hparams.loss:
+            y_hat = scale_shift(y_hat, y)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
@@ -191,7 +189,8 @@ class MidasModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        y_hat = scale_shift(y_hat, y)
+        if "ssi" in self.hparams.loss:
+            y_hat = scale_shift(y_hat, y)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
