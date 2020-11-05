@@ -24,7 +24,7 @@ def test_method(method, version_path, test_dataset, path, metrics):
     checkpoint = get_checkpoint(version_path)
     trainer = pl.Trainer(gpus=1)
     if checkpoint:
-        print("Testing {} {} {}".format(method, version_path.name, checkpoint.name))
+        print("Testing {} {} {} on {}".format(method, version_path.name, checkpoint.name, test_dataset))
         model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset, metrics)
         if model:
             result = trainer.test(model)
