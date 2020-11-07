@@ -158,12 +158,8 @@ class MidasModule(pl.LightningModule):
     def scale_shift(self, pred, target):
         if pred.ndim == 4: pred = pred.squeeze(1)
         if target.ndim == 4: target = target.squeeze(1)
-        if self.hparams.loss == "ssitrim":
-            pred = criteria.normalize_prediction_robust(pred)
-            target = criteria.normalize_prediction_robust(target)
-        else:
-            scale, shift = criteria.compute_scale_and_shift(pred, target)
-            pred = scale.view(-1, 1, 1) * pred + shift.view(-1, 1, 1)
+        scale, shift = criteria.compute_scale_and_shift(pred, target)
+        pred = scale.view(-1, 1, 1) * pred + shift.view(-1, 1, 1)
         return pred.unsqueeze(1), target.unsqueeze(1)
 
     def training_step(self, batch, batch_idx):
