@@ -131,7 +131,9 @@ class berHuLoss(nn.Module):
 
         return self.loss
 
-def normalize_prediction_robust(target, mask):
+def normalize_prediction_robust(target, mask=None):
+    if mask is None:
+        mask = (target > 0).type(torch.float32)
     ssum = torch.sum(mask, (1, 2)).type(mask.dtype)
     valid = ssum > 0
 
@@ -340,21 +342,11 @@ class TrimmedProcrustesLoss(nn.Module):
         self.__prediction_ssi = None
 
     def forward(self, prediction, target):
-        if prediction.ndim == 4:
-            prediction = prediction.squeeze(1)
-        if target.ndim == 4:
-            target = target.squeeze(1)
-        assert prediction.dim() == target.dim(), "inconsistent dimensions"
-        mask = (target > 0)
-        #target[mask] = (target[mask] - target[mask].min()) / (target[mask].max() - target[mask].min()) * 9 + 1
-        #target[mask] = 10. / target[mask]
-        #target[~mask] = 0.
-       
-        scale, shift = compute_scale_and_shift(prediction, target, mask)
-        self.__prediction_ssi = scale.view(-1, 1, 1) * prediction + shift.view(-1, 1, 1)
-        #self.__prediction_ssi = normalize_prediction_robust(prediction.type(torch.float32), mask.type(torch.float32))
-        
-        target_ = normalize_prediction_robust(target.type(torch.float32), mask.type(torch.float32))
+        if prediction.ndim == 4: prediction = prediction.squeeze(1)
+        if target.ndim == 4: target = target.squeeze(1)
+        mask = (target > 0).type(torch.float32)
+        self.__prediction_ssi = normalize_prediction_robust(prediction, mask)
+        target_ = normalize_prediction_robust(target, mask)
 
         total = self.__data_loss(self.__prediction_ssi, target_, mask)
         if self.__alpha > 0:

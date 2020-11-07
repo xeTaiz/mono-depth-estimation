@@ -67,13 +67,6 @@ def validation_preprocess(rgb, depth):
     #depth[~mask] = 0.
     return rgb, depth
 
-def scale_shift(pred, target):
-    if pred.ndim == 4: pred = pred.squeeze(1)
-    if target.ndim == 4: target = target.squeeze(1)
-    scale, shift = criteria.compute_scale_and_shift(pred, target)
-    pred = scale.view(-1, 1, 1) * pred + shift.view(-1, 1, 1)
-    return pred.unsqueeze(1)
-
 def get_dataset(path, split, dataset):
     path = path.split('+')
     if dataset == 'nyu':
@@ -125,12 +118,14 @@ class MidasModule(pl.LightningModule):
         if self.hparams.pretrained: self.model = torch.hub.load("intel-isl/MiDaS", "MiDaS")
         else:                       self.model = MiDaS.MidasNet(features=256)
         print("=> model created.")
-        if self.hparams.loss in ['ssil1', 'ssitrim', 'ssimse', 'l1', 'trim', 'mse']:
+        if self.hparams.loss in ['ssil1', 'ssimse', 'l1', 'mse', 'trim']:
             self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss=self.hparams.loss, reduction=self.hparams.reduction)
-        if self.hparams.loss == 'eigen':
+        elif self.hparams.loss == 'eigen':
             self.criterion = criteria.MaskedDepthLoss()
         elif self.hparams.loss == 'laina':
             self.criterion = criteria.MaskedL1Loss()
+        elif self.hparams.loss == 'ssitrim':
+            self.criterion = criteria.TrimmedProcrustesLoss(alpha=self.hparams.alpha, reduction=self.hparams.reduction)
         self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
 
     def download_weights(self, filename):
@@ -160,13 +155,24 @@ class MidasModule(pl.LightningModule):
     def test_dataloader(self):
         return self.test_loader
 
+    def scale_shift(self, pred, target):
+        if pred.ndim == 4: pred = pred.squeeze(1)
+        if target.ndim == 4: target = target.squeeze(1)
+        if self.hparams.loss == "ssitrim":
+            pred = criteria.normalize_prediction_robust(pred)
+            target = criteria.normalize_prediction_robust(target)
+        else:
+            scale, shift = criteria.compute_scale_and_shift(pred, target)
+            pred = scale.view(-1, 1, 1) * pred + shift.view(-1, 1, 1)
+        return pred.unsqueeze(1), target.unsqueeze(1)
+
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
         loss = self.criterion(y_hat, y)
         if "ssi" in self.hparams.loss:
-            y_hat = scale_shift(y_hat, y)
+            y_hat, y = self.scale_shift(y_hat, y)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
@@ -174,7 +180,7 @@ class MidasModule(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         if "ssi" in self.hparams.loss:
-            y_hat = scale_shift(y_hat, y)
+            y_hat, y = self.scale_shift(y_hat, y)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
@@ -190,7 +196,7 @@ class MidasModule(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         if "ssi" in self.hparams.loss:
-            y_hat = scale_shift(y_hat, y)
+            y_hat, y = self.scale_shift(y_hat, y)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
