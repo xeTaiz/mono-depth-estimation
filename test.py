@@ -12,6 +12,7 @@ import pytorch_lightning as pl
 import yaml
 
 def get_checkpoint(version_path):
+    if not (version_path and Path(version_path).exists()): return None
     checkpoints = [ckpt for ckpt in Path(version_path, "checkpoints").glob('*') if int(ckpt.name.replace("epoch=", "").replace(".ckpt", "")) > 1]
     checkpoints.sort(key=lambda x: int(x.name.replace("epoch=", "").replace(".ckpt", "")))
     if len(checkpoints):

@@ -3,6 +3,8 @@ from argparse import ArgumentParser
 import random
 from modules import dorn
 import torch
+from test import get_checkpoint
+from pathlib import Path
 
 if __name__ == "__main__":
     parser = ArgumentParser('Trains mono depth estimation models')
@@ -13,6 +15,7 @@ if __name__ == "__main__":
     parser.add_argument('--overfit', action='store_true', help='If this flag is set the network is overfit to 1 batch')
     parser.add_argument('--min_epochs', default=50, type=int, help='Minimum number of epochs.')
     parser.add_argument('--max_epochs', default=150, type=int, help='Maximum number ob epochs to train')
+    parser.add_argument('--checkpoint', type=str, help="continue from checkpoint.")
     parser = dorn.DORNModule.add_model_specific_args(parser)
     args = parser.parse_args()
     
@@ -22,9 +25,22 @@ if __name__ == "__main__":
     pl.seed_everything(args.seed)
 
     # Setup Model, Logger, Trainer
-    model = dorn.DORNModule(args)
+    if get_checkpoint(args.checkpoint):
+        ckpt = get_checkpoint(args.checkpoint).as_posix()
+        hparams = Path(args.checkpoint, "hparams.yaml").as_posix()
+        model = dorn.DORNModule.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams)
+    else:
+        model = dorn.DORNModule(args)
 
-    trainer = pl.Trainer.from_argparse_args(args,
+    def get_trainer(from_checkpoint, args, **parameters):
+        if from_checkpoint:
+            return pl.Trainer(**parameters)
+        else:
+            return pl.Trainer.from_argparse_args(args, **parameters)
+
+    trainer = get_trainer(
+        from_checkpoint = bool(args.checkpoint),
+        args=args,
         log_gpu_memory=False,
         fast_dev_run=args.dev,
         profiler=True,
