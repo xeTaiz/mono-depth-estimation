@@ -11,18 +11,18 @@ from modules.eigen import EigenModule
 import pytorch_lightning as pl
 import yaml
 
-def get_checkpoint(version_path):
+def get_checkpoint(version_path, min_epoch):
     if not (version_path and Path(version_path).exists()): return None
-    checkpoints = [ckpt for ckpt in Path(version_path, "checkpoints").glob('*') if int(ckpt.name.replace("epoch=", "").replace(".ckpt", "")) > 1]
+    checkpoints = [ckpt for ckpt in Path(version_path, "checkpoints").glob('*') if int(ckpt.name.replace("epoch=", "").replace(".ckpt", "")) > min_epoch]
     checkpoints.sort(key=lambda x: int(x.name.replace("epoch=", "").replace(".ckpt", "")))
     if len(checkpoints):
         return checkpoints[-1]
     else:
         return None
 
-def test_method(method, version_path, test_dataset, path, metrics):
+def test_method(method, version_path, test_dataset, path, metrics, min_epoch):
     hparams = Path(version_path, "hparams.yaml")
-    checkpoint = get_checkpoint(version_path)
+    checkpoint = get_checkpoint(version_path, min_epoch)
     trainer = pl.Trainer(gpus=1)
     if checkpoint:
         print("Testing {} {} {} on {}".format(method, version_path.name, checkpoint.name, test_dataset))
@@ -53,6 +53,7 @@ if __name__ == "__main__":
     parser.add_argument('--methods', default=['bts', 'vnl', 'laina', 'eigen', 'midas', 'dorn'], nargs='+', help='Methods to test')
     parser.add_argument('--path', required=True, type=str, help='Path to Floorplan3D')
     parser.add_argument('--test_dataset', default=['noreflection', 'isotropic', 'mirror'], nargs='+', help='test dataset(s)')
+    parser.add_argument('--min_epoch', default=1, type=int, help='ignore checkpoints from less epochs.')
 
     args = parser.parse_args()
     results_directory = Path(args.results)
@@ -67,7 +68,7 @@ if __name__ == "__main__":
         if not method.name in args.methods:continue
         for version in method.glob('*'):
             for test_dataset in args.test_dataset:
-                result = test_method(method.name, version, test_dataset, args.path, args.metrics)
+                result = test_method(method.name, version, test_dataset, args.path, args.metrics, args.min_epoch)
                 if not result:continue
                 with open(Path(version, "hparams.yaml").as_posix(), "r") as yamlf:
                     hparams = yaml.load(yamlf, Loader=yaml.FullLoader)
