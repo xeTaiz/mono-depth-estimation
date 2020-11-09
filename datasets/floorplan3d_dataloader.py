@@ -7,6 +7,7 @@ from torchvision import transforms
 import torchvision.transforms.functional as TF
 import torch
 from enum import Enum
+import json
 
 class DatasetType(Enum):
     NO_REFLECTION = '0'
@@ -55,6 +56,18 @@ class Floorplan3DDataset(BaseDataset):
         with open(txt_file_path.as_posix(), "w") as txt_file:
             for image, depth in zip(self.images, self.depth):
                 txt_file.write("{} {} {}\n".format(image.relative_to(self.path).as_posix(), depth.relative_to(self.path).as_posix(), focal))
+
+    def safe_json(self):
+        mapping = ["noreflection", "reflection", "mirror"]
+        json_file_path = self.path/"{}.{}.json".format(mapping[int(self.dataset_type)], self.split)
+        with open(json_file_path.as_posix(), "w") as json_file:
+            data = []
+            for image, depth in zip(self.images, self.depth):
+                data.append({
+                    'rgb_path': image.relative_to(self.path).as_posix(),
+                    'depth_path': depth.relative_to(self.path).as_posix(),
+                })
+            json.dump(data, json_file)
 
     def training_preprocess(self, rgb, depth):
         depth = transforms.ToPILImage()(depth)
@@ -115,16 +128,16 @@ class Floorplan3DDataset(BaseDataset):
         return rgb, depth
 
 if __name__ == "__main__":
-    Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.NO_REFLECTION, output_size=(512,512), resize=512).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.NO_REFLECTION, output_size=(512,512), resize=512).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.NO_REFLECTION, output_size=(512,512), resize=512).safe_txt(518.8579)
+    Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.NO_REFLECTION, output_size=(512,512), resize=512).safe_json()
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.NO_REFLECTION, output_size=(512,512), resize=512).safe_json()
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.NO_REFLECTION, output_size=(512,512), resize=512).safe_json()
 
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(512,512), resize=512).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(512,512), resize=512).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(512,512), resize=512).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(512,512), resize=512).safe_json()
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(512,512), resize=512).safe_json()
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(512,512), resize=512).safe_json()
 
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(512,512), resize=512).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(512,512), resize=512).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(512,512), resize=512).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(512,512), resize=512).safe_json()
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(512,512), resize=512).safe_json()
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(512,512), resize=512).safe_json()
 
     
