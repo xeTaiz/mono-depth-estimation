@@ -52,7 +52,7 @@ class NYUDataset(BaseDataset):
         self.nyu_depth_v2_labeled_file = None
         if not use_mat:
             self.loader = h5_loader
-            self.path = Path(path)/'train' if 'train' in self.split else 'val'
+            self.path = Path(path)/('train' if 'train' in self.split else 'val')
             self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]
         else:
             self.path = Path(path)
