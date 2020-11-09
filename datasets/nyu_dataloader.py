@@ -55,7 +55,7 @@ class NYUDataset(BaseDataset):
             self.path = Path(path)/'train'
             self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]
             if '12k' in self.split:
-                self.images = np.random.choice(self.images, size=12000, replace=False)
+                self.images = self.images[0:12000]
         elif self.split in ['val', 'test']:
             self.path = Path(path)
             self.loader = mat_loader
