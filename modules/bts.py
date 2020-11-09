@@ -101,20 +101,20 @@ def validation_preprocess(rgb, depth):
     #depth /= 1000.0
     return rgb, depth
 
-def get_dataset(path, split, dataset):
+def get_dataset(path, split, dataset, use_mat=True, n_images=-1):
     path = path.split('+')
     if dataset == 'nyu':
-        return NYUDataset(path[0], split=split, output_size=(416, 544), resize=450)
+        return NYUDataset(path[0], split=split, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images)
     elif dataset == 'noreflection':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(416, 544), resize=450)
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images)
     elif dataset == 'isotropic':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(416, 544), resize=450)
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images)
     elif dataset == 'mirror':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(416, 544), resize=450)
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images)
     elif dataset == 'structured3d':
         return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=(416, 544), resize=450)
     elif '+' in dataset:
-        datasets = [get_dataset(p, split, d) for p, d in zip(path, dataset.split('+'))]
+        datasets = [get_dataset(p, split, d, use_mat=use_mat, n_images=n_images) for p, d in zip(path, dataset.split('+'))]
         return ConcatDataset(datasets)
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
@@ -123,7 +123,7 @@ class BtsModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.hparams = hparams
-        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
+        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset, use_mat=self.hparams.use_mat, n_images=self.hparams.n_images)
         self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
         self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
         if self.hparams.data_augmentation == 'bts':
@@ -230,6 +230,8 @@ class BtsModule(pl.LightningModule):
         parser.add_argument('--data_augmentation', default='bts', type=str, help='Choose data Augmentation Strategy: laina or bts')
         parser.add_argument('--loss', default='bts', type=str, help='loss function')
         parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
+        parser.add_argument('--use_mat', default=0, type=int, help="Use NYU mat or h5")
+        parser.add_argument('--n_images', default=-1, type=int, help='Number of images used.')
         return parser
 
 if __name__ == "__main__":
