@@ -14,12 +14,13 @@ class DatasetType(Enum):
     ISOTROPIC_PLANAR_SURFACES = '2'
 
 class Floorplan3DDataset(BaseDataset):
-    def __init__(self, path, datast_type, output_size, resize, *args, **kwargs):
+    def __init__(self, path, datast_type, output_size, resize, n_images=-1, *args, **kwargs):
         super(Floorplan3DDataset, self).__init__(*args, **kwargs)
         self.path = Path(path)
         self.output_size = output_size
         self.resize = resize
         self.dataset_type = datast_type.value
+        self.n_images = n_images
         self.load_scene_names()
         self.load_images()
         print("Found {} scenes containing {} images for {}".format(len(self.scene_names),self.__len__(), self.split))
@@ -46,6 +47,7 @@ class Floorplan3DDataset(BaseDataset):
                 if img_path.exists() and depth_path.exists():
                     self.images.append(img_path)
                     self.depth.append(depth_path)
+        if self.n_images > 0: self.images = self.images[0:self.n_images]
                 
 
 

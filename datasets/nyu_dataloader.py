@@ -45,16 +45,16 @@ def mat_loader(index, data):
     return rgb, depth
 
 class NYUDataset(BaseDataset):
-    def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, *args, **kwargs):
+    def __init__(self, path, output_size=(228, 304), resize=250, use_mat=False, n_images=-1, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
         self.output_size = output_size
         self.resize = resize
         self.nyu_depth_v2_labeled_file = None
-        if 'train' in self.split:
+        if not use_mat:
             self.loader = h5_loader
-            self.path = Path(path)/'train'
+            self.path = Path(path)/'train' if 'train' in self.split else 'val'
             self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]
-        elif self.split in ['val', 'test']:
+        else:
             self.path = Path(path)
             self.loader = mat_loader
             self.images = self.load_images()
