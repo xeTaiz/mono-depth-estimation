@@ -106,11 +106,11 @@ def get_dataset(path, split, dataset, use_mat=True, n_images=-1):
     if dataset == 'nyu':
         return NYUDataset(path[0], split=split, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images)
     elif dataset == 'noreflection':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images)
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(416, 544), resize=450, n_images=n_images)
     elif dataset == 'isotropic':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images)
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(416, 544), resize=450, n_images=n_images)
     elif dataset == 'mirror':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images)
+        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(416, 544), resize=450, n_images=n_images)
     elif dataset == 'structured3d':
         return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=(416, 544), resize=450)
     elif '+' in dataset:
