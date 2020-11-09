@@ -13,7 +13,7 @@ from metrics import MetricLogger
 def get_dataset(path, split, dataset):
     path = path.split('+')
     if dataset == 'nyu':
-        return NYUDataset(path[0], split=split, output_size=(240, 320), resize=250)
+        return NYUDataset(path[0], split=split, output_size=(240, 320), resize=250, n_images=12000)
     elif dataset == 'noreflection':
         return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(240, 320), resize=250)
     elif dataset == 'isotropic':
@@ -32,7 +32,7 @@ class FCRNModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.hparams = hparams
-        self.train_dataset = get_dataset(self.hparams.path, 'train12k', self.hparams.dataset)
+        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
         self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
         self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
         
