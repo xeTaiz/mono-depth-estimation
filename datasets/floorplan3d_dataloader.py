@@ -49,7 +49,12 @@ class Floorplan3DDataset(BaseDataset):
                     self.depth.append(depth_path)
         if self.n_images > 0: self.images = self.images[0:self.n_images]
                 
-
+    def safe_txt(self, focal):
+        mapping = ["noreflection", "reflection", "mirror"]
+        txt_file_path = self.path/"{}.{}.txt".format(mapping[int(self.dataset_type)], self.split)
+        with open(txt_file_path.as_posix(), "w") as txt_file:
+            for image, depth in zip(self.images, self.depth):
+                txt_file.write("{} {} {}\n".format(image.relative_to(self.path).as_posix(), depth.relative_to(self.path).as_posix(), focal))
 
     def training_preprocess(self, rgb, depth):
         depth = transforms.ToPILImage()(depth)
@@ -110,14 +115,16 @@ class Floorplan3DDataset(BaseDataset):
         return rgb, depth
 
 if __name__ == "__main__":
-    import visualize
-    import cv2
-    dataset = Floorplan3DDataset(path="G:/data/floorplan3d", split="train", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES)
-    img, depth = dataset.__getitem__(100)
-    print(torch.min(depth))
-    print(torch.max(depth))
-    viz = visualize.merge_into_row(img, depth, depth)
-    cv2.imshow("viz", viz.astype('uint8'))
-    cv2.waitKey(0)
+    Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.NO_REFLECTION).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.NO_REFLECTION).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.NO_REFLECTION).safe_txt(518.8579)
+
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_MATERIAL).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_MATERIAL).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_MATERIAL).safe_txt(518.8579)
+
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES).safe_txt(518.8579)
 
     
