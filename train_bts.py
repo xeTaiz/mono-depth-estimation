@@ -51,3 +51,5 @@ if __name__ == "__main__":
 
     # Fit model
     trainer.fit(model)
+    filename = "{}/{}/version_{}/checkpoints/last.ckpt".format(model.logger.save_dir, model.logger.name, model.logger.version)
+    trainer.save_checkpoint(filename)
