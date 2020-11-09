@@ -4,7 +4,7 @@ import numpy as np
 class BaseDataset(Dataset):
     def __init__(self, split):
         self.split = split
-        if split == 'train':
+        if 'train' in split:
             self.transform = self.training_preprocess
         elif split == 'val':
             self.transform = self.validation_preprocess

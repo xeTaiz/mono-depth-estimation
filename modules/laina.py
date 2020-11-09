@@ -32,7 +32,7 @@ class FCRNModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.hparams = hparams
-        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
+        self.train_dataset = get_dataset(self.hparams.path, 'train12k', self.hparams.dataset)
         self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
         self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
         

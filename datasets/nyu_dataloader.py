@@ -50,10 +50,12 @@ class NYUDataset(BaseDataset):
         self.output_size = output_size
         self.resize = resize
         self.nyu_depth_v2_labeled_file = None
-        if self.split == 'train':
+        if 'train' in self.split:
             self.loader = h5_loader
             self.path = Path(path)/'train'
             self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]
+            if '12k' in self.split:
+                self.images = np.random.choice(self.images, size=12000, replace=False)
         elif self.split in ['val', 'test']:
             self.path = Path(path)
             self.loader = mat_loader
