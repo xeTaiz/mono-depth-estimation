@@ -115,16 +115,16 @@ class Floorplan3DDataset(BaseDataset):
         return rgb, depth
 
 if __name__ == "__main__":
-    Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.NO_REFLECTION).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.NO_REFLECTION).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.NO_REFLECTION).safe_txt(518.8579)
+    Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.NO_REFLECTION, output_size=(512,512), resize=512).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.NO_REFLECTION, output_size=(512,512), resize=512).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.NO_REFLECTION, output_size=(512,512), resize=512).safe_txt(518.8579)
 
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_MATERIAL).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_MATERIAL).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_MATERIAL).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(512,512), resize=512).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(512,512), resize=512).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(512,512), resize=512).safe_txt(518.8579)
 
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES).safe_txt(518.8579)
-    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(512,512), resize=512).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="val", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(512,512), resize=512).safe_txt(518.8579)
+    #Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="test", datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(512,512), resize=512).safe_txt(518.8579)
 
     
