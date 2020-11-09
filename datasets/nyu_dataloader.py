@@ -45,7 +45,7 @@ def mat_loader(index, data):
     return rgb, depth
 
 class NYUDataset(BaseDataset):
-    def __init__(self, path, output_size=(228, 304), resize=250, *args, **kwargs):
+    def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
         self.output_size = output_size
         self.resize = resize
@@ -54,13 +54,12 @@ class NYUDataset(BaseDataset):
             self.loader = h5_loader
             self.path = Path(path)/'train'
             self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]
-            if '12k' in self.split:
-                self.images = self.images[0:12000]
         elif self.split in ['val', 'test']:
             self.path = Path(path)
             self.loader = mat_loader
             self.images = self.load_images()
         assert len(self.images) > 0, "Found 0 images in subfolders of: " + path + "\n"
+        if n_images > 0: self.images = self.images[0:n_images]
         print("Found {} images in {} folder.".format(len(self.images), self.split))
 
     def training_preprocess(self, rgb, depth):
