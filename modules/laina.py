@@ -13,7 +13,7 @@ from metrics import MetricLogger
 def get_dataset(path, split, dataset):
     path = path.split('+')
     if dataset == 'nyu':
-        return NYUDataset(path[0], split=split, output_size=(240, 320), resize=250, n_images=12000)
+        return NYUDataset(path[0], split=split, output_size=(240, 320), resize=250)
     elif dataset == 'noreflection':
         return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(240, 320), resize=250)
     elif dataset == 'isotropic':

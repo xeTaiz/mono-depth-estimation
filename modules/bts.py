@@ -222,7 +222,7 @@ class BtsModule(pl.LightningModule):
         parser.add_argument('--max_depth', type=int, default=10, help='Depth of decoder')
         parser.add_argument('--encoder', type=str, default='densenet161_bts', help='Type of encoder')
         parser.add_argument('--variance_focus', type=float, default=0.85, help='lambda in paper: [0, 1], higher value more focus on minimizing variance of error')
-        parser.add_argument('--adam_eps', type=float, help='epsilon in Adam optimizer', default=1e-6)
+        parser.add_argument('--adam_eps', type=float, help='epsilon in Adam optimizer', default=1e-3)
         parser.add_argument('--weight_decay', type=float, help='weight decay factor for optimization', default=1e-2)
         parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')

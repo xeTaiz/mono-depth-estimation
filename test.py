@@ -13,7 +13,10 @@ import yaml
 
 def get_checkpoint(version_path, min_epoch=1):
     if not (version_path and Path(version_path).exists()): return None
-    checkpoints = [ckpt for ckpt in Path(version_path, "checkpoints").glob('*') if int(ckpt.name.replace("epoch=", "").replace(".ckpt", "")) >= min_epoch]
+    if min_epoch == -1:
+        checkpoints = [ckpt for ckpt in Path(version_path, "checkpoints").glob('*') if 'last' in ckpt.name]
+        if len(checkpoints) == 1: return checkpoints[0]
+    checkpoints = [ckpt for ckpt in Path(version_path, "checkpoints").glob('*') if not 'last' in ckpt.name and int(ckpt.name.replace("epoch=", "").replace(".ckpt", "")) >= min_epoch]
     checkpoints.sort(key=lambda x: int(x.name.replace("epoch=", "").replace(".ckpt", "")))
     if len(checkpoints):
         return checkpoints[-1]
