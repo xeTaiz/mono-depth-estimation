@@ -13,6 +13,20 @@ import numpy as np
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 
+def bn_init_as_tf(m):
+    if isinstance(m, torch.nn.BatchNorm2d):
+        m.track_running_stats = True  # These two lines enable using stats (moving mean and var) loaded from pretrained model
+        m.eval()                      # or zero mean and variance of one if the batch norm layer has no pretrained values
+        m.affine = True
+        m.requires_grad = True
+
+
+def weights_init_xavier(m):
+    if isinstance(m, torch.nn.Conv2d):
+        torch.nn.init.xavier_uniform_(m.weight)
+        if m.bias is not None:
+            torch.nn.init.zeros_(m.bias)
+
 def augment_image(image):
     # gamma augmentation
     gamma = np.random.uniform(0.9, 1.1)
@@ -148,6 +162,8 @@ class BtsModule(pl.LightningModule):
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
         self.model = Bts.BtsModel(max_depth=self.hparams.max_depth, bts_size=self.hparams.bts_size, encoder_version=self.hparams.encoder)
+        self.model.decoder.apply(weights_init_xavier)
+        self.set_misc()
         print("=> model created.")
         if self.hparams.loss == 'bts':
             self.criterion = criteria.silog_loss(variance_focus=self.hparams.variance_focus)
@@ -210,6 +226,38 @@ class BtsModule(pl.LightningModule):
         }
         return [optimizer], [scheduler]
 
+    def set_misc(self):
+        if self.hparams.bn_no_track_stats:
+            print("Disabling tracking running stats in batch norm layers")
+            self.model.apply(bn_init_as_tf)
+
+        if self.hparams.fix_first_conv_blocks:
+            if 'resne' in self.hparams.encoder:
+                fixing_layers = ['base_model.conv1', 'base_model.layer1.0', 'base_model.layer1.1', '.bn']
+            else:
+                fixing_layers = ['conv0', 'denseblock1.denselayer1', 'denseblock1.denselayer2', 'norm']
+            print("Fixing first two conv blocks")
+        elif self.hparams.fix_first_conv_block:
+            if 'resne' in self.hparams.encoder:
+                fixing_layers = ['base_model.conv1', 'base_model.layer1.0', '.bn']
+            else:
+                fixing_layers = ['conv0', 'denseblock1.denselayer1', 'norm']
+            print("Fixing first conv block")
+        else:
+            if 'resne' in self.hparams.encoder:
+                fixing_layers = ['base_model.conv1', '.bn']
+            else:
+                fixing_layers = ['conv0', 'norm']
+            print("Fixing first conv layer")
+
+        for name, child in self.model.named_children():
+            if not 'encoder' in name:
+                continue
+            for name2, parameters in child.named_parameters():
+                # print(name, name2)
+                if any(x in name2 for x in fixing_layers):
+                    parameters.requires_grad = False
+
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
@@ -232,6 +280,9 @@ class BtsModule(pl.LightningModule):
         parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
         parser.add_argument('--use_mat', default=0, type=int, help="Use NYU mat or h5")
         parser.add_argument('--n_images', default=-1, type=int, help='Number of images used.')
+        parser.add_argument('--fix_first_conv_blocks', help='if set, will fix the first two conv blocks', action='store_true')
+        parser.add_argument('--fix_first_conv_block', help='if set, will fix the first conv block', action='store_true')
+        parser.add_argument('--bn_no_track_stats', help='if set, will not track running stats in batch norm layers', action='store_true')
         return parser
 
 if __name__ == "__main__":
