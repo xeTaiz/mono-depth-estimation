@@ -16,63 +16,117 @@ import cv2
 
 RGB_PIXEL_MEANS = (0.485, 0.456, 0.406)  # (102.9801, 115.9465, 122.7717)
 RGB_PIXEL_VARS = (0.229, 0.224, 0.225)  # (1, 1, 1)
-
-def set_reshape_crop():
-    raw_size = np.array([385, 416, 448, 480, 512, 544, 576, 608, 640])
-    size_index = np.random.randint(0, 9)
-    crop_size = raw_size[size_index]
-    resize_ratio = float(385 / crop_size)
-    return crop_size, resize_ratio
+CROP_SIZE = (385, 385)
+UNIFORM_SIZE = (480, 640)
 
 def scale_torch(img, scale):
-    img = TF.to_tensor(np.array(img, dtype=np.float32))
+    """
+    Scale the image and output it in torch.tensor.
+    :param img: input image. [C, H, W]
+    :param scale: the scale factor. float
+    :return: img. [C, H, W
+    """
+    img = img.astype(np.float32)
     img /= scale
+    img = torch.from_numpy(img.copy())
     if img.size(0) == 3:
         img = transforms.Normalize(RGB_PIXEL_MEANS, RGB_PIXEL_VARS)(img)
     else:
         img = transforms.Normalize((0,), (1,))(img)
     return img
 
-def training_preprocess(rgb, depth):
-    if isinstance(rgb, np.ndarray):
-        rgb = transforms.ToPILImage()(rgb)
-    if isinstance(depth, np.ndarray):
-        depth = transforms.ToPILImage()(depth)
-    crop_size, resize_ratio = set_reshape_crop()
-    # Resize 
-    resize = transforms.Resize(int(crop_size))
-    rgb = resize(rgb)
-    depth = resize(depth)
-    # Random Crop
-    i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(385, 385))
-    rgb = TF.crop(rgb, i, j, h, w)
-    depth = TF.crop(depth, i, j, h, w)
-    # Random flipping
-    if np.random.uniform(0,1) > 0.5:
-        rgb = TF.hflip(rgb)
-        depth = TF.hflip(depth)
+def set_flip_pad_reshape_crop(phase):
+    """
+    Set flip, padding, reshaping, and cropping factors for the image.
+    :return:
+    """
+    # flip
+    flip_prob = np.random.uniform(0.0, 1.0)
+    flip_flg = True if flip_prob > 0.5 and 'train' in phase else False
 
-    rgb = scale_torch(rgb, 255.0)
-    depth = scale_torch(depth, resize_ratio)
-    return rgb, depth
+    raw_size = np.array([CROP_SIZE[1], 416, 448, 480, 512, 544, 576, 608, 640])
+    size_index = np.random.randint(0, 9) if 'train' in phase else 8
+
+    # pad
+    pad_height = raw_size[size_index] - UNIFORM_SIZE[0] if raw_size[size_index] > UNIFORM_SIZE[0] else 0
+    pad = [pad_height, 0, 0, 0]  # [up, down, left, right]
+
+    # crop
+    crop_height = raw_size[size_index]
+    crop_width = raw_size[size_index]
+    start_x = np.random.randint(0, int(UNIFORM_SIZE[1] - crop_width)+1)
+    start_y = 0 if pad_height != 0 else np.random.randint(0, int(UNIFORM_SIZE[0] - crop_height) + 1)
+    crop_size = [start_x, start_y, crop_height, crop_width]
+
+    resize_ratio = float(CROP_SIZE[1] / crop_width)
+
+    return flip_flg, crop_size, pad, resize_ratio
+
+def flip_pad_reshape_crop(img, flip, crop_size, pad, pad_value=0):
+    """
+    Flip, pad, reshape, and crop the image.
+    :param img: input image, [C, H, W]
+    :param flip: flip flag
+    :param crop_size: crop size for the image, [x, y, width, height]
+    :param pad: pad the image, [up, down, left, right]
+    :param pad_value: padding value
+    :return:
+    """
+    # Flip
+    if flip:
+        img = np.flip(img, axis=1)
+
+    # Pad the raw image
+    if len(img.shape) == 3:
+        img_pad = np.pad(img, ((pad[0], pad[1]), (pad[2], pad[3]), (0, 0)), 'constant',
+                    constant_values=(pad_value, pad_value))
+    else:
+        img_pad = np.pad(img, ((pad[0], pad[1]), (pad[2], pad[3])), 'constant',
+                            constant_values=(pad_value, pad_value))
+    # Crop the resized image
+    img_crop = img_pad[crop_size[1]:crop_size[1] + crop_size[3], crop_size[0]:crop_size[0] + crop_size[2]]
+
+    # Resize the raw image
+    img_resize = cv2.resize(img_crop, (CROP_SIZE[1], CROP_SIZE[0]), interpolation=cv2.INTER_LINEAR)
+    return img_resize
+
+def resize_image(img, size):
+    if type(img).__module__ != np.__name__:
+        img = img.cpu().numpy()
+    img = cv2.resize(img, (size[1], size[0]))
+    return img
+
+def preprocess(A, B, phase):
+    flip_flg, crop_size, pad, resize_ratio = set_flip_pad_reshape_crop(phase)
+
+    A_resize = flip_pad_reshape_crop(A, flip_flg, crop_size, pad, 128)
+    B_resize = flip_pad_reshape_crop(B, flip_flg, crop_size, pad, -1)
+
+    A_resize = A_resize.transpose((2, 0, 1))
+    B_resize = B_resize[np.newaxis, :, :]
+
+    # change the color channel, bgr -> rgb
+    A_resize = A_resize[::-1, :, :]
+
+    # to torch, normalize
+    A_resize = scale_torch(A_resize, 255.)
+    B_resize = scale_torch(B_resize, resize_ratio)
+
+    invalid_side = [int(pad[0] * resize_ratio), 0, 0, 0]
+
+    data = {'A': A_resize, 'B': B_resize, 'A_raw': A, 'B_raw': B, 'invalid_side': np.array(invalid_side), 'ratio': np.float32(1.0 / resize_ratio)}
+    return data
+
+def training_preprocess(rgb, depth):
+    A = np.array(rgb, dtype=np.uint8)
+    B = np.array(depth, dtype=np.float32) / 10.0
+    return preprocess(A, B, 'train')
+    
 
 def validation_preprocess(rgb, depth):
-    if isinstance(rgb, np.ndarray):
-        rgb = transforms.ToPILImage()(rgb)
-    if isinstance(depth, np.ndarray):
-        depth = transforms.ToPILImage()(depth)
-    # Resize 
-    resize = transforms.Resize(385)
-    rgb = resize(rgb)
-    depth = resize(depth)
-    # Random Crop
-    crop = transforms.CenterCrop((385, 385))
-    rgb = crop(rgb)
-    depth = crop(depth)
-
-    rgb = scale_torch(rgb, 255.0)
-    depth = scale_torch(depth, 1)
-    return rgb, depth
+    A = np.array(rgb, dtype=np.uint8)
+    B = np.array(depth, dtype=np.float32) / 10.0
+    return preprocess(A, B, 'val')
 
 def get_dataset(path, split, dataset):
     path = path.split('+')
@@ -176,6 +230,16 @@ class VNLModule(pl.LightningModule):
         depth = depth.permute(0, 3, 1, 2)  # [b, 1, h, w]
         return depth
 
+    def restore_prediction(self, y_hat, data):
+        invalid_side = data['invalid_side'][0]
+        pred_depth = y_hat[0].squeeze(0).detach()
+        pred_depth = pred_depth[invalid_side[0]:pred_depth.size(0) - invalid_side[1], :]
+        pred_depth = pred_depth / data['ratio'][0].cuda()
+        pred_depth = torch.from_numpy(resize_image(pred_depth, data['B_raw'][0].shape)).unsqueeze(0)
+        targ_depth = data['B_raw'][0].unsqueeze(0)
+        image = data['A_raw'][0].permute(2,0,1).unsqueeze(0)
+        return image.cuda(), targ_depth.unsqueeze(0).cuda(), pred_depth.unsqueeze(0).cuda()
+
     def forward(self, x):
         y_hat = self.model(x)
         return y_hat
@@ -191,11 +255,10 @@ class VNLModule(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
-        x, y = batch
-        y /= 10.0
-        pred_logits, pred_cls = self(x)
-        loss = self.criterion(self.bins_to_depth(pred_cls), pred_logits, self.depth_to_bins(y), y)
+        pred_logits, pred_cls = self(batch['A'])
+        loss = self.criterion(self.bins_to_depth(pred_cls), pred_logits, self.depth_to_bins(batch['B']), batch['B'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
+        x, y, y_hat = self.restore_prediction(y_hat, batch)
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def predicted_depth_map(self, logits, cls):
@@ -209,10 +272,9 @@ class VNLModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
-        x, y = batch
-        y /= 10.0
-        pred_logits, pred_cls = self(x)
+        pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
+        x, y, y_hat = self.restore_prediction(y_hat, batch)
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
@@ -225,10 +287,9 @@ class VNLModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
-        x, y = batch
-        y /= 10.0
-        pred_logits, pred_cls = self(x)
+        pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
+        _, y, y_hat = self.restore_prediction(y_hat, batch)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
