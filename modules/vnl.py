@@ -29,7 +29,7 @@ def scale_torch(img, scale):
     img /= scale
     img = torch.from_numpy(img.copy())
     if img.size(0) == 3:
-        img = transforms.Normalize(RGB_PIXEL_MEANS, RGB_PIXEL_VARS)(img)
+        pass#img = transforms.Normalize(RGB_PIXEL_MEANS, RGB_PIXEL_VARS)(img)
     else:
         img = transforms.Normalize((0,), (1,))(img)
     return img
@@ -43,7 +43,7 @@ def set_flip_pad_reshape_crop(phase, uniform_size):
     flip_prob = np.random.uniform(0.0, 1.0)
     flip_flg = True if flip_prob > 0.5 and 'train' in phase else False
 
-    raw_size = np.array([CROP_SIZE[1], 416, 448, 480, 512, 544, 576, 608, uniform_size[1]])
+    raw_size = np.array([CROP_SIZE[1], 416, 448, 480, 512, 544, 576, 608, 640])
     size_index = np.random.randint(0, 9) if 'train' in phase else 8
 
     # pad
@@ -96,6 +96,15 @@ def resize_image(img, size):
     return img
 
 def preprocess(A, B, phase):
+    if B.shape[0] != 480:
+        s = 480 / B.shape[0]
+        A = cv2.resize(A, (0,0), fx=s, fy=s)
+        B = cv2.resize(B, (0,0), fx=s, fy=s)
+        w = B.shape[1] - 640
+        if w > 0:
+            w_off = w // 2
+            A = A[:, w_off:-(w_off+1), :]
+            B = B[:, w_off:-(w_off+1)]
     uniform_size = B.shape[0:2]
     flip_flg, crop_size, pad, resize_ratio = set_flip_pad_reshape_crop(phase, uniform_size)
 
@@ -104,9 +113,6 @@ def preprocess(A, B, phase):
 
     A_resize = A_resize.transpose((2, 0, 1))
     B_resize = B_resize[np.newaxis, :, :]
-
-    # change the color channel, bgr -> rgb
-    A_resize = A_resize[::-1, :, :]
 
     # to torch, normalize
     A_resize = scale_torch(A_resize, 255.)
@@ -258,7 +264,7 @@ class VNLModule(pl.LightningModule):
         pred_logits, pred_cls = self(batch['A'])
         loss = self.criterion(self.bins_to_depth(pred_cls), pred_logits, self.depth_to_bins(batch['B']), batch['B'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
-        y = batch['B']
+        y = batch['B']          
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def predicted_depth_map(self, logits, cls):
@@ -274,7 +280,7 @@ class VNLModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
-        x, y, y_hat = self.restore_prediction(y_hat, batch)
+        x, y = batch['A'], batch['B']
         if batch_idx == 0:
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
