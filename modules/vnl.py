@@ -17,7 +17,6 @@ import cv2
 RGB_PIXEL_MEANS = (0.485, 0.456, 0.406)  # (102.9801, 115.9465, 122.7717)
 RGB_PIXEL_VARS = (0.229, 0.224, 0.225)  # (1, 1, 1)
 CROP_SIZE = (385, 385)
-UNIFORM_SIZE = (480, 640)
 
 def scale_torch(img, scale):
     """
@@ -35,7 +34,7 @@ def scale_torch(img, scale):
         img = transforms.Normalize((0,), (1,))(img)
     return img
 
-def set_flip_pad_reshape_crop(phase):
+def set_flip_pad_reshape_crop(phase, uniform_size):
     """
     Set flip, padding, reshaping, and cropping factors for the image.
     :return:
@@ -44,18 +43,18 @@ def set_flip_pad_reshape_crop(phase):
     flip_prob = np.random.uniform(0.0, 1.0)
     flip_flg = True if flip_prob > 0.5 and 'train' in phase else False
 
-    raw_size = np.array([CROP_SIZE[1], 416, 448, 480, 512, 544, 576, 608, 640])
+    raw_size = np.array([CROP_SIZE[1], 416, 448, 480, 512, 544, 576, 608, uniform_size[1]])
     size_index = np.random.randint(0, 9) if 'train' in phase else 8
 
     # pad
-    pad_height = raw_size[size_index] - UNIFORM_SIZE[0] if raw_size[size_index] > UNIFORM_SIZE[0] else 0
+    pad_height = raw_size[size_index] - uniform_size[0] if raw_size[size_index] > uniform_size[0] else 0
     pad = [pad_height, 0, 0, 0]  # [up, down, left, right]
 
     # crop
     crop_height = raw_size[size_index]
     crop_width = raw_size[size_index]
-    start_x = np.random.randint(0, int(UNIFORM_SIZE[1] - crop_width)+1)
-    start_y = 0 if pad_height != 0 else np.random.randint(0, int(UNIFORM_SIZE[0] - crop_height) + 1)
+    start_x = np.random.randint(0, int(uniform_size[1] - crop_width)+1)
+    start_y = 0 if pad_height != 0 else np.random.randint(0, int(uniform_size[0] - crop_height) + 1)
     crop_size = [start_x, start_y, crop_height, crop_width]
 
     resize_ratio = float(CROP_SIZE[1] / crop_width)
@@ -97,7 +96,8 @@ def resize_image(img, size):
     return img
 
 def preprocess(A, B, phase):
-    flip_flg, crop_size, pad, resize_ratio = set_flip_pad_reshape_crop(phase)
+    uniform_size = B.shape[0:2]
+    flip_flg, crop_size, pad, resize_ratio = set_flip_pad_reshape_crop(phase, uniform_size)
 
     A_resize = flip_pad_reshape_crop(A, flip_flg, crop_size, pad, 128)
     B_resize = flip_pad_reshape_crop(B, flip_flg, crop_size, pad, -1)
@@ -258,7 +258,7 @@ class VNLModule(pl.LightningModule):
         pred_logits, pred_cls = self(batch['A'])
         loss = self.criterion(self.bins_to_depth(pred_cls), pred_logits, self.depth_to_bins(batch['B']), batch['B'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
-        x, y, y_hat = self.restore_prediction(y_hat, batch)
+        y = batch['B']
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def predicted_depth_map(self, logits, cls):
