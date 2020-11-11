@@ -266,6 +266,7 @@ class VNLModule(pl.LightningModule):
         pred_logits, pred_cls = self(batch['A'])
         loss = self.criterion(self.bins_to_depth(pred_cls), pred_logits, self.depth_to_bins(batch['B']), batch['B'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
+        y = batch['B']
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def predicted_depth_map(self, logits, cls):
