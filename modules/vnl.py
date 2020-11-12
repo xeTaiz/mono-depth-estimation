@@ -246,7 +246,13 @@ class VNLModule(pl.LightningModule):
         pred_depth = torch.from_numpy(resize_image(pred_depth, data['B_raw'][0].shape)).unsqueeze(0)
         targ_depth = data['B_raw'][0].unsqueeze(0)
         image = data['A_raw'][0].unsqueeze(0)
-        return image.cuda(), targ_depth.unsqueeze(0).cuda(), pred_depth.unsqueeze(0).cuda()
+        x,y,y_hat= image.cuda(), targ_depth.unsqueeze(0).cuda(), pred_depth.unsqueeze(0).cuda()
+        if self.hparams.test_dataset == 'nyu':
+            mask = (45, 471, 41, 601)
+            x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
+            y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
+            y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]]
+        return x,y,y_hat
 
     def forward(self, x):
         y_hat = self.model(x)
