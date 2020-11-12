@@ -51,25 +51,10 @@ def training_preprocess(rgb, depth):
     if isinstance(depth, np.ndarray):
         depth = transforms.ToPILImage()(depth)
     
-    height = rgb.height
-    width = rgb.width
-    left_margin = width * 0.05
-    right_margin = width * (1.0 - 0.05)
-    top_margin = height * 0.05
-    bot_margin = height * (1.0 - 0.05)
-    depth = depth.crop((left_margin, top_margin, right_margin, bot_margin))
-    rgb     = rgb.crop((left_margin, top_margin, right_margin, bot_margin))
-
     # Random rotation
     angle = transforms.RandomRotation.get_params([-2.5, 2.5])
     rgb = TF.rotate(rgb, angle)
     depth = TF.rotate(depth, angle)
-
-    # Resize
-    h = int(np.random.choice([416, 452, 489, 507, 518, 550, 600, 650, 720]))
-    resize = transforms.Resize(h)
-    rgb = resize(rgb)
-    depth = resize(depth)
 
     # Random Crop
     i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(416, 544))
@@ -83,8 +68,6 @@ def training_preprocess(rgb, depth):
 
     rgb = np.asarray(rgb, dtype=np.float32) / 255.0
     depth = np.asarray(depth, dtype=np.float32)
-
-    #depth = depth / 1000.0
 
     # Random gamma, brightness, color augmentation
     if np.random.uniform(0,1) > 0.5:
@@ -225,11 +208,16 @@ class BtsModule(pl.LightningModule):
                        {'params': self.model.decoder.parameters(), 'weight_decay': 0}]
         # Training parameters
         optimizer = torch.optim.AdamW(train_param, lr=self.hparams.learning_rate, eps=self.hparams.adam_eps)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.hparams.lr_patience)
+        total_iters = (len(self.train_loader) // self.hparams.batch_size) * self.hparams.max_epochs
+        lr_optim_lambda = lambda iter: (1.0 - iter / (float(total_iters))) ** 0.9
+        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_optim_lambda)
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
-            'monitor': 'val_checkpoint_on'
+            'monitor': 'val_checkpoint_on',
+            'interval': 'step',
+            'frequency': 1,
+            'strict': True
         }
         return [optimizer], [scheduler]
 
