@@ -96,7 +96,6 @@ class MidasModule(pl.LightningModule):
         if self.hparams.data_augmentation == 'midas':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
-            self.test_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
@@ -189,10 +188,17 @@ class MidasModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
-        x, y = batch
-        y_hat = self(x)
+        x, y = batch # nyu = (480, 640) # floorplan (720, 1280)
+        x_ = torch.nn.functional.interpolate(x, (384, 384), mode='bilinear')
+        y_hat = self(x_)
+        y_hat = torch.nn.functional.interpolate(y_hat, y.shape[-2:], mode='bilinear')
         if "ssi" in self.hparams.loss:
             y_hat, y = self.scale_shift(y_hat, y)
+        if self.hparams.test_dataset == 'nyu':
+            mask = (45, 471, 41, 601)
+            x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
+            y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
+            y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]] 
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):

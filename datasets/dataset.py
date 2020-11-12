@@ -9,7 +9,7 @@ class BaseDataset(Dataset):
         elif split == 'val':
             self.transform = self.validation_preprocess
         elif split == 'test':
-            self.transform = self.validation_preprocess
+            self.transform = self.test_preprocess
         else:
             raise (RuntimeError("Invalid dataset type: " + split + "\nSupported dataset types are: train, val, test"))
 
@@ -17,6 +17,9 @@ class BaseDataset(Dataset):
         raise NotImplementedError()
 
     def validation_preprocess(self, rgb, depth):
+        raise NotImplementedError()
+
+    def test_preprocess(self, rgb, depth):
         raise NotImplementedError()
 
     def get_raw(self, index):

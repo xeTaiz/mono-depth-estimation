@@ -5,6 +5,7 @@ from PIL import Image
 from datasets.dataset import BaseDataset
 from torchvision import transforms
 import torchvision.transforms.functional as TF
+import torch
 from tqdm import tqdm
 import urllib.request
 from scipy.io import loadmat
@@ -106,6 +107,12 @@ class NYUDataset(BaseDataset):
         crop = transforms.CenterCrop(self.output_size)
         rgb = crop(rgb)
         depth = crop(depth)
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = TF.to_tensor(np.array(depth))
+        return rgb, depth
+
+    def test_preprocess(self, rgb, depth):
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
         depth = TF.to_tensor(np.array(depth))

@@ -80,6 +80,15 @@ class Structured3DDataset(BaseDataset):
         depth = TF.to_tensor(depth)
         return rgb, depth
 
+    def test_preprocess(self, rgb, depth):
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = np.array(depth, dtype=np.float32)
+        depth /= 1000
+        depth = np.clip(depth, 0, 10)
+        depth = TF.to_tensor(depth)
+        return rgb, depth
+
     def get_raw(self, index):
         rgb_path = self.images[index]
         depth_path = rgb_path.replace("rgb_rawlight", "depth")

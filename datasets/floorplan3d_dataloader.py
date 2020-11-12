@@ -117,6 +117,13 @@ class Floorplan3DDataset(BaseDataset):
         depth = TF.to_tensor(depth)
         return rgb, depth
 
+    def test_preprocess(self, rgb, depth):
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = np.array(depth, dtype=np.float32)
+        depth = TF.to_tensor(depth)
+        return rgb, depth
+
     def get_raw(self, index):
         img_path = self.images[index]
         depth_path = self.depth[index]
