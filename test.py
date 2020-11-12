@@ -32,10 +32,10 @@ def test_method(method, version_path, test_dataset, path, metrics, min_epoch):
         model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset, metrics)
         if model:
             result = trainer.test(model)
-            return result[0]
+            return result[0], checkpoint
         else:
             print("Model unavailable: ", method)
-    return None
+    return None, None
 
 def get_model(method, ckpt, hparams, path, test_dataset, metrics):
     if   method == 'bts':   Module = BtsModule
@@ -45,7 +45,19 @@ def get_model(method, ckpt, hparams, path, test_dataset, metrics):
     elif method == 'eigen': Module = EigenModule
     elif method == 'dorn':  Module = DORNModule
     else:return None
-    return Module.load_from_checkpoint(checkpoint_path=ckpt, hparams_file=hparams, path=path, metrics=metrics, test_dataset=test_dataset, worker=1)
+    return Module.load_from_checkpoint(
+        checkpoint_path=ckpt, 
+        hparams_file=hparams, 
+        path=path, 
+        metrics=metrics, 
+        test_dataset=test_dataset, 
+        worker=1,
+        n_images=-1,
+        bn_no_track_stats=True,
+        fix_first_conv_block=False,
+        fix_first_conv_blocks=True,
+        use_mat=0
+    )
 
 
 if __name__ == "__main__":
@@ -65,17 +77,17 @@ if __name__ == "__main__":
     assert output_file.parent.exists(), "{} directory does not exist!".format(output_file.parent.as_posix())
 
     txt_file = open(output_file.as_posix(), "w")
-    txt_file.write("version,method,loss,aug,train,test,{},\n".format(",".join(args.metrics)))
+    txt_file.write("version,epoch,method,loss,aug,train,test,{},\n".format(",".join(args.metrics)))
 
     for method in results_directory.glob('*'):
         if not method.name in args.methods:continue
         for version in method.glob('*'):
             for test_dataset in args.test_dataset:
-                result = test_method(method.name, version, test_dataset, args.path, args.metrics, args.min_epoch)
+                result, ckpt = test_method(method.name, version, test_dataset, args.path, args.metrics, args.min_epoch)
                 if not result:continue
                 with open(Path(version, "hparams.yaml").as_posix(), "r") as yamlf:
                     hparams = yaml.load(yamlf, Loader=yaml.FullLoader)
-                line = "{},{},{},{},{},{},".format(version.name, method.name, hparams['loss'], hparams['data_augmentation'], hparams['dataset'], test_dataset)
+                line = "{},{},{},{},{},{},{},".format(version.name, ckpt.name, method.name, hparams['loss'], hparams['data_augmentation'], hparams['dataset'], test_dataset)
                 for metric in args.metrics:
                     line += "{},".format(round(result[metric], 3))
                 line += "\n"
