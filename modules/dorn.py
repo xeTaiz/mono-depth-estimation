@@ -220,7 +220,7 @@ class DORNModule(pl.LightningModule):
         self.skip = 1
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
-        x_ = torch.nn.functional.interpolate(x, (240, 320), mode='bilinear')
+        x_ = torch.nn.functional.interpolate(x, self.hparams.input_size, mode='bilinear')
         pred_d, pred_ord = self(x_)
         y_hat = self.label_to_depth(pred_d)
         y_hat = torch.nn.functional.interpolate(y_hat, y.shape[-2:], mode='bilinear')
