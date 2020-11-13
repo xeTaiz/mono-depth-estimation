@@ -51,14 +51,12 @@ def get_model(method, ckpt, hparams, path, test_dataset, metrics, worker):
         path=path, 
         metrics=metrics, 
         test_dataset=test_dataset, 
-        worker=1,
+        worker=worker,
         n_images=-1,
         bn_no_track_stats=True,
         fix_first_conv_block=False,
         fix_first_conv_blocks=True,
-        use_mat=0,
-        worker=worker
-    )
+        use_mat=0)
 
 
 if __name__ == "__main__":
