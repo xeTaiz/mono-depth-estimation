@@ -57,7 +57,7 @@ class FCRNModule(pl.LightningModule):
         print("=> model created.")
         self.criterion = criteria.MaskedL1Loss()
         self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
-        self.test_dataset.transform = validation_preprocess
+        self.test_dataset.transform = self.test_dataset.validation_preprocess
 
     def forward(self, x):
         y_hat = self.model(x)

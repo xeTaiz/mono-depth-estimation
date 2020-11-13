@@ -58,7 +58,7 @@ class EigenModule(pl.LightningModule):
         print("=> model created.")
         self.criterion = criteria.MaskedDepthLoss()
         self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
-        self.test_dataset.transform = validation_preprocess
+        self.test_dataset.transform = self.test_dataset.validation_preprocess
 
     def forward(self, x):
         y_hat = self.model(x)
