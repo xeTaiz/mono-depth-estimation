@@ -23,13 +23,13 @@ def get_checkpoint(version_path, min_epoch=1):
     else:
         return None
 
-def test_method(method, version_path, test_dataset, path, metrics, min_epoch):
+def test_method(method, version_path, test_dataset, path, metrics, min_epoch, worker):
     hparams = Path(version_path, "hparams.yaml")
     checkpoint = get_checkpoint(version_path, min_epoch)
     trainer = pl.Trainer(gpus=1)
     if checkpoint:
         print("Testing {} {} {} on {}".format(method, version_path.name, checkpoint.name, test_dataset))
-        model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset, metrics)
+        model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset, metrics, worker)
         if model:
             result = trainer.test(model)
             return result[0], checkpoint
@@ -37,7 +37,7 @@ def test_method(method, version_path, test_dataset, path, metrics, min_epoch):
             print("Model unavailable: ", method)
     return None, None
 
-def get_model(method, ckpt, hparams, path, test_dataset, metrics):
+def get_model(method, ckpt, hparams, path, test_dataset, metrics, worker):
     if   method == 'bts':   Module = BtsModule
     elif method == 'midas': Module = MidasModule
     elif method == 'laina': Module = FCRNModule
@@ -56,7 +56,8 @@ def get_model(method, ckpt, hparams, path, test_dataset, metrics):
         bn_no_track_stats=True,
         fix_first_conv_block=False,
         fix_first_conv_blocks=True,
-        use_mat=0
+        use_mat=0,
+        worker=worker
     )
 
 
@@ -69,6 +70,7 @@ if __name__ == "__main__":
     parser.add_argument('--path', required=True, type=str, help='Path to Floorplan3D')
     parser.add_argument('--test_dataset', default=['noreflection', 'isotropic', 'mirror'], nargs='+', help='test dataset(s)')
     parser.add_argument('--min_epoch', default=1, type=int, help='ignore checkpoints from less epochs.')
+    parser.add_argument('--worker', default=6, type=int, help='Number of workers')
 
     args = parser.parse_args()
     results_directory = Path(args.results)
@@ -83,7 +85,7 @@ if __name__ == "__main__":
         if not method.name in args.methods:continue
         for version in method.glob('*'):
             for test_dataset in args.test_dataset:
-                result, ckpt = test_method(method.name, version, test_dataset, args.path, args.metrics, args.min_epoch)
+                result, ckpt = test_method(method.name, version, test_dataset, args.path, args.metrics, args.min_epoch, args.worker)
                 if not result:continue
                 with open(Path(version, "hparams.yaml").as_posix(), "r") as yamlf:
                     hparams = yaml.load(yamlf, Loader=yaml.FullLoader)
