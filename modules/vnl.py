@@ -185,6 +185,7 @@ class VNLModule(pl.LightningModule):
         if self.hparams.data_augmentation == 'vnl':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
+            self.test_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
@@ -246,11 +247,11 @@ class VNLModule(pl.LightningModule):
         targ_depth = data['B_raw'][0].unsqueeze(0)
         image = data['A_raw'][0].unsqueeze(0)
         x,y,y_hat= image.cuda(), targ_depth.unsqueeze(0).cuda(), pred_depth.unsqueeze(0).cuda()
-        if self.hparams.test_dataset == 'nyu':
-            mask = (45, 471, 41, 601)
-            x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
-            y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
-            y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]]
+        #if self.hparams.test_dataset == 'nyu':
+        mask = (45, 471, 41, 601)
+        x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
+        y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
+        y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]]
         return x,y,y_hat
 
     def forward(self, x):
@@ -303,7 +304,7 @@ class VNLModule(pl.LightningModule):
         x,y = batch
         pred_logits, pred_cls = self(x)
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
-        #x, y, y_hat = self.restore_prediction(y_hat, batch)
+        x, y, y_hat = self.restore_prediction(y_hat, batch)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
