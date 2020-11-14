@@ -185,7 +185,6 @@ class VNLModule(pl.LightningModule):
         if self.hparams.data_augmentation == 'vnl':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
-            self.test_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
@@ -301,9 +300,10 @@ class VNLModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
-        pred_logits, pred_cls = self(batch['A'])
+        x,y = batch
+        pred_logits, pred_cls = self(x)
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
-        x, y, y_hat = self.restore_prediction(y_hat, batch)
+        #x, y, y_hat = self.restore_prediction(y_hat, batch)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
