@@ -118,17 +118,20 @@ class Floorplan3DDataset(BaseDataset):
         return rgb, depth
 
     def test_preprocess(self, rgb, depth):
-        rgb = transforms.ToPILImage()(rgb)
         depth = transforms.ToPILImage()(depth)
-        h = int(self.output_size[0] / 0.96)
+   
         # Resize
-        resize = transforms.Resize(h)
+        resize = transforms.Resize(500)
         rgb = resize(rgb)
         depth = resize(depth)
         # Center crop
-        crop = transforms.CenterCrop(self.output_size)
+        crop = transforms.CenterCrop((480, 640))
         rgb = crop(rgb)
         depth = crop(depth)
+        # Resize
+        resize = transforms.Resize(self.output_size)
+        rgb = resize(rgb)
+        depth = resize(depth)
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
         depth = TF.to_tensor(np.array(depth))
