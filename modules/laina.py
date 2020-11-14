@@ -96,14 +96,9 @@ class FCRNModule(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
-        x_ = torch.nn.functional.interpolate(x, (240, 320), mode='bilinear')
-        y_hat = self(x_)
-        y_hat = torch.nn.functional.interpolate(y_hat, y.shape[-2:], mode='bilinear')
-        if self.hparams.test_dataset == 'nyu':
-            mask = (45, 471, 41, 601)
-            x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
-            y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
-            y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]] 
+        y_hat = self(x)
+        y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
+        y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):

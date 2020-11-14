@@ -15,6 +15,7 @@ from tqdm import tqdm
 import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np
+import cv2
 
 midas_transform = torch.hub.load("intel-isl/MiDaS", "transforms").default_transform 
 
@@ -67,6 +68,37 @@ def validation_preprocess(rgb, depth):
     #depth[~mask] = 0.
     return rgb, depth
 
+def test_preprocess(rgb, depth):
+    if isinstance(rgb, np.ndarray):
+        rgb = transforms.ToPILImage()(rgb)
+    if isinstance(depth, np.ndarray):
+        depth = transforms.ToPILImage()(depth)
+    # Resize
+    resize = transforms.Resize(500)
+    rgb = resize(rgb)
+    depth = resize(depth)
+    # Center crop
+    crop = transforms.CenterCrop((480, 640))
+    rgb_raw = crop(rgb)
+    depth_raw = crop(depth)
+    # to cv2
+    rgb_raw = np.array(rgb_raw, dtype=np.uint8)
+    depth_raw = np.array(depth_raw, dtype=np.float32)
+    # pad
+    rgb = cv2.copyMakeBorder(rgb_raw, 0, 160, 0, 0, cv2.BORDER_CONSTANT, value=[0,0,0])
+    depth = cv2.copyMakeBorder(depth_raw, 0, 160, 0, 0, cv2.BORDER_CONSTANT, value=[0])
+    assert rgb.shape[0] == rgb.shape[1], "Not square!"
+    # Resize
+    rgb = cv2.resize(rgb, (384, 384))
+    depth = cv2.resize(depth, (384, 384))
+    # Transform to tensor
+    rgb = midas_transform(rgb).squeeze(0)#TF.to_tensor(np.array(rgb)) #
+    depth = TF.to_tensor(depth)
+    rgb_raw = TF.to_tensor(rgb_raw)
+    depth_raw = TF.to_tensor(depth_raw)
+    
+    return {'rgb_raw': rgb_raw, 'depth_raw': depth_raw, 'rgb': rgb, 'depth': depth}
+
 def get_dataset(path, split, dataset):
     path = path.split('+')
     if dataset == 'nyu':
@@ -96,6 +128,7 @@ class MidasModule(pl.LightningModule):
         if self.hparams.data_augmentation == 'midas':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
+            self.test_dataset.transform = test_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
@@ -188,17 +221,13 @@ class MidasModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
-        x, y = batch # nyu = (480, 640) # floorplan (720, 1280)
-        x_ = torch.nn.functional.interpolate(x, (384, 384), mode='bilinear')
-        y_hat = self(x_)
-        y_hat = torch.nn.functional.interpolate(y_hat, y.shape[-2:], mode='bilinear')
+        y = batch['depth']
+        y_hat = self(batch['rgb'])
         if "ssi" in self.hparams.loss:
             y_hat, y = self.scale_shift(y_hat, y)
-        if self.hparams.test_dataset == 'nyu':
-            mask = (45, 471, 41, 601)
-            x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
-            y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
-            y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]] 
+        y = batch['depth_raw']
+        y_hat = torch.nn.functional.interpolate(y_hat, (640, 640), mode='bilinear')
+        y_hat = y_hat[..., 0:480, 0:640]
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
