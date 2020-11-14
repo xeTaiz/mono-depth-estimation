@@ -54,6 +54,8 @@ def show_item(item):
     cv2.waitKey(0)
 
 def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
+    metric = MetricComputation(['mae'])
+    mae = metric.compute(depth_pred, depth_gt)[0]
     Path(path).mkdir(parents=True, exist_ok=True)
     min_ = np.finfo(np.float16).max
     max_ = np.finfo(np.float16).min
@@ -75,8 +77,6 @@ def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
         min_, max_ = min(np.min(depth_pred), min_), max(np.max(depth_pred), max_)
         
     if not depth_pred is None:
-        metric = MetricComputation(['mae'])
-        mae = metric.compute(depth_pred, depth_gt)[0]
         depth_pred = colored_depthmap(depth_pred, min_, max_)
         save_image(depth_pred, "{}/mae.{}.{}.pred.jpg".format(path, round(mae,3), idx))
 
