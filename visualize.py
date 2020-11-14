@@ -1,5 +1,7 @@
 import numpy as np
 import cv2
+from pathlib import Path
+from metrics import MetricComputation
 
 def colored_depthmap(depth, d_min=None, d_max=None):
     if d_min is None:
@@ -52,8 +54,7 @@ def show_item(item):
     cv2.waitKey(0)
 
 def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
-    path.mkdir(parents=True, exist_ok=True)
-    path = path.as_posix()
+    Path(path).mkdir(parents=True, exist_ok=True)
     min_ = np.finfo(np.float16).max
     max_ = np.finfo(np.float16).min
     if not rgb is None:
@@ -74,8 +75,10 @@ def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
         min_, max_ = min(np.min(depth_pred), min_), max(np.max(depth_pred), max_)
         
     if not depth_pred is None:
+        metric = MetricComputation(['mae'])
+        mae = metric.compute(depth_pred, depth_gt)[0]
         depth_pred = colored_depthmap(depth_pred, min_, max_)
-        save_image(depth_pred, "{}/{}.pred.jpg".format(path, idx))
+        save_image(depth_pred, "{}/mae.{}.{}.pred.jpg".format(path, round(mae,3), idx))
 
     if not depth_gt is None:
         depth_gt = colored_depthmap(depth_gt, min_, max_)

@@ -304,9 +304,8 @@ class VNLModule(pl.LightningModule):
         pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
-        output = Path(self.hparams.safe_dir)
         step = 1 if self.hparams.test_dataset == 'nyu' else (self.test_dataset) // 100
-        if batch_idx % step == 0: visualize.save_images(output, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
+        if batch_idx % step == 0: visualize.save_images(self.hparams.safe_dir, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):

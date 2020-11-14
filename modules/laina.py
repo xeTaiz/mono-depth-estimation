@@ -100,9 +100,8 @@ class FCRNModule(pl.LightningModule):
         x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
         y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
-        output = Path(self.hparams.safe_dir)
         step = 1 if self.hparams.test_dataset == 'nyu' else (self.test_dataset) // 100
-        if batch_idx % step == 0: visualize.save_images(output, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
+        if batch_idx % step == 0: visualize.save_images(self.hparams.safe_dir, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
