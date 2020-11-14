@@ -301,8 +301,7 @@ class VNLModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
-        x,y = batch
-        pred_logits, pred_cls = self(x)
+        pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
         return self.metric_logger.log_test(y_hat, y)
