@@ -217,13 +217,17 @@ class DORNModule(pl.LightningModule):
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
     def test_step(self, batch, batch_idx):
-        self.skip = 1
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         pred_d, pred_ord = self(x)
         y_hat = self.label_to_depth(pred_d)
+
+        x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
         y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
+        output = Path(self.hparams.safe_dir)
+        step = 1 if self.hparams.test_dataset == 'nyu' else (self.test_dataset) // 100
+        if batch_idx % step == 0: visualize.save_images(output, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):

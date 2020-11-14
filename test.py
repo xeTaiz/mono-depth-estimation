@@ -29,7 +29,7 @@ def test_method(method, version_path, test_dataset, path, metrics, min_epoch, wo
     trainer = pl.Trainer(gpus=1)
     if checkpoint:
         print("Testing {} {} {} on {}".format(method, version_path.name, checkpoint.name, test_dataset))
-        model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset, metrics, worker)
+        model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset, metrics, worker, checkpoint.parents[1]/"images")
         if model:
             result = trainer.test(model)
             return result[0], checkpoint
@@ -37,7 +37,7 @@ def test_method(method, version_path, test_dataset, path, metrics, min_epoch, wo
             print("Model unavailable: ", method)
     return None, None
 
-def get_model(method, ckpt, hparams, path, test_dataset, metrics, worker):
+def get_model(method, ckpt, hparams, path, test_dataset, metrics, worker, safe_dir):
     if   method == 'bts':   Module = BtsModule
     elif method == 'midas': Module = MidasModule
     elif method == 'laina': Module = FCRNModule
@@ -48,6 +48,7 @@ def get_model(method, ckpt, hparams, path, test_dataset, metrics, worker):
     return Module.load_from_checkpoint(
         checkpoint_path=ckpt, 
         hparams_file=hparams, 
+        safe_dir=safe_dir,
         path=path, 
         metrics=metrics, 
         test_dataset=test_dataset, 

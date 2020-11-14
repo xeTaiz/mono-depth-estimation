@@ -51,6 +51,40 @@ def show_item(item):
     cv2.imshow("item", np.hstack([img, depth]).astype('uint8'))
     cv2.waitKey(0)
 
+def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
+    path.mkdir(parents=True, exist_ok=True)
+    path = path.as_posix()
+    min_ = np.finfo(np.float16).max
+    max_ = np.finfo(np.float16).min
+    if not rgb is None:
+        if rgb.ndim == 4: rgb = rgb.squeeze(0)
+        rgb = 255 * np.transpose(rgb.cpu().numpy(), (1, 2, 0))  # H, W, C
+        rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+        save_image(rgb, "{}/{}.rgb.jpg".format(path, idx))
+    if not depth_gt is None:
+        if depth_gt.ndim == 4: depth_gt = depth_gt.squeeze(0)
+        if depth_gt.ndim == 3: depth_gt = depth_gt.squeeze(0)
+        depth_gt = depth_gt.cpu().numpy()
+        min_, max_ = min(np.min(depth_gt), min_), max(np.max(depth_gt), max_)
+        
+    if not depth_pred is None:
+        if depth_pred.ndim == 4: depth_pred = depth_pred.squeeze(0)
+        if depth_pred.ndim == 3: depth_pred = depth_pred.squeeze(0)
+        depth_pred = depth_pred.cpu().numpy()
+        min_, max_ = min(np.min(depth_pred), min_), max(np.max(depth_pred), max_)
+        
+    if not depth_pred is None:
+        depth_pred = colored_depthmap(depth_pred, min_, max_)
+        save_image(depth_pred, "{}/{}.pred.jpg".format(path, idx))
+
+    if not depth_gt is None:
+        depth_gt = colored_depthmap(depth_gt, min_, max_)
+        save_image(depth_gt, "{}/{}.gt.jpg".format(path, idx))
+    
+    
+    
+
+
 
 def show_pred(depth_pred):
     depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())
