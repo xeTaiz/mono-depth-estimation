@@ -55,7 +55,7 @@ def show_item(item):
 
 def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
     metric = MetricComputation(['mae'])
-    mae = metric.compute(depth_pred, depth_gt)[0]
+    mae = metric.compute(depth_pred, depth_gt)[0].cpu().item()
     Path(path).mkdir(parents=True, exist_ok=True)
     min_ = np.finfo(np.float16).max
     max_ = np.finfo(np.float16).min
