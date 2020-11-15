@@ -227,7 +227,7 @@ class MidasModule(pl.LightningModule):
             y_hat, y = self.scale_shift(y_hat, y)
         y_hat = torch.nn.functional.interpolate(y_hat, (640, 640), mode='bilinear')
         y_hat = y_hat[..., 0:480, 0:640]
-        step = 1 if self.hparams.test_dataset == 'nyu' else (self.test_dataset) // 100
+        step = 1 if self.hparams.test_dataset == 'nyu' else len(self.test_dataset) // 200
         if batch_idx % step == 0: visualize.save_images(self.hparams.safe_dir, batch_idx, rgb=batch['rgb_raw'], depth_gt=batch['depth_raw'], depth_pred=y_hat)
         return self.metric_logger.log_test(y_hat, batch['depth_raw'])
 
