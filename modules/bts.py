@@ -120,9 +120,9 @@ class BtsModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.hparams = hparams
-        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset, use_mat=self.hparams.use_mat, n_images=self.hparams.n_images)
+        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
         self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
-        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset, self.hparams.mirrors_only, self.hparams.exclude_mirrors)
+        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset, mirrors_only=self.hparams.mirrors_only, exclude_mirrors=self.hparams.exclude_mirrors)
         if self.hparams.data_augmentation == 'bts':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
