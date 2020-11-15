@@ -111,7 +111,7 @@ def get_dataset(path, split, dataset, use_mat=True, n_images=-1, mirrors_only=Fa
     elif dataset == 'structured3d':
         return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=(416, 544), resize=450)
     elif '+' in dataset:
-        datasets = [get_dataset(p, split, d, use_mat=use_mat, n_images=n_images, mirrors_only, exclude_mirrors) for p, d in zip(path, dataset.split('+'))]
+        datasets = [get_dataset(p, split, d, use_mat=use_mat, n_images=n_images, mirrors_only=mirrors_only, exclude_mirrors=exclude_mirrors) for p, d in zip(path, dataset.split('+'))]
         return ConcatDataset(datasets)
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
