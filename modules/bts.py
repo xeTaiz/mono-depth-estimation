@@ -98,10 +98,10 @@ def validation_preprocess(rgb, depth):
     #depth /= 1000.0
     return rgb, depth
 
-def get_dataset(path, split, dataset, use_mat=True, n_images=-1):
+def get_dataset(path, split, dataset, use_mat=True, n_images=-1, mirrors_only=False, exclude_mirrors=False):
     path = path.split('+')
     if dataset == 'nyu':
-        return NYUDataset(path[0], split=split, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images)
+        return NYUDataset(path[0], split=split, output_size=(416, 544), resize=450, use_mat=use_mat, n_images=n_images, mirrors_only=mirrors_only, exclude_mirrors=exclude_mirrors)
     elif dataset == 'noreflection':
         return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(416, 544), resize=450, n_images=n_images)
     elif dataset == 'isotropic':
@@ -111,7 +111,7 @@ def get_dataset(path, split, dataset, use_mat=True, n_images=-1):
     elif dataset == 'structured3d':
         return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=(416, 544), resize=450)
     elif '+' in dataset:
-        datasets = [get_dataset(p, split, d, use_mat=use_mat, n_images=n_images) for p, d in zip(path, dataset.split('+'))]
+        datasets = [get_dataset(p, split, d, use_mat=use_mat, n_images=n_images, mirrors_only, exclude_mirrors) for p, d in zip(path, dataset.split('+'))]
         return ConcatDataset(datasets)
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
@@ -122,7 +122,7 @@ class BtsModule(pl.LightningModule):
         self.hparams = hparams
         self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset, use_mat=self.hparams.use_mat, n_images=self.hparams.n_images)
         self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
-        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
+        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset, self.hparams.mirrors_only, self.hparams.exclude_mirrors)
         if self.hparams.data_augmentation == 'bts':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
@@ -275,6 +275,8 @@ class BtsModule(pl.LightningModule):
         parser.add_argument('--fix_first_conv_blocks', help='if set, will fix the first two conv blocks', action='store_true')
         parser.add_argument('--fix_first_conv_block', help='if set, will fix the first conv block', action='store_true')
         parser.add_argument('--bn_no_track_stats', help='if set, will not track running stats in batch norm layers', action='store_true')
+        parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
+        parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
         return parser
 
 if __name__ == "__main__":

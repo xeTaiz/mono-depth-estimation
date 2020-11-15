@@ -54,6 +54,7 @@ def show_item(item):
     cv2.waitKey(0)
 
 def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
+    if path is None:return
     metric = MetricComputation(['mae'])
     mae = metric.compute(depth_pred, depth_gt)[0].cpu().item()
     path=Path(path/"mae.{}".format(round(mae,3)))
@@ -87,9 +88,6 @@ def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
         save_image(depth_gt, "{}/{}_gt.jpg".format(path, idx))
     
     
-    
-
-
 
 def show_pred(depth_pred):
     depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())

@@ -10,10 +10,10 @@ from argparse import ArgumentParser
 import visualize
 from metrics import MetricLogger
 
-def get_dataset(path, split, dataset):
+def get_dataset(path, split, dataset, mirrors_only=False, exclude_mirrors=False):
     path = path.split('+')
     if dataset == 'nyu':
-        return NYUDataset(path[0], split=split, output_size=(240, 320), resize=250)
+        return NYUDataset(path[0], split=split, output_size=(240, 320), resize=250, mirrors_only=mirrors_only, exclude_mirrors=exclude_mirrors)
     elif dataset == 'noreflection':
         return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(240, 320), resize=250)
     elif dataset == 'isotropic':
@@ -23,7 +23,7 @@ def get_dataset(path, split, dataset):
     elif dataset == 'structured3d':
         return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=(240, 320), resize=250)
     elif '+' in dataset:
-        datasets = [get_dataset(p, split, d) for p, d in zip(path, dataset.split('+'))]
+        datasets = [get_dataset(p, split, d, mirrors_only, exclude_mirrors) for p, d in zip(path, dataset.split('+'))]
         return ConcatDataset(datasets)
     else:
         raise ValueError('unknown dataset {}'.format(dataset))
@@ -35,7 +35,7 @@ class EigenModule(pl.LightningModule):
         self.hparams = hparams 
         self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
         self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
-        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
+        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset, self.hparams.mirrors_only, self.hparams.exclude_mirrors)
         
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=self.hparams.batch_size, 
@@ -142,4 +142,6 @@ class EigenModule(pl.LightningModule):
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or eigen')
         parser.add_argument('--loss', default='eigen', type=str, help='loss function')
         parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
+        parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
+        parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
         return parser
