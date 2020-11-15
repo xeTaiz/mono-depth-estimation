@@ -56,14 +56,14 @@ def show_item(item):
 def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
     metric = MetricComputation(['mae'])
     mae = metric.compute(depth_pred, depth_gt)[0].cpu().item()
-    Path(path).mkdir(parents=True, exist_ok=True)
+    Path(path/"mae.{}".format(round(mae,3))).mkdir(parents=True, exist_ok=True)
     min_ = np.finfo(np.float16).max
     max_ = np.finfo(np.float16).min
     if not rgb is None:
         if rgb.ndim == 4: rgb = rgb.squeeze(0)
         rgb = 255 * np.transpose(rgb.cpu().numpy(), (1, 2, 0))  # H, W, C
         rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-        save_image(rgb, "{}/{}.rgb.jpg".format(path, idx))
+        save_image(rgb, "{}/{}_rgb.jpg".format(path, idx))
     if not depth_gt is None:
         if depth_gt.ndim == 4: depth_gt = depth_gt.squeeze(0)
         if depth_gt.ndim == 3: depth_gt = depth_gt.squeeze(0)
@@ -78,11 +78,11 @@ def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
         
     if not depth_pred is None:
         depth_pred = colored_depthmap(depth_pred, min_, max_)
-        save_image(depth_pred, "{}/mae.{}.{}.pred.jpg".format(path, round(mae,3), idx))
+        save_image(depth_pred, "{}/{}_pred.jpg".format(path, idx))
 
     if not depth_gt is None:
         depth_gt = colored_depthmap(depth_gt, min_, max_)
-        save_image(depth_gt, "{}/{}.gt.jpg".format(path, idx))
+        save_image(depth_gt, "{}/{}_gt.jpg".format(path, idx))
     
     
     
