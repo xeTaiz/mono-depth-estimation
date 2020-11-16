@@ -30,7 +30,7 @@ def test_method(method, version_path, test_dataset, path, metrics, min_epoch, wo
     if checkpoint:
         print("Testing {} {} {} on {}".format(method, version_path.name, checkpoint.name, test_dataset))
         save_dir = None
-        if save_images: save_dir = checkpoint.parents[1]/"images"
+        if save_images: save_dir = checkpoint.parents[1]/"images"/test_dataset
         model = get_model(method, checkpoint.as_posix(), hparams.as_posix(), path, test_dataset, metrics, worker, save_dir,mirrors_only, exclude_mirrors)
         if model:
             result = trainer.test(model)
