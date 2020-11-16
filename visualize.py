@@ -11,8 +11,8 @@ def colored_depthmap(depth, d_min=None, d_max=None):
     depth_relative = (depth - d_min) / (d_max - d_min)
     depth_relative *= 255
     depth_relative = depth_relative.astype(np.uint8)
-    depth_mapped = cv2.applyColorMap(depth_relative, cv2.COLORMAP_JET)  # H, W, C
-    return depth_mapped
+    #depth_mapped = cv2.applyColorMap(depth_relative, cv2.COLORMAP_INFERNO)  # H, W, C
+    return depth_relative
 
 
 def merge_into_row(input, depth_target, depth_pred):
