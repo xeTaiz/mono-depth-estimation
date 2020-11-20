@@ -3,7 +3,7 @@ import cv2
 from pathlib import Path
 from metrics import MetricComputation
 
-def colored_depthmap(depth, d_min=None, d_max=None):
+def colored_depthmap(depth, d_min=None, d_max=None, do_mapping=True):
     if d_min is None:
         d_min = np.min(depth)
     if d_max is None:
@@ -11,7 +11,7 @@ def colored_depthmap(depth, d_min=None, d_max=None):
     depth_relative = (depth - d_min) / (d_max - d_min)
     depth_relative *= 255
     depth_relative = depth_relative.astype(np.uint8)
-    #depth_mapped = cv2.applyColorMap(depth_relative, cv2.COLORMAP_INFERNO)  # H, W, C
+    if do_mapping:return cv2.applyColorMap(depth_relative, cv2.COLORMAP_INFERNO)  # H, W, C
     return depth_relative
 
 
@@ -55,6 +55,8 @@ def show_item(item):
 
 def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
     if path is None:return
+    mask = depth_gt == 0
+    depth_pred[mask] = 0
     metric = MetricComputation(['mae'])
     mae = metric.compute(depth_pred, depth_gt)[0].cpu().item()
     path=Path(path/"mae.{}".format(round(mae,3)))

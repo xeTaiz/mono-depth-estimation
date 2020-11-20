@@ -248,10 +248,10 @@ class VNLModule(pl.LightningModule):
         image = data['A_raw'][0].unsqueeze(0)
         x,y,y_hat= image.cuda(), targ_depth.unsqueeze(0).cuda(), pred_depth.unsqueeze(0).cuda()
         #if self.hparams.test_dataset == 'nyu':
-        mask = (45, 471, 41, 601)
-        x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
-        y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
-        y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]]
+        #mask = (45, 471, 41, 601)
+        #x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
+        #y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
+        #y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]]
         return x,y,y_hat
 
     def forward(self, x):

@@ -77,9 +77,17 @@ if __name__ == "__main__":
     parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
     parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
     parser.add_argument('--save_images', action='store_true', help="Saving images")
+    parser.add_argument('--exp1', action='store_true', help="Do experiment 1")
+    parser.add_argument('--exp2', action='store_true', help="Do experiment 2")
 
     args = parser.parse_args()
     results_directory = Path(args.results)
+    if args.exp1:
+        args.test_dataset = ['noreflection', 'isotropic', 'mirror']
+        args.metrics = ['delta1', 'log10', 'rmse', 'absrel', 'sqrel']
+        args.methods = ['vnl', 'midas', 'dorn', 'eigen', 'laina', 'bts']
+    if args.exp2:
+        args.test_dataset = ['nyu+exclude_mirrors', 'nyu+mirrors_only']
     assert results_directory.exists(), "{} does not exist!".format(results_directory.as_posix())
     output_file = Path(args.output).absolute()
     assert output_file.parent.exists(), "{} directory does not exist!".format(output_file.parent.as_posix())
@@ -91,7 +99,9 @@ if __name__ == "__main__":
         if not method.name in args.methods:continue
         for version in method.glob('*'):
             for test_dataset in args.test_dataset:
-                result, ckpt = test_method(method.name, version, test_dataset, args.path, args.metrics, args.min_epoch, args.worker, args.mirrors_only, args.exclude_mirrors, args.save_images)
+                if "exclude_mirrors" in test_dataset: args.exclude_mirrors=True
+                if "mirrors_only" in test_dataset: args.mirrors_only=True
+                result, ckpt = test_method(method.name, version, test_dataset.split('+')[0], args.path, args.metrics, args.min_epoch, args.worker, args.mirrors_only, args.exclude_mirrors, args.save_images)
                 if not result:continue
                 with open(Path(version, "hparams.yaml").as_posix(), "r") as yamlf:
                     hparams = yaml.load(yamlf, Loader=yaml.FullLoader)
