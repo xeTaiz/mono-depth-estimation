@@ -126,6 +126,7 @@ class BtsModule(pl.LightningModule):
         if self.hparams.data_augmentation == 'bts':
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
+            self.test_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
@@ -193,11 +194,11 @@ class BtsModule(pl.LightningModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
-        y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
-        y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
-        step = 1 if self.hparams.test_dataset == 'nyu' else len(self.test_dataset) // 200
-        if batch_idx % step == 0: visualize.save_images(self.hparams.safe_dir, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
+        #x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
+        #y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
+        #y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
+        #step = 1 if self.hparams.test_dataset == 'nyu' else len(self.test_dataset) // 200
+        #if batch_idx % step == 0: visualize.save_images(self.hparams.safe_dir, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
