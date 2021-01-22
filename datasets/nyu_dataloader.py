@@ -81,7 +81,7 @@ def mat_loader(index, filename, mapping):
     depth = data["depths_corrected"][index]
     
     #depth = data['depths'][index]
-    #labels = data['labels'][index]
+    labels = data['labels'][index]
     #with open("points.json", "r") as json_file:
     #    point_data = json.load(json_file)
     rgb = np.transpose(rgb, (2, 1, 0))
