@@ -9,6 +9,10 @@ import torch
 from tqdm import tqdm
 import urllib.request
 from scipy.io import loadmat
+import cv2
+from shapely.geometry import Polygon, Point
+import visualize
+import json
 
 MIRROR_IDX = [25, 26, 76, 77, 86, 102, 131, 161, 162, 171, 172, 194, 195, 196, 199, 259, 266, 267, 268, 269, 271, 272, 273, 276, 277, 282, 283, 285, 286, 287, 290, 292, 294, 299, 302, 303, 305, 306, 308, 310, 313, 314, 323, 391, 401, 423, 427, 435, 440, 445, 457, 458, 487, 496, 505, 579, 583, 585, 586, 606, 609, 612, 613, 619]
 
@@ -38,16 +42,86 @@ def h5_loader(path, data, mapping):
     depth = np.array(h5f['depth'])
     return rgb, depth
 
-def mat_loader(index, data, mapping):
-    data = h5py.File(data, "r")    
+def correct_depth(depth, mask, points):
+    p0 = np.array(points[0:2])
+    p1 = np.array(points[2:4])
+    p2 = np.array(points[4:6])
+
+    p0[[0,1]] = p0[[1,0]]
+    p1[[0,1]] = p1[[1,0]]
+    p2[[0,1]] = p2[[1,0]]
+
+    d0 = np.append(p0, depth[p0[0], p0[1]])
+    d1 = np.append(p1, depth[p1[0], p1[1]])
+    d2 = np.append(p2, depth[p2[0], p2[1]])
+
+    a = d0 - d1
+    b = d2 - d1
+    v = d1
+    
+    depth_corrected = np.copy(depth)
+
+    (y_axis, x_axis) = np.where(mask==True)
+    all_pixels = [[y,x] for (y,x) in zip(y_axis, x_axis)]
+    
+    all_pixels = np.array(all_pixels)
+    b_div = b[1]/b[0]
+    
+    top = all_pixels[:, 1] - v[1] - all_pixels[:, 0]*b_div + b_div*v[0]
+    bottom = a[1] - a[0]*b_div
+    
+    s = top / bottom
+    t = (all_pixels[:, 0] - v[0] - a[0]*s)/b[0]
+    correct_depth = v[2] + a[2]*s + b[2]*t
+    depth_corrected[all_pixels[:, 0], all_pixels[:, 1]] = correct_depth
+    return depth_corrected
+
+def mat_loader(index, filename, mapping):
+    data = h5py.File(filename, "r")  
     rgb = data['images'][index]
-    depth = data['depths'][index]
+    depth = data["depths_corrected"][index]
+    
+    #depth = data['depths'][index]
     #labels = data['labels'][index]
+    #with open("points.json", "r") as json_file:
+    #    point_data = json.load(json_file)
     rgb = np.transpose(rgb, (2, 1, 0))
     depth = np.transpose(depth, (1,0))
-    #labels = np.transpose(labels, (1,0))
-    #labels_40 = mapping[labels]
+    """
+    labels = np.transpose(labels, (1,0))
+    labels_40 = mapping[labels]
+    mask = labels_40 == 19
+    if Path("{}_1.png".format(index)).is_file() and Path("{}_2.png".format(index)).is_file():
+        filenames = ["{}_1.png".format(index), "{}_2.png".format(index)]
+    else:
+        filenames = ["{}.png".format(index)]
+    for i,fn in enumerate(filenames):
+        mask = cv2.imread(fn, cv2.IMREAD_GRAYSCALE)
+        mask = cv2.dilate(mask,np.ones((5,5),np.uint8),iterations = 1)
+        _, mask = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        mask = (mask.astype(np.float32) / 255).astype(bool)
+        if str(index) in point_data:
+            points = point_data[str(index)]
+            if isinstance(points[0], list):
+                points = points[i] 
+            depth_corrected = correct_depth(np.array(depth), mask, points)
+            rgb = cv2.circle(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), tuple(points[0:2]), 10, (255,0,0), 2)
+            rgb = cv2.circle(rgb, tuple(points[2:4]), 10, (255,0,0), 2)
+            rgb = cv2.circle(rgb, tuple(points[4:6]), 10, (255,0,0), 2)
+            visualize.show_corrected(rgb, depth, depth_corrected, mask, index, save=True)
+        else:
+            depth_corrected = np.copy(depth)
+        depth = depth_corrected
+    #depth[~mask] = 0.0
     data.close()
+    
+    data = h5py.File(filename, "a")
+    if not "depths_corrected" in data:
+        d_shape = data["depths"].shape 
+        data.create_dataset("depths_corrected", d_shape)
+    data["depths_corrected"][index] = np.transpose(depth_corrected, (1,0))
+    data.close()
+    """
     return rgb, depth
 
 class NYUDataset(BaseDataset):
@@ -66,7 +140,7 @@ class NYUDataset(BaseDataset):
             self.path = Path(path)
             self.loader = mat_loader
             self.images = self.load_images()
-            #self.mapping40 = np.insert(loadmat(self.path/'classMapping40.mat')['mapClass'][0], 0, 0)
+            self.mapping40 = np.insert(loadmat(self.path/'classMapping40.mat')['mapClass'][0], 0, 0)
         assert len(self.images) > 0, "Found 0 images in subfolders of: " + path + "\n"
         if exclude_mirrors: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if not idx in MIRROR_IDX]]
         if mirrors_only: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if idx in MIRROR_IDX]]
@@ -160,3 +234,6 @@ if __name__ == "__main__":
     nyu = NYUDataset("G:/data/nyudepthv2", split="val", use_mat=True, mirrors_only=True)
     for item in nyu:
         visualize.show_item(item)
+    
+    
+    
