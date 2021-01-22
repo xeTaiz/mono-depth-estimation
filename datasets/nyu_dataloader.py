@@ -86,10 +86,11 @@ def mat_loader(index, filename, mapping):
     #    point_data = json.load(json_file)
     rgb = np.transpose(rgb, (2, 1, 0))
     depth = np.transpose(depth, (1,0))
-    """
     labels = np.transpose(labels, (1,0))
     labels_40 = mapping[labels]
     mask = labels_40 == 19
+    depth[~mask] = 0.0
+    """
     if Path("{}_1.png".format(index)).is_file() and Path("{}_2.png".format(index)).is_file():
         filenames = ["{}_1.png".format(index), "{}_2.png".format(index)]
     else:
