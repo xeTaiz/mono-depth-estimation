@@ -10,7 +10,6 @@ from tqdm import tqdm
 import urllib.request
 from scipy.io import loadmat
 import cv2
-from shapely.geometry import Polygon, Point
 import visualize
 import json
 
