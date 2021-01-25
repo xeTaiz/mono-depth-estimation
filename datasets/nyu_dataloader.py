@@ -226,6 +226,9 @@ class NYUDataset(BaseDataset):
     def get_raw(self, index):
         path = self.images[index]
         rgb, depth = self.loader(path, self.nyu_depth_v2_labeled_file, self.mapping40)
+        bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+        bgr = cv2.stylization(bgr, sigma_s=60, sigma_r=0.3)
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         return rgb, depth
 
     def load_images(self):
