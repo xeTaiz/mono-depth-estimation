@@ -89,8 +89,10 @@ def mat_loader(index, filename, mapping):
     labels = np.transpose(labels, (1,0))
     labels_40 = mapping[labels]
     mask = labels_40 == 19
-    depth[~mask] = 0.0
-    """
+    #depth[~mask] = 0.0
+    
+    mask_ = np.zeros_like(mask).astype(np.float32)
+    
     if Path("{}_1.png".format(index)).is_file() and Path("{}_2.png".format(index)).is_file():
         filenames = ["{}_1.png".format(index), "{}_2.png".format(index)]
     else:
@@ -99,7 +101,9 @@ def mat_loader(index, filename, mapping):
         mask = cv2.imread(fn, cv2.IMREAD_GRAYSCALE)
         mask = cv2.dilate(mask,np.ones((5,5),np.uint8),iterations = 1)
         _, mask = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-        mask = (mask.astype(np.float32) / 255).astype(bool)
+        mask = (mask.astype(np.float32) / 255)
+        mask_ += mask
+        """
         if str(index) in point_data:
             points = point_data[str(index)]
             if isinstance(points[0], list):
@@ -122,6 +126,8 @@ def mat_loader(index, filename, mapping):
     data["depths_corrected"][index] = np.transpose(depth_corrected, (1,0))
     data.close()
     """
+    mask = mask_ > 0
+    #depth[~mask] = 0.0
     return rgb, depth
 
 class NYUDataset(BaseDataset):
