@@ -145,10 +145,6 @@ class Floorplan3DDataset(BaseDataset):
         depth = np.array(depth, dtype=np.float32)
         depth /= 1000 
         depth = np.clip(depth, 0, 10)
-        bgr = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2BGR)
-        bgr = cv2.stylization(bgr, sigma_s=60, sigma_r=0.3)
-        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        rgb = Image.fromarray(rgb)
         return rgb, depth
 
 if __name__ == "__main__":
