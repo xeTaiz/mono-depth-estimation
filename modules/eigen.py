@@ -1,77 +1,25 @@
 import torch
-import pytorch_lightning as pl
 import criteria
-from datasets.dataset import ConcatDataset
-from datasets.nyu_dataloader import NYUDataset
-from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
-from datasets.structured3d_dataset import Structured3DDataset
 from network import Eigen
-from argparse import ArgumentParser
-import visualize
-from metrics import MetricLogger
+from modules.base_module import BaseModule
 
-def get_dataset(path, split, dataset, mirrors_only=False, exclude_mirrors=False):
-    path = path.split('+')
-    if dataset == 'nyu':
-        return NYUDataset(path[0], split=split, output_size=(240, 320), resize=250, mirrors_only=mirrors_only, exclude_mirrors=exclude_mirrors)
-    elif dataset == 'noreflection':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(240, 320), resize=250)
-    elif dataset == 'isotropic':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(240, 320), resize=250)
-    elif dataset == 'mirror':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(240, 320), resize=250)
-    elif dataset == 'structured3d':
-        return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=(240, 320), resize=250)
-    elif '+' in dataset:
-        datasets = [get_dataset(p, split, d, mirrors_only, exclude_mirrors) for p, d in zip(path, dataset.split('+'))]
-        return ConcatDataset(datasets)
-    else:
-        raise ValueError('unknown dataset {}'.format(dataset))
+class EigenModule(BaseModule):
 
+    def setup_criterion(self):
+        return criteria.MaskedDepthLoss()
 
-class EigenModule(pl.LightningModule):
-    def __init__(self, hparams):
-        super().__init__()
-        self.hparams = hparams 
-        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
-        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
-        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset, self.hparams.mirrors_only, self.hparams.exclude_mirrors)
-        
-        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                    batch_size=self.hparams.batch_size, 
-                                                    shuffle=True, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True) 
-        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True)
-        self.skip = len(self.val_loader) // 9
-        print("=> creating Model")
-        self.model = Eigen.Eigen(scale1=self.hparams.backbone, pretrained=self.hparams.pretrained)
-        print("=> model created.")
-        self.criterion = criteria.MaskedDepthLoss()
-        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
-        self.test_dataset.transform = self.test_dataset.validation_preprocess
+    def setup_model(self):
+        return Eigen.Eigen(scale1=self.hparams.backbone, pretrained=self.hparams.pretrained)
 
     def forward(self, x):
         y_hat = self.model(x)
         return y_hat
 
-    def train_dataloader(self):
-        return self.train_loader
+    def output_size(self):
+        return (240, 320)
 
-    def val_dataloader(self):
-        return self.val_loader
-
-    def test_dataloader(self):
-        return self.test_loader
+    def resize(self):
+        return 250
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -90,14 +38,7 @@ class EigenModule(pl.LightningModule):
         (_, c, h, w) = y.size()
         # bilinerar upsample
         y_hat = torch.nn.functional.interpolate(y_hat, (h, w), mode='bilinear')
-        if batch_idx == 0:
-            self.img_merge = visualize.merge_into_row(x, y, y_hat)
-        elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
-            row = visualize.merge_into_row(x, y, y_hat)
-            self.img_merge = visualize.add_row(self.img_merge, row)
-        elif batch_idx == 8 * self.skip:
-            filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
-            visualize.save_image(self.img_merge, filename)
+        self.save_visualization(x, y, y_hat, batch_idx)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
     def test_step(self, batch, batch_idx):
@@ -107,8 +48,6 @@ class EigenModule(pl.LightningModule):
         x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
         y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
-        step = 1 if self.hparams.test_dataset == 'nyu' else len(self.test_dataset) // 200
-        if batch_idx % step == 0: visualize.save_images(self.hparams.safe_dir, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
@@ -127,8 +66,9 @@ class EigenModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = ArgumentParser(parents=[parent_parser], add_help=False)
+    def add_model_specific_args(subparsers):
+        parser = subparsers.add_parser('eigen', help='Eigen specific parameters')
+        parser.add_argument('--method', default="eigen", type=str, help="Method for training.")
         parser.add_argument('--backbone', default='vgg', type=str, help="Backbone")
         parser.add_argument('--pretrained', default=1, type=int, help="Use pretrained backbone.")
         parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')

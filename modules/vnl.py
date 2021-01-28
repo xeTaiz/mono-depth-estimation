@@ -1,18 +1,12 @@
 import torch
 import pytorch_lightning as pl
 import criteria
-from datasets.dataset import ConcatDataset
-from datasets.nyu_dataloader import NYUDataset
-from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
-from datasets.structured3d_dataset import Structured3DDataset
 from network import VNL
-from argparse import ArgumentParser
 import visualize
-from metrics import MetricLogger
-import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np
 import cv2
+from modules.base_module import BaseModule
 
 RGB_PIXEL_MEANS = (0.485, 0.456, 0.406)  # (102.9801, 115.9465, 122.7717)
 RGB_PIXEL_VARS = (0.229, 0.224, 0.225)  # (1, 1, 1)
@@ -125,40 +119,9 @@ def preprocess(A, B, phase):
     data = {'A': A_resize, 'B': B_resize, 'A_raw': torch.from_numpy(A/255).type(torch.float32), 'B_raw': B, 'invalid_side': np.array(invalid_side), 'ratio': np.float32(1.0 / resize_ratio)}
     return data
 
-def training_preprocess(rgb, depth):
-    A = np.array(rgb, dtype=np.uint8)
-    B = np.array(depth, dtype=np.float32) / 10.0
-    return preprocess(A, B, 'train')
-    
-
-def validation_preprocess(rgb, depth):
-    A = np.array(rgb, dtype=np.uint8)
-    B = np.array(depth, dtype=np.float32) / 10.0
-    return preprocess(A, B, 'val')
-
-def get_dataset(path, split, dataset, mirrors_only=False, exclude_mirrors=False):
-    path = path.split('+')
-    if dataset == 'nyu':
-        return NYUDataset(path[0], split=split, output_size=(385, 385), resize=400, mirrors_only=mirrors_only, exclude_mirrors=exclude_mirrors)
-    elif dataset == 'noreflection':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(385, 385), resize=400)
-    elif dataset == 'isotropic':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(385, 385), resize=400)
-    elif dataset == 'mirror':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(385, 385), resize=400)
-    elif dataset == 'structured3d':
-        return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=(385, 385), resize=400)
-    elif '+' in dataset:
-        datasets = [get_dataset(p, split, d, mirrors_only, exclude_mirrors) for p, d in zip(path, dataset.split('+'))]
-        return ConcatDataset(datasets)
-    else:
-        raise ValueError('unknown dataset {}'.format(dataset))
-
-
-class VNLModule(pl.LightningModule):
-    def __init__(self, hparams):
-        super().__init__()
-        self.hparams = hparams
+class VNLModule(BaseModule):
+    def __init__(self, *args, **kwargs):
+        super(VNLModule, self).__init__(*args, **kwargs)
         self.params = pl.utilities.parsing.AttributeDict()
         self.params.depth_min = self.hparams.depth_min
         self.params.encoder = self.hparams.encoder
@@ -179,34 +142,12 @@ class VNLModule(pl.LightningModule):
         self.params.depth_bin_interval = (np.log10(self.hparams.depth_max) - np.log10(self.hparams.depth_min)) / self.hparams.dec_out_c
         self.params.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.hparams.dec_out_c)] for j in np.arange(self.hparams.dec_out_c)]
         self.params.depth_bin_border = np.array([np.log10(self.hparams.depth_min) + self.params.depth_bin_interval * (i + 0.5) for i in range(self.hparams.dec_out_c)])
-        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
-        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
-        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset, self.hparams.mirrors_only, self.hparams.exclude_mirrors)
-        if self.hparams.data_augmentation == 'vnl':
-            self.train_dataset.transform = training_preprocess
-            self.val_dataset.transform = validation_preprocess
-            self.test_dataset.transform = validation_preprocess
-        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                    batch_size=self.hparams.batch_size, 
-                                                    shuffle=True, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True) 
-        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True)
-        self.skip = len(self.val_loader) // 9
-        print("=> creating Model")
         self.model = VNL.MetricDepthModel(self.params)
-        print("=> model created.")
         self.criterion = criteria.ModelLoss(self.params)
-        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
+        if torch.cuda.is_available():
+            self.device_ = "cuda"
+        else:
+            self.device_ = "cpu"
 
     def depth_to_bins(self, depth):
         """
@@ -231,7 +172,7 @@ class VNLModule(pl.LightningModule):
         :return: 1-channel depth, [b, 1, h, w]
         """
         depth_bin = depth_bin.permute(0, 2, 3, 1) #[b, h, w, c]
-        depth_bin_border = torch.tensor(self.params.depth_bin_border, dtype=torch.float32).cuda()
+        depth_bin_border = torch.tensor(self.params.depth_bin_border, dtype=torch.float32).to(self.device_)
         depth = depth_bin * depth_bin_border
         depth = torch.sum(depth, dim=3, dtype=torch.float32, keepdim=True)
         depth = 10 ** depth
@@ -242,11 +183,11 @@ class VNLModule(pl.LightningModule):
         invalid_side = data['invalid_side'][0]
         pred_depth = y_hat[0].squeeze(0).detach()
         pred_depth = pred_depth[invalid_side[0]:pred_depth.size(0) - invalid_side[1], :]
-        pred_depth = pred_depth / data['ratio'][0].cuda()
+        pred_depth = pred_depth / data['ratio'][0].to(self.device_)
         pred_depth = torch.from_numpy(resize_image(pred_depth, data['B_raw'][0].shape)).unsqueeze(0)
         targ_depth = data['B_raw'][0].unsqueeze(0)
         image = data['A_raw'][0].unsqueeze(0)
-        x,y,y_hat= image.cuda(), targ_depth.unsqueeze(0).cuda(), pred_depth.unsqueeze(0).cuda()
+        x,y,y_hat= image.to(self.device_), targ_depth.unsqueeze(0).to(self.device_), pred_depth.unsqueeze(0).to(self.device_)
         #if self.hparams.test_dataset == 'nyu':
         #mask = (45, 471, 41, 601)
         #x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
@@ -254,18 +195,21 @@ class VNLModule(pl.LightningModule):
         #y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]]
         return x,y,y_hat
 
+    def setup_model(self):
+        return None
+
+    def setup_criterion(self):
+        return None
+
+    def output_size(self):
+        return (385, 385)
+
+    def resize(self):
+        return 400
+
     def forward(self, x):
         y_hat = self.model(x)
         return y_hat
-
-    def train_dataloader(self):
-        return self.train_loader
-
-    def val_dataloader(self):
-        return self.val_loader
-
-    def test_dataloader(self):
-        return self.test_loader
 
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -289,14 +233,7 @@ class VNLModule(pl.LightningModule):
         pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
-        if batch_idx == 0:
-            self.img_merge = visualize.merge_into_row(x, y, y_hat)
-        elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
-            row = visualize.merge_into_row(x, y, y_hat)
-            self.img_merge = visualize.add_row(self.img_merge, row)
-        elif batch_idx == 8 * self.skip:
-            filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
-            visualize.save_image(self.img_merge, filename)
+        self.save_visualization(x, y, y_hat, batch_idx)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
     def test_step(self, batch, batch_idx):
@@ -304,8 +241,6 @@ class VNLModule(pl.LightningModule):
         pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
-        step = 1 if self.hparams.test_dataset == 'nyu' else len(self.test_dataset) // 200
-        if batch_idx % step == 0: visualize.save_images(self.hparams.safe_dir, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
@@ -348,9 +283,23 @@ class VNLModule(pl.LightningModule):
         }
         return [optimizer], [scheduler]
 
+    def train_preprocess(self, rgb, depth):
+        A = np.array(rgb, dtype=np.uint8)
+        B = np.array(depth, dtype=np.float32) / 10.0
+        return preprocess(A, B, 'train')
+
+    def val_preprocess(self, rgb, depth):
+        A = np.array(rgb, dtype=np.uint8)
+        B = np.array(depth, dtype=np.float32) / 10.0
+        return preprocess(A, B, 'val')
+
+    def test_preprocess(self, rgb, depth):
+        return self.val_preprocess(rgb, depth)
+
     @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = ArgumentParser(parents=[parent_parser], add_help=False)
+    def add_model_specific_args(subparsers):
+        parser = subparsers.add_parser('vnl', help='VNL specific parameters')
+        parser.add_argument('--method', default="vnl", type=str, help="Method for training.")
         parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
         parser.add_argument('--weight_decay', default=0.0005, type=float, help='Weight decay')
         parser.add_argument('--batch_size',    default=8,     type=int,   help='Batch Size')
@@ -383,11 +332,3 @@ class VNLModule(pl.LightningModule):
         parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
         parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
         return parser
-
-if __name__ == "__main__":
-    import visualize
-    val_dataset = get_dataset('D:/Documents/data/floorplan3d', 'train', 'noreflection')
-    val_dataset.transform = validation_preprocess
-    for i in range(100):
-        item = val_dataset.__getitem__(i)
-        visualize.show_item(item)

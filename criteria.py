@@ -549,7 +549,10 @@ class SpatialGradientsLoss(nn.Module):
                  smooth_error=True,
                  gradient_loss_on=True):
         super(SpatialGradientsLoss, self).__init__()
-
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda')
+        else:
+            self.device = torch.device("cpu")
         self.size_average = size_average
         self.kernel_size = kernel_size
         self.clamp_value = clamp_value
@@ -569,14 +572,14 @@ class SpatialGradientsLoss(nn.Module):
                                 [1, 0, -1]])
 
         sobel_x = sobel_x.view((1, 1, 3, 3))
-        sobel_x = torch.autograd.Variable(sobel_x.cuda())
+        sobel_x = torch.autograd.Variable(sobel_x.to(self.device))
 
         sobel_y = torch.Tensor([[1, 2, 1],
                                 [0, 0, 0],
                                 [-1, -2, -1]])
 
         sobel_y = sobel_y.view((1, 1, 3, 3))
-        sobel_y = torch.autograd.Variable(sobel_y.cuda())
+        sobel_y = torch.autograd.Variable(sobel_y.to(self.device))
         if repeat_channels != 1:
             sobel_x = sobel_x.repeat(1, repeat_channels, 1, 1)
             sobel_y = sobel_y.repeat(1, repeat_channels, 1, 1)
@@ -626,7 +629,10 @@ class SpatialGradientsLoss(nn.Module):
 class DepthBoundaryConsensusLoss(nn.Module):
     def __init__(self, kernel_size=3, use_logs=True, clamp_value=1e-7, size_average=False):
         super(DepthBoundaryConsensusLoss, self).__init__()
-
+        if torch.cuda.is_available():
+            self.device_ = 'cuda'
+        else:
+            self.device_ = "cpu"
         self.size_average = size_average
         self.kernel_size = kernel_size
         self.clamp_value = clamp_value
@@ -639,18 +645,18 @@ class DepthBoundaryConsensusLoss(nn.Module):
                                 [1, 0, -1]])
 
         sobel_x = sobel_x.view((1, 1, 3, 3))
-        sobel_x = torch.autograd.Variable(sobel_x.cuda())
+        sobel_x = torch.autograd.Variable(sobel_x.to(self.device_))
 
         sobel_y = torch.Tensor([[1, 2, 1],
                                 [0, 0, 0],
                                 [-1, -2, -1]])
 
         sobel_y = sobel_y.view((1, 1, 3, 3))
-        sobel_y = torch.autograd.Variable(sobel_y.cuda())
+        sobel_y = torch.autograd.Variable(sobel_y.to(self.device_))
 
         lap = torch.Tensor([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
         lap = lap.view((1, 1, 3, 3))
-        lap = torch.autograd.Variable(lap.cuda())
+        lap = torch.autograd.Variable(lap.to(self.device_))
 
         if repeat_channels != 1:
             sobel_x = sobel_x.repeat(1, repeat_channels, 1, 1)
@@ -677,7 +683,10 @@ class DepthBoundaryConsensusLoss(nn.Module):
 class NormalDepthConsensusLoss(nn.Module):
     def __init__(self, kernel_size=3, clamp_value=1e-7, size_average=False):
         super(NormalDepthConsensusLoss, self).__init__()
-
+        if torch.cuda.is_available():
+            self.device_ = 'cuda'
+        else:
+            self.device_ = 'cpu'
         self.size_average = size_average
         self.kernel_size = kernel_size
         self.clamp_value = clamp_value
@@ -690,14 +699,14 @@ class NormalDepthConsensusLoss(nn.Module):
                                 [1, 0, -1]])
 
         sobel_x = sobel_x.view((1, 1, 3, 3))
-        sobel_x = torch.autograd.Variable(sobel_x.cuda())
+        sobel_x = torch.autograd.Variable(sobel_x.to(self.device_))
 
         sobel_y = torch.Tensor([[1, 2, 1],
                                 [0, 0, 0],
                                 [-1, -2, -1]])
 
         sobel_y = sobel_y.view((1, 1, 3, 3))
-        sobel_y = torch.autograd.Variable(sobel_y.cuda())
+        sobel_y = torch.autograd.Variable(sobel_y.to(self.device_))
         if repeat_channels != 1:
             sobel_x = sobel_x.repeat(1, repeat_channels, 1, 1)
             sobel_y = sobel_y.repeat(1, repeat_channels, 1, 1)
@@ -870,11 +879,15 @@ class VNL_Loss(nn.Module):
                  delta_diff_y=0.01, delta_diff_z=0.01,
                  delta_z=0.0001, sample_ratio=0.15):
         super(VNL_Loss, self).__init__()
-        self.fx = torch.tensor([focal_x], dtype=torch.float32).cuda()
-        self.fy = torch.tensor([focal_y], dtype=torch.float32).cuda()
+        if torch.cuda.is_available():
+            self.device_ = 'cuda'
+        else:
+            self.device_ = 'cpu'
+        self.fx = torch.tensor([focal_x], dtype=torch.float32).to(self.device_)
+        self.fy = torch.tensor([focal_y], dtype=torch.float32).to(self.device_)
         self.input_size = input_size
-        self.u0 = torch.tensor(input_size[1] // 2, dtype=torch.float32).cuda()
-        self.v0 = torch.tensor(input_size[0] // 2, dtype=torch.float32).cuda()
+        self.u0 = torch.tensor(input_size[1] // 2, dtype=torch.float32).to(self.device_)
+        self.v0 = torch.tensor(input_size[0] // 2, dtype=torch.float32).to(self.device_)
         self.init_image_coor()
         self.delta_cos = delta_cos
         self.delta_diff_x = delta_diff_x
@@ -888,14 +901,14 @@ class VNL_Loss(nn.Module):
         x = np.tile(x_row, (self.input_size[0], 1))
         x = x[np.newaxis, :, :]
         x = x.astype(np.float32)
-        x = torch.from_numpy(x.copy()).cuda()
+        x = torch.from_numpy(x.copy()).to(self.device_)
         self.u_u0 = x - self.u0
 
         y_col = np.arange(0, self.input_size[0])  # y_col = np.arange(0, height)
         y = np.tile(y_col, (self.input_size[1], 1)).T
         y = y[np.newaxis, :, :]
         y = y.astype(np.float32)
-        y = torch.from_numpy(y.copy()).cuda()
+        y = torch.from_numpy(y.copy()).to(self.device_)
         self.v_v0 = y - self.v0
 
     def transfer_xyz(self, depth):

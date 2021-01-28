@@ -1,165 +1,18 @@
 import torch
-import pytorch_lightning as pl
 import criteria
-from datasets.dataset import ConcatDataset
-from datasets.nyu_dataloader import NYUDataset
-from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
-from datasets.structured3d_dataset import Structured3DDataset
 from network import MiDaS
-from argparse import ArgumentParser
-import visualize
-from metrics import MetricLogger
 import urllib.request
-from pathlib import Path
 from tqdm import tqdm
 import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np
 import cv2
+from modules.base_module import BaseModule
 
 midas_transform = torch.hub.load("intel-isl/MiDaS", "transforms").default_transform 
 
-def training_preprocess(rgb, depth):
-    if isinstance(rgb, np.ndarray):
-        rgb = transforms.ToPILImage()(rgb)
-    if isinstance(depth, np.ndarray):
-        depth = transforms.ToPILImage()(depth)
-    # Random resize
-    size = np.random.randint(384, 720)
-    resize = transforms.Resize(int(size))
-    rgb = resize(rgb)
-    depth = resize(depth)
-    # Random crop
-    i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(384,384))
-    rgb = TF.crop(rgb, i, j, h, w)
-    depth = TF.crop(depth, i, j, h, w)
-    # Random horizontal flipping
-    if np.random.uniform(0,1) > 0.5:
-        rgb = TF.hflip(rgb)
-        depth = TF.hflip(depth)
-    # Transform to tensor
-    rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
-    depth = np.array(depth, dtype=np.float32)
-    depth = TF.to_tensor(depth)
-    #mask = depth > 0
-    #depth[mask] = 10. / depth[mask]
-    #depth[~mask] = 0.
-    return rgb, depth
-
-def validation_preprocess(rgb, depth):
-    if isinstance(rgb, np.ndarray):
-        rgb = transforms.ToPILImage()(rgb)
-    if isinstance(depth, np.ndarray):
-        depth = transforms.ToPILImage()(depth)
-    # Resize
-    resize = transforms.Resize(384)
-    rgb = resize(rgb)
-    depth = resize(depth)
-    # center crop
-    crop = transforms.CenterCrop((384, 384))
-    rgb = crop(rgb)
-    depth = crop(depth)
-    # Transform to tensor
-    rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
-    depth = np.array(depth, dtype=np.float32)
-    depth = TF.to_tensor(depth)
-    #mask = depth > 0
-    #depth[mask] = 10. / depth[mask]
-    #depth[~mask] = 0.
-    return rgb, depth
-
-def test_preprocess(rgb, depth):
-    if isinstance(rgb, np.ndarray):
-        rgb = transforms.ToPILImage()(rgb)
-    if isinstance(depth, np.ndarray):
-        depth = transforms.ToPILImage()(depth)
-    # Resize
-    resize = transforms.Resize(500)
-    rgb = resize(rgb)
-    depth = resize(depth)
-    # Center crop
-    crop = transforms.CenterCrop((480, 640))
-    rgb_raw = crop(rgb)
-    depth_raw = crop(depth)
-    # to cv2
-    rgb_raw = np.array(rgb_raw, dtype=np.uint8)
-    depth_raw = np.array(depth_raw, dtype=np.float32)
-    # pad
-    rgb = cv2.copyMakeBorder(rgb_raw, 0, 160, 0, 0, cv2.BORDER_CONSTANT, value=[0,0,0])
-    depth = cv2.copyMakeBorder(depth_raw, 0, 160, 0, 0, cv2.BORDER_CONSTANT, value=[0])
-    assert rgb.shape[0] == rgb.shape[1], "Not square!"
-    # Resize
-    rgb = cv2.resize(rgb, (384, 384))
-    depth = cv2.resize(depth, (384, 384))
-    # Transform to tensor
-    rgb = midas_transform(rgb).squeeze(0)#TF.to_tensor(np.array(rgb)) #
-    depth = TF.to_tensor(depth)
-    rgb_raw = TF.to_tensor(rgb_raw)
-    depth_raw = TF.to_tensor(depth_raw)
-    
-    return {'rgb_raw': rgb_raw, 'depth_raw': depth_raw, 'rgb': rgb, 'depth': depth}
-
-def get_dataset(path, split, dataset, mirrors_only=False, exclude_mirrors=False):
-    path = path.split('+')
-    if dataset == 'nyu':
-        return NYUDataset(path[0], split=split, output_size=(384, 384), resize=400, mirrors_only=mirrors_only, exclude_mirrors=exclude_mirrors)
-    elif dataset == 'noreflection':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=(384, 384), resize=400)
-    elif dataset == 'isotropic':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=(384, 384), resize=400)
-    elif dataset == 'mirror':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=(384, 384), resize=400)
-    elif dataset == 'structured3d':
-        return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=(384, 384), resize=400)
-    elif '+' in dataset:
-        datasets = [get_dataset(p, split, d, mirrors_only, exclude_mirrors) for p, d in zip(path, dataset.split('+'))]
-        return ConcatDataset(datasets)
-    else:
-        raise ValueError('unknown dataset {}'.format(dataset))
-
-class MidasModule(pl.LightningModule):
-    def __init__(self, hparams):
-        super().__init__()
-        self.hparams = hparams
-        assert self.hparams.loss in ['ssil1', 'ssitrim', 'ssimse', 'mse', 'trim', 'l1', 'eigen', 'laina']
-        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset)
-        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
-        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset, self.hparams.mirrors_only, self.hparams.exclude_mirrors)
-        if self.hparams.data_augmentation == 'midas':
-            self.train_dataset.transform = training_preprocess
-            self.val_dataset.transform = validation_preprocess
-            self.test_dataset.transform = test_preprocess
-        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                    batch_size=self.hparams.batch_size, 
-                                                    shuffle=True, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True) 
-        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True)                 
-                                               
-        self.skip = len(self.val_loader) // 9
-        print("=> creating Model")
-        if self.hparams.pretrained: self.model = torch.hub.load("intel-isl/MiDaS", "MiDaS")
-        else:                       self.model = MiDaS.MidasNet(features=256)
-        print("=> model created.")
-        if self.hparams.loss in ['ssil1', 'ssimse', 'l1', 'mse', 'trim']:
-            self.criterion = criteria.MidasLoss(alpha=self.hparams.alpha, loss=self.hparams.loss, reduction=self.hparams.reduction)
-        elif self.hparams.loss == 'eigen':
-            self.criterion = criteria.MaskedDepthLoss()
-        elif self.hparams.loss == 'laina':
-            self.criterion = criteria.MaskedL1Loss()
-        elif self.hparams.loss == 'ssitrim':
-            self.criterion = criteria.TrimmedProcrustesLoss(alpha=self.hparams.alpha, reduction=self.hparams.reduction)
-        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
-
+class MidasModule(BaseModule):
+   
     def download_weights(self, filename):
         def my_hook(t):
             last_b = [0]
@@ -173,19 +26,30 @@ class MidasModule(pl.LightningModule):
         with tqdm(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc="Downloading MiDaS weights: {}".format(filename.as_posix())) as t:
             urllib.request.urlretrieve("https://github.com/intel-isl/MiDaS/releases/download/v2/model-f46da743.pt", filename = filename, reporthook = my_hook(t), data = None)
 
+    def setup_criterion(self):
+        if self.hparams.loss in ['ssil1', 'ssimse', 'l1', 'mse', 'trim']:
+            return criteria.MidasLoss(alpha=self.hparams.alpha, loss=self.hparams.loss, reduction=self.hparams.reduction)
+        elif self.hparams.loss == 'eigen':
+            return criteria.MaskedDepthLoss()
+        elif self.hparams.loss == 'laina':
+            return criteria.MaskedL1Loss()
+        elif self.hparams.loss == 'ssitrim':
+            return criteria.TrimmedProcrustesLoss(alpha=self.hparams.alpha, reduction=self.hparams.reduction)
+
+    def setup_model(self):
+        if self.hparams.pretrained: return torch.hub.load("intel-isl/MiDaS", "MiDaS")
+        else:                       return MiDaS.MidasNet(features=256)
+
+    def output_size(self):
+        return (384, 384)
+
+    def resize(self):
+        return 400
+
     def forward(self, x):
         y_hat = self.model(x)
         if y_hat.ndim < 4: y_hat = y_hat.unsqueeze(0)
         return y_hat.type(torch.float32)
-
-    def train_dataloader(self):
-        return self.train_loader
-
-    def val_dataloader(self):
-        return self.val_loader
-
-    def test_dataloader(self):
-        return self.test_loader
 
     def scale_shift(self, pred, target):
         if pred.ndim == 4: pred = pred.squeeze(1)
@@ -209,14 +73,7 @@ class MidasModule(pl.LightningModule):
         y_hat = self(x)
         if "ssi" in self.hparams.loss:
             y_hat, y = self.scale_shift(y_hat, y)
-        if batch_idx == 0:
-            self.img_merge = visualize.merge_into_row(x, y, y_hat)
-        elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
-            row = visualize.merge_into_row(x, y, y_hat)
-            self.img_merge = visualize.add_row(self.img_merge, row)
-        elif batch_idx == 8 * self.skip:
-            filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
-            visualize.save_image(self.img_merge, filename)
+        self.save_visualization(x, y, y_hat, batch_idx)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
     def test_step(self, batch, batch_idx):
@@ -227,8 +84,6 @@ class MidasModule(pl.LightningModule):
             y_hat, y = self.scale_shift(y_hat, y)
         y_hat = torch.nn.functional.interpolate(y_hat, (640, 640), mode='bilinear')
         y_hat = y_hat[..., 0:480, 0:640]
-        step = 1 if self.hparams.test_dataset == 'nyu' else len(self.test_dataset) // 200
-        if batch_idx % step == 0: visualize.save_images(self.hparams.safe_dir, batch_idx, rgb=batch['rgb_raw'], depth_gt=batch['depth_raw'], depth_pred=y_hat)
         return self.metric_logger.log_test(y_hat, batch['depth_raw'])
 
     def configure_optimizers(self):
@@ -245,9 +100,90 @@ class MidasModule(pl.LightningModule):
         }
         return [optimizer], [scheduler]
 
+    def train_preprocess(self, rgb, depth):
+        if isinstance(rgb, np.ndarray):
+            rgb = transforms.ToPILImage()(rgb)
+        if isinstance(depth, np.ndarray):
+            depth = transforms.ToPILImage()(depth)
+        # Random resize
+        size = np.random.randint(384, 720)
+        resize = transforms.Resize(int(size))
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Random crop
+        i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(384,384))
+        rgb = TF.crop(rgb, i, j, h, w)
+        depth = TF.crop(depth, i, j, h, w)
+        # Random horizontal flipping
+        if np.random.uniform(0,1) > 0.5:
+            rgb = TF.hflip(rgb)
+            depth = TF.hflip(depth)
+        # Transform to tensor
+        rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
+        depth = np.array(depth, dtype=np.float32)
+        depth = TF.to_tensor(depth)
+        #mask = depth > 0
+        #depth[mask] = 10. / depth[mask]
+        #depth[~mask] = 0.
+        return rgb, depth
+
+    def val_preprocess(self, rgb, depth):
+        if isinstance(rgb, np.ndarray):
+            rgb = transforms.ToPILImage()(rgb)
+        if isinstance(depth, np.ndarray):
+            depth = transforms.ToPILImage()(depth)
+        # Resize
+        resize = transforms.Resize(384)
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # center crop
+        crop = transforms.CenterCrop((384, 384))
+        rgb = crop(rgb)
+        depth = crop(depth)
+        # Transform to tensor
+        rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
+        depth = np.array(depth, dtype=np.float32)
+        depth = TF.to_tensor(depth)
+        #mask = depth > 0
+        #depth[mask] = 10. / depth[mask]
+        #depth[~mask] = 0.
+        return rgb, depth
+
+    def test_preprocess(self, rgb, depth):
+        if isinstance(rgb, np.ndarray):
+            rgb = transforms.ToPILImage()(rgb)
+        if isinstance(depth, np.ndarray):
+            depth = transforms.ToPILImage()(depth)
+        # Resize
+        resize = transforms.Resize(500)
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Center crop
+        crop = transforms.CenterCrop((480, 640))
+        rgb_raw = crop(rgb)
+        depth_raw = crop(depth)
+        # to cv2
+        rgb_raw = np.array(rgb_raw, dtype=np.uint8)
+        depth_raw = np.array(depth_raw, dtype=np.float32)
+        # pad
+        rgb = cv2.copyMakeBorder(rgb_raw, 0, 160, 0, 0, cv2.BORDER_CONSTANT, value=[0,0,0])
+        depth = cv2.copyMakeBorder(depth_raw, 0, 160, 0, 0, cv2.BORDER_CONSTANT, value=[0])
+        assert rgb.shape[0] == rgb.shape[1], "Not square!"
+        # Resize
+        rgb = cv2.resize(rgb, (384, 384))
+        depth = cv2.resize(depth, (384, 384))
+        # Transform to tensor
+        rgb = midas_transform(rgb).squeeze(0)#TF.to_tensor(np.array(rgb)) #
+        depth = TF.to_tensor(depth)
+        rgb_raw = TF.to_tensor(rgb_raw)
+        depth_raw = TF.to_tensor(depth_raw)
+        
+        return {'rgb_raw': rgb_raw, 'depth_raw': depth_raw, 'rgb': rgb, 'depth': depth}
+
     @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = ArgumentParser(parents=[parent_parser], add_help=False)
+    def add_model_specific_args(subparsers):
+        parser = subparsers.add_parser('midas', help='MiDaS specific parameters')
+        parser.add_argument('--method', default="midas", type=str, help="Method for training.")
         parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
         parser.add_argument('--batch_size',    default=8,     type=int,   help='Batch Size')
         parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')

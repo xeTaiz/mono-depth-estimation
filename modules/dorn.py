@@ -1,37 +1,11 @@
 import torch
 import pytorch_lightning as pl
 import criteria
-from datasets.dataset import ConcatDataset
-from datasets.nyu_dataloader import NYUDataset
-from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
-from datasets.structured3d_dataset import Structured3DDataset
 from network import Dorn
-from argparse import ArgumentParser
-import visualize
-from metrics import MetricLogger
 import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np 
-
-
-def get_dataset(path, split, dataset, img_size, mirrors_only=False, exclude_mirrors=False):
-    path = path.split('+')
-    if dataset == 'nyu':
-        return NYUDataset(path[0], split=split, output_size=img_size, resize=img_size[0], mirrors_only=mirrors_only, exclude_mirrors=exclude_mirrors)
-    elif dataset == 'noreflection':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=img_size, resize=img_size[0])
-    elif dataset == 'isotropic':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=img_size, resize=img_size[0])
-    elif dataset == 'mirror':
-        return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=img_size, resize=img_size[0])
-    elif dataset == 'structured3d':
-        return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=img_size, resize=img_size[0])
-    elif '+' in dataset:
-        datasets = [get_dataset(p, split, d, img_size, mirrors_only, exclude_mirrors) for p, d in zip(path, dataset.split('+'))]
-        return ConcatDataset(datasets)
-    else:
-        raise ValueError('unknown dataset {}'.format(dataset))
-
+from modules.base_module import BaseModule
 
 def get_depth_sid(dataset, labels):
     if dataset == 'kitti':
@@ -88,38 +62,24 @@ def get_labels_sid(dataset, depth):
         labels = K * torch.log(depth) / torch.log(beta)
     return labels.int()
 
-class DORNModule(pl.LightningModule):
-    def __init__(self, hparams):
-        super().__init__()
-        self.hparams = hparams
+class DORNModule(BaseModule):
+    def __init__(self, *args, **kwargs):
+        super(DORNModule, self).__init__(*args, **kwargs)
         self.alpha = torch.tensor(self.hparams.alpha).float()
         self.beta = torch.tensor(self.hparams.beta).float()
         self.ord_num = torch.tensor(self.hparams.ord_num).int()
-        self.train_dataset = get_dataset(self.hparams.path, 'train', self.hparams.dataset, self.hparams.input_size)
-        self.val_dataset = get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset, self.hparams.input_size)
-        self.test_dataset = get_dataset(self.hparams.path, 'test', self.hparams.test_dataset, self.hparams.input_size, self.hparams.mirrors_only, self.hparams.exclude_mirrors)
-        
-        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                    batch_size=self.hparams.batch_size, 
-                                                    shuffle=True, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True)
-        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True) 
-        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
-                                                    pin_memory=True)      
-        self.skip = len(self.val_loader) // 9
-        print("=> creating Model")
-        self.model = Dorn.DORN(self.hparams)
-        print("=> model created.")
-        self.criterion = criteria.ordLoss()
-        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
+
+    def output_size(self):
+        return self.hparams.input_size
+
+    def resize(self):
+        return self.hparams.input_size[0]
+
+    def setup_criterion(self):
+        return criteria.ordLoss()
+
+    def setup_model(self):
+        return Dorn.DORN(self.hparams)
 
     def label_to_depth(self, label):
         if self.hparams.discretization == "SID":
@@ -183,15 +143,6 @@ class DORNModule(pl.LightningModule):
         y_hat = self.model(x)
         return y_hat
 
-    def train_dataloader(self):
-        return self.train_loader
-
-    def val_dataloader(self):
-        return self.val_loader
-
-    def test_dataloader(self):
-        return self.test_loader
-
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
@@ -206,14 +157,7 @@ class DORNModule(pl.LightningModule):
         x, y = batch
         pred_d, pred_ord = self(x)
         y_hat = self.label_to_depth(pred_d)
-        if batch_idx == 0:
-            self.img_merge = visualize.merge_into_row(x, y, y_hat)
-        elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
-            row = visualize.merge_into_row(x, y, y_hat)
-            self.img_merge = visualize.add_row(self.img_merge, row)
-        elif batch_idx == 8 * self.skip:
-            filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
-            visualize.save_image(self.img_merge, filename)
+        self.save_visualization(x, y, y_hat, batch_idx)
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
     def test_step(self, batch, batch_idx):
@@ -225,8 +169,7 @@ class DORNModule(pl.LightningModule):
         x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
         y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
-        step = 1 if self.hparams.test_dataset == 'nyu' else len(self.test_dataset) // 200
-        if batch_idx % step == 0: visualize.save_images(self.hparams.safe_dir, batch_idx, rgb=x, depth_gt=y, depth_pred=y_hat)
+        
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
@@ -244,8 +187,9 @@ class DORNModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = ArgumentParser(parents=[parent_parser], add_help=False)
+    def add_model_specific_args(subparsers):
+        parser = subparsers.add_parser('dorn', help='Dorn specific parameters')
+        parser.add_argument('--method', default="dorn", type=str, help="Method for training.")
         parser.add_argument('--pretrained', default=1, type=int, help="Use pretrained backbone.")
         parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
         parser.add_argument('--batch_size',    default=4,     type=int,   help='Batch Size')
@@ -271,50 +215,3 @@ class DORNModule(pl.LightningModule):
         parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
         parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
         return parser
-
-
-if __name__ == "__main__":
-
-    def get_crop(x, size):
-        (h,w) = x.shape[-2:]
-        (height, width) = size
-        h_diff = h - height
-        w_diff = w - width
-        assert h_diff >= 0, "wrong size"
-        assert w_diff >= 0, "wrong size"
-        i = np.random.randint(0, h_diff+1)
-        j = np.random.randint(0, w_diff+1)
-        return i,j,height,width
-
-            
-    def overlapping_window_method_2(image):
-        s = np.random.uniform(1,1.5)
-        input_size = image.shape[-2:]
-        [h, w] = np.array(input_size) * 1.5
-        height = int(h)
-        width = int(w)
-
-        resized = torch.nn.functional.interpolate(image, (height, width), mode='bilinear')
-        y_hat = torch.zeros((1,1, height, width))
-        c = 1000
-        counts  = torch.ones((1, 1, height,width), device=x.device)
-
-        for q in range(c):
-            i,j,h,w = get_crop(resized, input_size)
-            x_crop = resized[:, :, i:i+h, j:j+w]
-            pred_d, pred_ord = self(crop)
-            y_hat_crop = self.label_to_depth(pred_d)
-            counts[..., i:i+h, j:j+w] += 1
-            y_hat[..., i:i+h, j:j+w] += y_hat_crop
-        counts = counts.type(torch.float32)
-        y_hat = y_hat.type(torch.float32)
-        y_hat = y_hat / counts
-        y_hat = torch.nn.functional.interpolate(y_hat, image.shape[-2:])
-        return y_hat
-    from datasets.nyu_dataloader import NYUDataset
-    from visualize import show_item
-    dataset = NYUDataset(path="G:/data/nyudepthv2", split="test")
-    img, depth = dataset.__getitem__(0)
-    y_hat = overlapping_window_method_2(depth.cuda())
-    
-    show_item((img, y_hat.squeeze(1)))

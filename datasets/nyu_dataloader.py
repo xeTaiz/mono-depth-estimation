@@ -10,6 +10,10 @@ import urllib.request
 from scipy.io import loadmat
 import visualize
 
+NYU_V2_SPLIT_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/indoor_seg_sup/splits.mat'
+NYU_V2_MAPPING_40_URL = 'https://github.com/ankurhanda/nyuv2-meta-data/raw/master/classMapping40.mat'
+NYU_V2_LABELED_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat'
+
 MIRROR_IDX = [25, 26, 76, 77, 86, 102, 131, 161, 162, 171, 172, 194, 195, 196, 199, 259, 266, 267, 268, 269, 271, 272, 273, 276, 277, 282, 283, 285, 286, 287, 290, 292, 294, 299, 302, 303, 305, 306, 308, 310, 313, 314, 323, 391, 401, 423, 427, 435, 440, 445, 457, 458, 487, 496, 505, 579, 583, 585, 586, 606, 609, 612, 613, 619]
 
 def my_hook(t):
@@ -21,15 +25,9 @@ def my_hook(t):
         last_b[0] = b
     return update_to
 
-def download_split(filename):
-    # start download
-    with tqdm(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc="Downloading NYU split.mat: {}".format(filename.as_posix())) as t:
-        urllib.request.urlretrieve("http://horatio.cs.nyu.edu/mit/silberman/indoor_seg_sup/splits.mat", filename = filename, reporthook = my_hook(t), data = None)
-
-def download_nyu_depth_v2_labeled(filename):
-    # start download
-    with tqdm(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc="Downloading NYU nyu_depth_v2_labeled.mat: {}".format(filename.as_posix())) as t:
-        urllib.request.urlretrieve("http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat", filename = filename, reporthook = my_hook(t), data = None)
+def download(filename, url):
+    with tqdm(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc="Downloading: {}".format(filename.name)) as t:
+        urllib.request.urlretrieve(url, filename = filename, reporthook = my_hook(t), data = None)
 
 class NYUDataset(BaseDataset):
     def __init__(self, path, output_size=(228, 304), resize=250, use_mat=False, n_images=-1, exclude_mirrors=False, mirrors_only=False, *args, **kwargs):
@@ -44,7 +42,7 @@ class NYUDataset(BaseDataset):
         else:
             self.path = Path(path)
             self.images = self.load_images()
-            self.mapping40 = np.insert(loadmat(self.path/'classMapping40.mat')['mapClass'][0], 0, 0)
+            self.mapping40 = np.insert(loadmat(self.mapping40_file)['mapClass'][0], 0, 0)
         assert len(self.images) > 0, "Found 0 images in subfolders of: " + path + "\n"
         if exclude_mirrors: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if not idx in MIRROR_IDX]]
         if mirrors_only: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if idx in MIRROR_IDX]]
@@ -131,8 +129,10 @@ class NYUDataset(BaseDataset):
     def load_images(self):
         self.nyu_depth_v2_labeled_file = (self.path/"nyu_depth_v2_labeled.mat")
         self.split_file = (self.path/"split.mat")
-        if not self.nyu_depth_v2_labeled_file.exists(): download_nyu_depth_v2_labeled(self.nyu_depth_v2_labeled_file)
-        if not self.split_file.exists(): download_split(self.split_file)
+        self.mapping40_file = (self.path/"classMapping40.mat")
+        if not self.nyu_depth_v2_labeled_file.exists(): download(self.nyu_depth_v2_labeled_file, NYU_V2_LABELED_MAT_URL)
+        if not self.split_file.exists(): download(self.split_file, NYU_V2_SPLIT_MAT_URL)
+        if not self.mapping40_file.exists(): download(self.mapping40_file, NYU_V2_MAPPING_40_URL)
         return np.hstack(loadmat(self.split_file)['trainNdxs' if self.split == 'train' else 'testNdxs']) - 1
 
     def h5_loader(self, path):
