@@ -29,6 +29,9 @@ def download(filename, url):
     with tqdm(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc="Downloading: {}".format(filename.name)) as t:
         urllib.request.urlretrieve(url, filename = filename, reporthook = my_hook(t), data = None)
 
+def get_nyu_dataset(args, split, output_size, resize):
+    return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, use_mat=args.use_mat, mirrors_only=args.mirrors_only, exclude_mirrors=args.exclude_mirrors)
+
 class NYUDataset(BaseDataset):
     def __init__(self, path, output_size=(228, 304), resize=250, use_mat=False, n_images=-1, exclude_mirrors=False, mirrors_only=False, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
@@ -154,6 +157,14 @@ class NYUDataset(BaseDataset):
         labels_40 = self.mapping40[labels]
         # mask = labels_40 == 19 Mirrors
         return rgb, depth
+
+    @staticmethod
+    def add_dataset_specific_args(parent_parser):
+        parser = parent_parser.add_parser('nyu')
+        BaseDataset.add_dataset_specific_args(parser)
+        parser.add_argument('--use_mat', default=1, type=int, help="Use NYU mat or h5")
+        parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
+        parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
 
 if __name__ == "__main__":
     import visualize

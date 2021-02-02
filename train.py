@@ -1,19 +1,50 @@
-from modules.base_module import BaseModule
+import sys
+from modules import get_module, register_module_specific_arguments
+from datasets import register_dataset_specific_arguments
 import pytorch_lightning as pl
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
 import random
-
-from torch.nn import modules
-from modules.eigen import EigenModule
-from modules.midas import MidasModule
-from modules.dorn import DORNModule
-from modules.laina import FCRNModule
-from modules.bts import BtsModule
-from modules.vnl import VNLModule
 import torch
 
+def parse_args_into_namespaces(parser, commands):        
+    '''
+    Split all command arguments (without prefix, like --) in
+    own namespaces. Each command accepts extra options for
+    configuration.
+    Example: `add 2 mul 5 --repeat 3` could be used to a sequencial
+                addition of 2, then multiply with 5 repeated 3 times.
+    '''
+
+    # Divide argv by commands
+    split_argv = [[]]
+    for c in sys.argv[1:]:
+        if c in commands.choices:
+            split_argv.append([c])
+        else:
+            split_argv[-1].append(c)
+
+    # Globals arguments without commands
+    args = Namespace()
+    cmd, args_raw = 'globals', split_argv.pop(0)
+    args_parsed = parser.parse_args(args_raw)
+    setattr(args, cmd, args_parsed)
+
+    # Split all commands to separate namespace
+    pos = 0
+    while len(split_argv):
+        pos += 1
+        cmd, *args_raw = split_argv.pop(0)
+        assert cmd[0].isalpha(), 'Command must start with a letter.'
+        args_parsed = commands.choices[cmd].parse_args(args_raw, namespace=Namespace())
+        setattr(args, "method" if cmd in ['bts', 'eigen', 'vnl', 'dorn', 'midas', 'laina'] else cmd, args_parsed)
+    assert hasattr(args, "method"), "Please provide the method you want to use: bts, eigen, vnl, dorn, midas, laina"
+    assert any([hasattr(args, m) for m in ['nyu', 'structured3d', 'floorplan3d']]), "Please provide data set to use: nyu, floorplan3d, structured3d"
+    # convert args in more usable format
+
+    return args
+
 if __name__ == "__main__":
-    parser = ArgumentParser('Trains mono depth estimation models')
+    parser = ArgumentParser('Trains mono depth estimation models', formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--seed', default=None, type=int, help='Random Seed')
     parser.add_argument('--precision', default=16,   type=int, help='16 to use Mixed precision (AMP O2), 32 for standard 32 bit float training')
     parser.add_argument('--gpus', type=int, default=1, help='Number of GPUs')
@@ -21,49 +52,46 @@ if __name__ == "__main__":
     parser.add_argument('--overfit', action='store_true', help='If this flag is set the network is overfit to 1 batch')
     parser.add_argument('--min_epochs', default=50, type=int, help='Minimum number of epochs.')
     parser.add_argument('--max_epochs', default=150, type=int, help='Maximum number ob epochs to train')
+    parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
+    parser.add_argument('--worker', default=6, type=int, help='Number of workers for data loader')
 
-    subparser = parser.add_subparsers()
-    EigenModule.add_model_specific_args(subparser)
-    BtsModule.add_model_specific_args(subparser)
-    DORNModule.add_model_specific_args(subparser)
-    MidasModule.add_model_specific_args(subparser)
-    VNLModule.add_model_specific_args(subparser)
-    FCRNModule.add_model_specific_args(subparser)
-    args = parser.parse_args()
+
+
+    commands = parser.add_subparsers(title='Commands')
+    register_dataset_specific_arguments(commands)
+    register_module_specific_arguments(commands)
+    
+    args = parse_args_into_namespaces(parser, commands)
+    print(args.method)
+    
+    # windows safe
+    if sys.platform in ["win32"]:
+        args.globals.worker = 0
 
     # Manage Random Seed
-    if args.seed is None: # Generate random seed if none is given
-        args.seed = random.randrange(4294967295) # Make sure it's logged
-    pl.seed_everything(args.seed)
-
-    module = None
-    if args.method == "eigen": module = EigenModule(args)
-    if args.method == "midas": module = MidasModule(args)
-    if args.method == "vnl": module = VNLModule(args)
-    if args.method == "dorn": module = DORNModule(args)
-    if args.method == "laina": module = FCRNModule(args)
-    if args.method == "bts": module = BtsModule(args)
-    assert module, "Please select method!"
+    if args.globals.seed is None: # Generate random seed if none is given
+        args.globals.seed = random.randrange(4294967295) # Make sure it's logged
+    pl.seed_everything(args.globals.seed)
 
     trainer = pl.Trainer.from_argparse_args(args,
         log_gpu_memory=False,
-        fast_dev_run=args.dev,
+        fast_dev_run=args.globals.dev,
         profiler=True,
-        gpus=args.gpus,
-        overfit_batches=1 if args.overfit else 0,
-        precision=args.precision,
-        amp_level='O2' if args.gpus > 0 else None,
-        min_epochs=args.min_epochs,
-        max_epochs=args.max_epochs,
-        logger=pl.loggers.TensorBoardLogger("result", name=args.method),
+        gpus=args.globals.gpus,
+        overfit_batches=1 if args.globals.overfit else 0,
+        precision=args.globals.precision if args.globals.gpus > 0 else 32,
+        amp_level='O2' if args.globals.gpus > 0 else None,
+        min_epochs=args.globals.min_epochs,
+        max_epochs=args.globals.max_epochs,
+        logger=pl.loggers.TensorBoardLogger("result", name=args.method.name),
         callbacks=[pl.callbacks.LearningRateLogger()]
     )
 
     yaml = args.__dict__
     yaml.update({
-            'random_seed': args.seed,
-            'gpu_name': torch.cuda.get_device_name(0) if args.gpus > 0 else None,
-            'gpu_capability': torch.cuda.get_device_capability(0) if args.gpus > 0 else None
+            'random_seed': args.globals.seed,
+            'gpu_name': torch.cuda.get_device_name(0) if args.globals.gpus > 0 else None,
+            'gpu_capability': torch.cuda.get_device_capability(0) if args.globals.gpus > 0 else None
             })
    
     if hasattr(trainer, 'logger'):
@@ -71,6 +99,7 @@ if __name__ == "__main__":
 
 
     # Fit model
+    module = get_module(args)
     trainer.fit(module)
     filename = "{}/{}/version_{}/checkpoints/last.ckpt".format(module.logger.save_dir, module.logger.name, module.logger.version)
     trainer.save_checkpoint(filename)

@@ -32,6 +32,13 @@ class BaseDataset(Dataset):
     def __len__(self):
         return len(self.images)
 
+    @staticmethod
+    def add_dataset_specific_args(parser):
+        parser.add_argument('--path', required=True, type=str, help='Path to dataset')
+        parser.add_argument('--training',   action="store_true", help='dataset for training')
+        parser.add_argument('--validation', action="store_true", help='dataset for validation')
+        parser.add_argument('--test',       action="store_true", help='dataset for test')
+
 class ConcatDataset(Dataset):
     def __init__(self, datasets):
         self.transform = None

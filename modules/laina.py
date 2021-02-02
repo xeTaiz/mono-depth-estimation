@@ -61,18 +61,11 @@ class FCRNModule(BaseModule):
     @staticmethod
     def add_model_specific_args(subparsers):
         parser = subparsers.add_parser('laina', help='Laina specific parameters')
-        parser.add_argument('--method', default="laina", type=str, help="Method for training.")
+        parser.add_argument('--name', default="laina", type=str, help="Method for training.")
         parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
         parser.add_argument('--batch_size',    default=16,     type=int,   help='Batch Size')
-        parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')
         parser.add_argument('--path', required=True, type=str, help='Path to NYU')
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
-        parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
-        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
-        parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--loss', default='laina', type=str, help='loss function: [laina]')
-        parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
-        parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
-        parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
         return parser

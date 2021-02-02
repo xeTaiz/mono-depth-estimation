@@ -1,9 +1,9 @@
 import torch
 import pytorch_lightning as pl
 from datasets.dataset import ConcatDataset
-from datasets.nyu_dataloader import NYUDataset
-from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType
-from datasets.structured3d_dataset import Structured3DDataset
+from datasets.nyu_dataloader import NYUDataset, get_nyu_dataset
+from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType, get_floorplan3d_dataset
+from datasets.structured3d_dataset import Structured3DDataset, get_structured3d_dataset
 from metrics import MetricLogger
 import visualize
 from torchvision import transforms
@@ -13,33 +13,32 @@ import numpy as np
 class BaseModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
-        self.hparams = hparams
-        self.train_dataset = self.get_dataset(self.hparams.path, 'train', self.hparams.dataset)
-        self.val_dataset = self.get_dataset(self.hparams.path, 'val', self.hparams.eval_dataset)
-        self.test_dataset = self.get_dataset(self.hparams.path, 'test', self.hparams.test_dataset)
+        self.globals = hparams
+        self.hparams = hparams.method
+        self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(hparams)
         self.train_dataset.transform = self.train_preprocess
         self.val_dataset.transform = self.val_preprocess
         self.test_dataset.transform = self.test_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
-                                                    num_workers=self.hparams.worker, 
+                                                    num_workers=hparams.globals.worker, 
                                                     pin_memory=True)
         self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
+                                                    num_workers=hparams.globals.worker, 
                                                     pin_memory=True) 
         self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
-                                                    num_workers=self.hparams.worker, 
+                                                    num_workers=hparams.globals.worker, 
                                                     pin_memory=True)                                     
         print("=> creating Model")
         self.model = self.setup_model()
         print("=> model created.")
         self.criterion = self.setup_criterion()
-        self.metric_logger = MetricLogger(metrics=self.hparams.metrics)
+        self.metric_logger = MetricLogger(metrics=hparams.globals.metrics)
         self.skip = len(self.val_loader) // 9
 
     def output_size(self):
@@ -82,8 +81,10 @@ class BaseModule(pl.LightningModule):
         s = np.random.uniform(1, 1.5)
         depth = depth / s
 
-        rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
+        if isinstance(rgb, np.ndarray):
+            rgb = transforms.ToPILImage()(rgb)
+        if isinstance(depth, np.ndarray):
+            depth = transforms.ToPILImage()(depth)
         # color jitter
         rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
         # Resize
@@ -112,8 +113,10 @@ class BaseModule(pl.LightningModule):
         return rgb, depth
 
     def val_preprocess(self, rgb, depth):
-        rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
+        if isinstance(rgb, np.ndarray):
+            rgb = transforms.ToPILImage()(rgb)
+        if isinstance(depth, np.ndarray):
+            depth = transforms.ToPILImage()(depth)
         # Resize
         resize = transforms.Resize(self.resize())
         rgb = resize(rgb)
@@ -140,23 +143,34 @@ class BaseModule(pl.LightningModule):
             filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
             visualize.save_image(self.img_merge, filename)
 
-    def get_dataset(self, path, split, dataset, use_mat=True, n_images=-1, mirrors_only=False, exclude_mirrors=False):
-        path = path.split('+')
-        if dataset == 'nyu':
-            return NYUDataset(path[0], split=split, output_size=self.output_size(), resize=self.resize(), use_mat=use_mat, n_images=n_images, mirrors_only=mirrors_only, exclude_mirrors=exclude_mirrors)
-        elif dataset == 'noreflection':
-            return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.NO_REFLECTION, output_size=self.output_size(), resize=self.resize(), n_images=n_images)
-        elif dataset == 'isotropic':
-            return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_MATERIAL, output_size=self.output_size(), resize=self.resize(), n_images=n_images)
-        elif dataset == 'mirror':
-            return Floorplan3DDataset(path[0], split=split, datast_type=DatasetType.ISOTROPIC_PLANAR_SURFACES, output_size=self.output_size(), resize=self.resize(), n_images=n_images)
-        elif dataset == 'structured3d':
-            return Structured3DDataset(path[0], split=split, dataset_type='perspective', output_size=self.output_size(), resize=self.resize())
-        elif '+' in dataset:
-            datasets = [self.get_dataset(p, split, d, use_mat=use_mat, n_images=n_images, mirrors_only=mirrors_only, exclude_mirrors=exclude_mirrors) for p, d in zip(path, dataset.split('+'))]
-            return ConcatDataset(datasets)
-        else:
-            raise ValueError('unknown dataset {}'.format(dataset))
+    def get_dataset(self, args):
+        training_dataset = []
+        validation_dataset = []
+        test_dataset = []
+        if hasattr(args, "nyu"):
+            if args.nyu.training:   training_dataset.append(  get_nyu_dataset(args.nyu, 'train', self.output_size(), self.resize()))
+            if args.nyu.validation: validation_dataset.append(get_nyu_dataset(args.nyu, 'val', self.output_size(), self.resize()))
+            if args.nyu.test:       test_dataset.append(      get_nyu_dataset(args.nyu, 'test', self.output_size(), self.resize()))
+        if hasattr(args, "floorplan3d"):
+            if args.floorplan3d.training:   training_dataset.append(  get_floorplan3d_dataset(args.floorplan3d, 'train', self.output_size(), self.resize()))
+            if args.floorplan3d.validation: validation_dataset.append(get_floorplan3d_dataset(args.floorplan3d, 'val', self.output_size(), self.resize()))
+            if args.floorplan3d.test:       test_dataset.append(      get_floorplan3d_dataset(args.floorplan3d, 'test', self.output_size(), self.resize()))
+        if hasattr(args, "structured3d"):
+            if args.structured3d.training:   training_dataset.append(  get_structured3d_dataset(args.structured3d, 'train', self.output_size(), self.resize()))
+            if args.structured3d.validation: validation_dataset.append(get_structured3d_dataset(args.structured3d, 'val', self.output_size(), self.resize()))
+            if args.structured3d.test:       test_dataset.append(      get_structured3d_dataset(args.structured3d, 'test', self.output_size(), self.resize()))
+
+        if len(training_dataset) > 1:   training_dataset = [ConcatDataset(training_dataset)]
+        if len(validation_dataset) > 1: validation_dataset = [ConcatDataset(validation_dataset)]
+        if len(test_dataset) > 1:       test_dataset = [ConcatDataset(test_dataset)]
+
+        assert len(training_dataset) > 0, "No training dataset specified!"
+
+        training_dataset = training_dataset[0]
+        validation_dataset = validation_dataset[0] if validation_dataset else None
+        test_dataset = test_dataset[0] if test_dataset else None
+        return training_dataset, validation_dataset, test_dataset
+
 
     @staticmethod
     def add_model_specific_args(parser):

@@ -189,16 +189,12 @@ class DORNModule(BaseModule):
     @staticmethod
     def add_model_specific_args(subparsers):
         parser = subparsers.add_parser('dorn', help='Dorn specific parameters')
-        parser.add_argument('--method', default="dorn", type=str, help="Method for training.")
+        parser.add_argument('--name', default="dorn", type=str, help="Method for training.")
         parser.add_argument('--pretrained', default=1, type=int, help="Use pretrained backbone.")
         parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
         parser.add_argument('--batch_size',    default=4,     type=int,   help='Batch Size')
-        parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')
-        parser.add_argument('--path', required=True, type=str, help='Path to NYU')
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--weight_decay', default=0.0005, type=float, help='Weight decay')
-        parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
-        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--ord_num', default=68, type=float, help='ordinal number')
         parser.add_argument('--alpha', default=1.0, type=float, help='alpha')
         parser.add_argument('--beta', default=80.0, type=float, help='beta')
@@ -208,10 +204,6 @@ class DORNModule(BaseModule):
         parser.add_argument('--batch_norm', default=0, type=int, help='Batch Normalization')
         parser.add_argument('--discretization', default="SID", type=str, help='Method for discretization')
         parser.add_argument('--dropout', default=0.5, type=float, help='Dropout rate.')
-        parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or bts')
         parser.add_argument('--loss', default='dorn', type=str, help='loss function')
-        parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
-        parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
-        parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
         return parser

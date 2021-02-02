@@ -299,12 +299,10 @@ class VNLModule(BaseModule):
     @staticmethod
     def add_model_specific_args(subparsers):
         parser = subparsers.add_parser('vnl', help='VNL specific parameters')
-        parser.add_argument('--method', default="vnl", type=str, help="Method for training.")
+        parser.add_argument('--name', default="vnl", type=str, help="Method for training.")
         parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
         parser.add_argument('--weight_decay', default=0.0005, type=float, help='Weight decay')
         parser.add_argument('--batch_size',    default=8,     type=int,   help='Batch Size')
-        parser.add_argument('--worker',        default=6,      type=int,   help='Number of workers for data loader')
-        parser.add_argument('--path', required=True, type=str, help='Path to NYU')
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--encoder', default='resnext50_32x4d_body_stride16', type=str, help='Encoder architecture')
         parser.add_argument('--init_type', default='xavier', type=str, help='Weight initialization')
@@ -323,12 +321,6 @@ class VNLModule(BaseModule):
         parser.add_argument('--focal_y', default=519.0, type=float, help='focal y')
         parser.add_argument('--diff_loss_weight', default=6, type=float, help='diff loss weight')
         parser.add_argument('--prediction_method', default='classification', type=str, help='type of prediction. classification or regression')
-        parser.add_argument('--dataset', default='nyu', type=str, help='Dataset for Training [nyu, noreflection, isotropic, mirror]')
-        parser.add_argument('--eval_dataset', default='nyu', type=str, help='Dataset for Validation [nyu, noreflection, isotropic, mirror]')
-        parser.add_argument('--test_dataset', default='nyu', type=str, help='Dataset for Test [nyu, noreflection, isotropic, mirror]')
         parser.add_argument('--data_augmentation', default='vnl', type=str, help='Choose data Augmentation Strategy: laina or vnl')
         parser.add_argument('--loss', default='vnl', type=str, help='loss function')
-        parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
-        parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
-        parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
         return parser

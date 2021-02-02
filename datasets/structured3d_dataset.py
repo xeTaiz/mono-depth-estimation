@@ -6,6 +6,9 @@ from pathlib import Path
 from PIL import Image
 from tqdm import tqdm
 
+def get_structured3d_dataset(args, split, output_size, resize):
+    return Structured3DDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type)
+
 class Structured3DDataset(BaseDataset):
     def __init__(self, path, dataset_type='perspective', output_size=(360, 640), resize=400, *args, **kwargs):
         super(Structured3DDataset, self).__init__(*args, **kwargs)
@@ -95,4 +98,10 @@ class Structured3DDataset(BaseDataset):
         rgb = Image.open(rgb_path).convert('RGB')
         depth = Image.open(depth_path)
         return rgb, depth
+
+    @staticmethod
+    def add_dataset_specific_args(parent_parser):
+        parser = parent_parser.add_parser('structured3d')
+        parser.add_argument('--type', required=True, type=str, help="Structured3D type [perspective, panorama]")
+        BaseDataset.add_dataset_specific_args(parser)
     
