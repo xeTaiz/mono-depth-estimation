@@ -16,24 +16,26 @@ class BaseModule(pl.LightningModule):
         self.globals = hparams
         self.hparams = hparams.method
         self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(hparams)
-        self.train_dataset.transform = self.train_preprocess
-        self.val_dataset.transform = self.val_preprocess
-        self.test_dataset.transform = self.test_preprocess
+        self.train_dataset.transform = self.train_preprocess               
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
                                                     batch_size=self.hparams.batch_size, 
                                                     shuffle=True, 
                                                     num_workers=hparams.globals.worker, 
                                                     pin_memory=True)
+        self.val_dataset.transform = self.val_preprocess 
         self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=1, 
                                                     shuffle=False, 
                                                     num_workers=hparams.globals.worker, 
                                                     pin_memory=True) 
-        self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=hparams.globals.worker, 
-                                                    pin_memory=True)                                     
+        if self.test_dataset: 
+            self.test_dataset.transform = self.test_preprocess                                                
+            self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
+                                                        batch_size=1, 
+                                                        shuffle=False, 
+                                                        num_workers=hparams.globals.worker, 
+                                                        pin_memory=True)
+        else: self.test_loader = None                                 
         print("=> creating Model")
         self.model = self.setup_model()
         print("=> model created.")
@@ -165,9 +167,10 @@ class BaseModule(pl.LightningModule):
         if len(test_dataset) > 1:       test_dataset = [ConcatDataset(test_dataset)]
 
         assert len(training_dataset) > 0, "No training dataset specified!"
+        assert len(validation_dataset) > 0, "No validation dataset specified!"
 
         training_dataset = training_dataset[0]
-        validation_dataset = validation_dataset[0] if validation_dataset else None
+        validation_dataset = validation_dataset[0]
         test_dataset = test_dataset[0] if test_dataset else None
         return training_dataset, validation_dataset, test_dataset
 
