@@ -73,7 +73,16 @@ if __name__ == "__main__":
         args.globals.seed = random.randrange(4294967295) # Make sure it's logged
     pl.seed_everything(args.globals.seed)
 
-    trainer = pl.Trainer.from_argparse_args(args,
+    checkpoint_callback = pl.callbacks.ModelCheckpoint(
+        filename='{epoch}',
+        verbose=True,
+        save_weights_only=True,
+        save_top_k=-1,
+        monitor='val_checkpoint_on',
+        mode='min'
+    )
+
+    trainer = pl.Trainer(
         log_gpu_memory=False,
         fast_dev_run=args.globals.dev,
         profiler=True,
@@ -84,7 +93,7 @@ if __name__ == "__main__":
         min_epochs=args.globals.min_epochs,
         max_epochs=args.globals.max_epochs,
         logger=pl.loggers.TensorBoardLogger("result", name=args.method.name),
-        callbacks=[pl.callbacks.LearningRateLogger()]
+        callbacks=[pl.callbacks.LearningRateLogger(), checkpoint_callback]
     )
 
     yaml = args.__dict__
@@ -97,9 +106,6 @@ if __name__ == "__main__":
     if hasattr(trainer, 'logger'):
         trainer.logger.log_hyperparams(yaml) # Log random seed
 
-
     # Fit model
     module = get_module(args)
     trainer.fit(module)
-    filename = "{}/{}/version_{}/checkpoints/last.ckpt".format(module.logger.save_dir, module.logger.name, module.logger.version)
-    trainer.save_checkpoint(filename)
