@@ -68,11 +68,9 @@ class EigenModule(BaseModule):
     @staticmethod
     def add_model_specific_args(subparsers):
         parser = subparsers.add_parser('eigen', help='Eigen specific parameters')
-        parser.add_argument('--name', default="eigen", type=str, help="Method for training.")
+        BaseModule.add_default_args(parser, name="eigen", learning_rate=0.0001, batch_size=8)
         parser.add_argument('--backbone', default='vgg', type=str, help="Backbone")
         parser.add_argument('--pretrained', default=1, type=int, help="Use pretrained backbone.")
-        parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
-        parser.add_argument('--batch_size',    default=8,     type=int,   help='Batch Size')
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or eigen')
         parser.add_argument('--loss', default='eigen', type=str, help='loss function')

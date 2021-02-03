@@ -12,11 +12,14 @@ def register_module_specific_arguments(subparser):
 
 def get_module(args):
     module = None
-    if args.method.name == "eigen": module = eigen.EigenModule(args)
-    if args.method.name == "midas": module = midas.MidasModule(args)
-    if args.method.name == "vnl":   module = vnl.VNLModule(args)
-    if args.method.name == "dorn":  module = dorn.DORNModule(args)
-    if args.method.name == "laina": module = laina.FCRNModule(args)
-    if args.method.name == "bts":   module = bts.BtsModule(args)
+    if args.method.name == "eigen": module = eigen.EigenModule
+    if args.method.name == "midas": module = midas.MidasModule
+    if args.method.name == "vnl":   module = vnl.VNLModule
+    if args.method.name == "dorn":  module = dorn.DORNModule
+    if args.method.name == "laina": module = laina.FCRNModule
+    if args.method.name == "bts":   module = bts.BtsModule
     assert module, "Please select method!"
-    return module
+    if args.method.ckpt:
+        return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, hparams_file=args.method.ckpt)
+    else:
+        return module(args)

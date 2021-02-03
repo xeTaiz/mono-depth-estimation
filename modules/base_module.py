@@ -174,6 +174,12 @@ class BaseModule(pl.LightningModule):
         test_dataset = test_dataset[0] if test_dataset else None
         return training_dataset, validation_dataset, test_dataset
 
+    @staticmethod
+    def add_default_args(parser, name, learning_rate, batch_size, ckpt=None):
+        parser.add_argument('--name', default=name, type=str, help="Method for training.")
+        parser.add_argument('--learning_rate', default=learning_rate, type=float, help='Learning Rate')
+        parser.add_argument('--batch_size',    default=batch_size,     type=int,   help='Batch Size')
+        parser.add_argument('--ckpt',    default=ckpt,     type=str,   help='Load checkpoint')
 
     @staticmethod
     def add_model_specific_args(parser):

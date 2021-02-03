@@ -61,10 +61,7 @@ class FCRNModule(BaseModule):
     @staticmethod
     def add_model_specific_args(subparsers):
         parser = subparsers.add_parser('laina', help='Laina specific parameters')
-        parser.add_argument('--name', default="laina", type=str, help="Method for training.")
-        parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
-        parser.add_argument('--batch_size',    default=16,     type=int,   help='Batch Size')
-        parser.add_argument('--path', required=True, type=str, help='Path to NYU')
+        BaseModule.add_default_args(parser, name="laina", learning_rate=0.0001, batch_size=16)
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--loss', default='laina', type=str, help='loss function: [laina]')

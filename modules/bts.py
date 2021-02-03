@@ -1,3 +1,4 @@
+from datasets.dataset import BaseDataset
 import torch
 import criteria
 from network import Bts
@@ -194,9 +195,7 @@ class BtsModule(BaseModule):
     @staticmethod
     def add_model_specific_args(subparsers):
         parser = subparsers.add_parser('bts', help='Bts specific parameters')
-        parser.add_argument('--name', default="bts", type=str, help="Method for training.")
-        parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
-        parser.add_argument('--batch_size',    default=8,     type=int,   help='Batch Size')
+        BaseModule.add_default_args(parser, name="bts", learning_rate=0.0001, batch_size=8)
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--bts_size', type=int, default=512, help='initial num_filters in bts')
         parser.add_argument('--max_depth', type=int, default=10, help='Depth of decoder')

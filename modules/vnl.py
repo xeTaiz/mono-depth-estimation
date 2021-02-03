@@ -145,9 +145,9 @@ class VNLModule(BaseModule):
         self.model = VNL.MetricDepthModel(self.params)
         self.criterion = criteria.ModelLoss(self.params)
         if torch.cuda.is_available():
-            self.device_ = "cuda"
+            self.device_ = torch.device('cuda:0')
         else:
-            self.device_ = "cpu"
+            self.device_ = torch.device('cpu')
 
     def depth_to_bins(self, depth):
         """
@@ -172,7 +172,7 @@ class VNLModule(BaseModule):
         :return: 1-channel depth, [b, 1, h, w]
         """
         depth_bin = depth_bin.permute(0, 2, 3, 1) #[b, h, w, c]
-        depth_bin_border = torch.tensor(self.params.depth_bin_border, dtype=torch.float32).to(self.device_)
+        depth_bin_border = torch.tensor(self.params.depth_bin_border, dtype=torch.float32).cuda()
         depth = depth_bin * depth_bin_border
         depth = torch.sum(depth, dim=3, dtype=torch.float32, keepdim=True)
         depth = 10 ** depth
@@ -183,17 +183,18 @@ class VNLModule(BaseModule):
         invalid_side = data['invalid_side'][0]
         pred_depth = y_hat[0].squeeze(0).detach()
         pred_depth = pred_depth[invalid_side[0]:pred_depth.size(0) - invalid_side[1], :]
-        pred_depth = pred_depth / data['ratio'][0].to(self.device_)
+        pred_depth = pred_depth / data['ratio'][0].cuda()
         pred_depth = torch.from_numpy(resize_image(pred_depth, data['B_raw'][0].shape)).unsqueeze(0)
         targ_depth = data['B_raw'][0].unsqueeze(0)
         image = data['A_raw'][0].unsqueeze(0)
-        x,y,y_hat= image.to(self.device_), targ_depth.unsqueeze(0).to(self.device_), pred_depth.unsqueeze(0).to(self.device_)
+        x,y,y_hat= image.cuda(), targ_depth.unsqueeze(0).cuda(), pred_depth.unsqueeze(0).cuda()
         #if self.hparams.test_dataset == 'nyu':
         #mask = (45, 471, 41, 601)
         #x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
         #y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
         #y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]]
         return x,y,y_hat
+
 
     def setup_model(self):
         return None
@@ -299,10 +300,8 @@ class VNLModule(BaseModule):
     @staticmethod
     def add_model_specific_args(subparsers):
         parser = subparsers.add_parser('vnl', help='VNL specific parameters')
-        parser.add_argument('--name', default="vnl", type=str, help="Method for training.")
-        parser.add_argument('--learning_rate', default=0.0001, type=float, help='Learning Rate')
+        BaseModule.add_default_args(parser, name="vnl", learning_rate=0.0001, batch_size=8)
         parser.add_argument('--weight_decay', default=0.0005, type=float, help='Weight decay')
-        parser.add_argument('--batch_size',    default=8,     type=int,   help='Batch Size')
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--encoder', default='resnext50_32x4d_body_stride16', type=str, help='Encoder architecture')
         parser.add_argument('--init_type', default='xavier', type=str, help='Weight initialization')
