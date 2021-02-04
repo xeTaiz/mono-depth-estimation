@@ -25,7 +25,7 @@ class MetricLogger(object):
             result[name] = value
         return result
 
-    def log_val(self, pred, target, checkpoint_on=None):
+    def log_val(self, pred, target):
         values = self.computer.compute(pred, target)
         result = {}
         for name, value in zip(self.computer.names, values):
