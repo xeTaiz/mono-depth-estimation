@@ -74,7 +74,6 @@ if __name__ == "__main__":
     pl.seed_everything(args.globals.seed)
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        filename='{epoch}',
         verbose=True,
         save_weights_only=True,
         save_top_k=-1,
