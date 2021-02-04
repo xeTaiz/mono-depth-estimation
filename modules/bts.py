@@ -137,10 +137,7 @@ class BtsModule(BaseModule):
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
-            'monitor': 'val_delta1',
-            'interval': 'step',
-            'frequency': 1,
-            'strict': True
+            'monitor': 'val_delta1'
         }
         return [optimizer], [scheduler]
 
