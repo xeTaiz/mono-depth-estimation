@@ -40,6 +40,14 @@ class MidasModule(BaseModule):
         if self.hparams.pretrained: return torch.hub.load("intel-isl/MiDaS", "MiDaS")
         else:                       return MiDaS.MidasNet(features=256)
 
+    def setup_model_from_ckpt(self):
+        model = self.setup_model()
+        state_dict = {}
+        for key, value in torch.load(self.hparams.ckpt)["state_dict"].items():
+            state_dict[key[6:]] = value
+        model.load_state_dict(state_dict)
+        return model
+
     def output_size(self):
         return (384, 384)
 

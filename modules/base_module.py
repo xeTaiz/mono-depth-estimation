@@ -14,7 +14,6 @@ class BaseModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.globals = hparams
-        print(hparams)
         self.hparams = hparams.method
         self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(hparams)
         self.train_dataset.transform = self.train_preprocess               
@@ -37,9 +36,14 @@ class BaseModule(pl.LightningModule):
                                                         num_workers=hparams.globals.worker, 
                                                         pin_memory=True)
         else: self.test_loader = None                                 
-        print("=> creating Model")
-        self.model = self.setup_model()
-        print("=> model created.")
+        if self.hparams.ckpt:
+            print("=> loading Model from ckeckpoint")
+            self.model = self.setup_model_from_ckpt()
+            print("=> model loaded.")
+        else:
+            print("=> creating Model")
+            self.model = self.setup_model()
+            print("=> model created.")
         self.criterion = self.setup_criterion()
         self.metric_logger = MetricLogger(metrics=hparams.globals.metrics, module=self)
         self.skip = len(self.val_loader) // 9
@@ -51,6 +55,9 @@ class BaseModule(pl.LightningModule):
         raise NotImplementedError()
 
     def setup_model(self):
+        raise NotImplementedError()
+
+    def setup_model_from_ckpt(self):
         raise NotImplementedError()
     
     def setup_criterion(self):

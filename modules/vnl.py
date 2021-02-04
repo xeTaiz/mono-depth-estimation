@@ -144,10 +144,13 @@ class VNLModule(BaseModule):
         self.params.depth_bin_border = np.array([np.log10(self.hparams.depth_min) + self.params.depth_bin_interval * (i + 0.5) for i in range(self.hparams.dec_out_c)])
         self.model = VNL.MetricDepthModel(self.params)
         self.criterion = criteria.ModelLoss(self.params)
-        if torch.cuda.is_available():
-            self.device_ = torch.device('cuda:0')
-        else:
-            self.device_ = torch.device('cpu')
+
+        if self.hparams.ckpt:
+            state_dict = {}
+            for key, value in torch.load(self.hparams.ckpt)["state_dict"].items():
+                state_dict[key[6:]] = value
+            self.model.load_state_dict(state_dict)
+        
 
     def depth_to_bins(self, depth):
         """
@@ -197,6 +200,9 @@ class VNLModule(BaseModule):
 
 
     def setup_model(self):
+        return None
+
+    def setup_model_from_ckpt(self):
         return None
 
     def setup_criterion(self):

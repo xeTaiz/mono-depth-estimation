@@ -19,7 +19,4 @@ def get_module(args):
     if args.method.name == "laina": module = laina.FCRNModule
     if args.method.name == "bts":   module = bts.BtsModule
     assert module, "Please select method!"
-    if args.method.ckpt:
-        return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, args=None)
-    else:
-        return module(args)
+    return module(args)
