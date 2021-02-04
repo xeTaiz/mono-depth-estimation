@@ -81,14 +81,16 @@ if __name__ == "__main__":
         mode='max'
     )
 
+    use_gpu = not args.globals.gpus == 0
+
     trainer = pl.Trainer(
         log_gpu_memory=False,
         fast_dev_run=args.globals.dev,
         profiler=True,
         gpus=args.globals.gpus,
         overfit_batches=1 if args.globals.overfit else 0,
-        precision=args.globals.precision if args.globals.gpus > 0 else 32,
-        amp_level='O2' if args.globals.gpus > 0 else None,
+        precision=args.globals.precision if use_gpu else 32,
+        amp_level='O2' if use_gpu else None,
         min_epochs=args.globals.min_epochs,
         max_epochs=args.globals.max_epochs,
         logger=pl.loggers.TensorBoardLogger("result", name=args.method.name),
@@ -98,8 +100,8 @@ if __name__ == "__main__":
     yaml = args.__dict__
     yaml.update({
             'random_seed': args.globals.seed,
-            'gpu_name': torch.cuda.get_device_name(0) if args.globals.gpus > 0 else None,
-            'gpu_capability': torch.cuda.get_device_capability(0) if args.globals.gpus > 0 else None
+            'gpu_name': torch.cuda.get_device_name(0) if use_gpu else None,
+            'gpu_capability': torch.cuda.get_device_capability(0) if use_gpu else None
             })
    
     if hasattr(trainer, 'logger'):
