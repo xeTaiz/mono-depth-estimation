@@ -276,11 +276,11 @@ class VNLModule(BaseModule):
              'weight_decay': weight_decay},
             ]
         optimizer = torch.optim.SGD(net_params, momentum=0.9)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.hparams.lr_patience)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.hparams.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
-            'monitor': 'delta1'
+            'monitor': 'val_delta1'
         }
         return [optimizer], [scheduler]
 

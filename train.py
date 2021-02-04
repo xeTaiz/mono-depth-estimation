@@ -77,8 +77,8 @@ if __name__ == "__main__":
         verbose=True,
         save_weights_only=True,
         save_top_k=-1,
-        monitor='val_checkpoint_on',
-        mode='min'
+        monitor='val_delta1',
+        mode='max'
     )
 
     trainer = pl.Trainer(

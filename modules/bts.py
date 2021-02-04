@@ -125,11 +125,11 @@ class BtsModule(BaseModule):
         #total_iters = (len(self.train_loader) // self.hparams.batch_size) * self.hparams.max_epochs
         #lr_optim = build_lr_optim_lambda(total_iters)
         #lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_optim)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=self.hparams.lr_patience)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.hparams.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
-            'monitor': 'delta1',
+            'monitor': 'val_delta1',
             'interval': 'step',
             'frequency': 1,
             'strict': True
