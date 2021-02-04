@@ -14,6 +14,7 @@ class BaseModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.globals = hparams
+        print(hparams)
         self.hparams = hparams.method
         self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(hparams)
         self.train_dataset.transform = self.train_preprocess               
@@ -40,7 +41,7 @@ class BaseModule(pl.LightningModule):
         self.model = self.setup_model()
         print("=> model created.")
         self.criterion = self.setup_criterion()
-        self.metric_logger = MetricLogger(metrics=hparams.globals.metrics)
+        self.metric_logger = MetricLogger(metrics=hparams.globals.metrics, module=self)
         self.skip = len(self.val_loader) // 9
 
     def output_size(self):
@@ -175,11 +176,12 @@ class BaseModule(pl.LightningModule):
         return training_dataset, validation_dataset, test_dataset
 
     @staticmethod
-    def add_default_args(parser, name, learning_rate, batch_size, ckpt=None):
+    def add_default_args(parser, name, learning_rate, batch_size, ckpt=None, hfile=None):
         parser.add_argument('--name', default=name, type=str, help="Method for training.")
         parser.add_argument('--learning_rate', default=learning_rate, type=float, help='Learning Rate')
         parser.add_argument('--batch_size',    default=batch_size,     type=int,   help='Batch Size')
         parser.add_argument('--ckpt',    default=ckpt,     type=str,   help='Load checkpoint')
+        parser.add_argument('--hfile',    default=hfile,     type=str,   help='hparams for checkpoint')
 
     @staticmethod
     def add_model_specific_args(parser):

@@ -92,7 +92,7 @@ if __name__ == "__main__":
         min_epochs=args.globals.min_epochs,
         max_epochs=args.globals.max_epochs,
         logger=pl.loggers.TensorBoardLogger("result", name=args.method.name),
-        callbacks=[pl.callbacks.LearningRateLogger(), checkpoint_callback]
+        callbacks=[pl.callbacks.lr_monitor.LearningRateMonitor(), checkpoint_callback]
     )
 
     yaml = args.__dict__

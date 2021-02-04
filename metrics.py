@@ -8,37 +8,38 @@ import torch
 import math
 import numpy as np
 import pytorch_lightning as pl
-from pytorch_lightning.metrics.metric import TensorMetric
+from pytorch_lightning.metrics.metric import Metric
 
 class MetricLogger(object):
-    def __init__(self, metrics):
+    def __init__(self, metrics, module):
+        self.context = module
         self.computer = MetricComputation(metrics)
     
     def log_train(self, pred, target, loss):
         values = self.computer.compute(pred, target)
-        result = pl.TrainResult(loss)
-        result.log("train_loss", loss)
+        result = {"loss": loss}
+        self.context.log("loss", loss)
         for name, value in zip(self.computer.names, values):
-            result.log("train_{}".format(name), value, logger=True, on_epoch=True)
-            result.log("train_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
+            self.context.log("train_{}".format(name), value, logger=True, on_epoch=True)
+            self.context.log("train_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
+            result[name] = value
         return result
 
     def log_val(self, pred, target, checkpoint_on=None):
         values = self.computer.compute(pred, target)
-        if checkpoint_on:
-            result = pl.EvalResult(checkpoint_on=self.computer.avg(checkpoint_on))
-        else:
-            result = pl.EvalResult()
+        result = {}
         for name, value in zip(self.computer.names, values):
-            result.log("val_{}".format(name), value, logger=True, on_epoch=True)
-            result.log("val_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
+            self.context.log("val_{}".format(name), value, logger=True, on_epoch=True)
+            self.context.log("val_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
+            result[name] = value
         return result
 
     def log_test(self, pred, target):
         values = self.computer.compute(pred, target)
-        result = pl.EvalResult()
+        result = {}
         for name, value in zip(self.computer.names, values):
-            result.log("{}".format(name), value)
+            self.context.log("{}".format(name), value)
+            result[name] = value
         return result
 
     def reset(self):
@@ -69,7 +70,7 @@ class MetricComputation(object):
         if isinstance(metric, str): return self.sum[self.names.index(metric)] / self.count
         assert False, "metric must be int or str"
 
-class Delta(TensorMetric):
+class Delta(Metric):
     def __init__(self, exp=1, *args, **kwargs):
         super(Delta, self).__init__(*args, **kwargs)
         self.exp = exp
@@ -78,7 +79,7 @@ class Delta(TensorMetric):
         maxRatio = torch.max(pred / target, target / pred)
         return (maxRatio < 1.25 ** self.exp).float().mean()
 
-class Log10(TensorMetric):
+class Log10(Metric):
     def log10(self, x):
         return torch.log(x) / torch.log(torch.tensor(10.0))
     def forward(self, pred, target):
@@ -109,10 +110,19 @@ def RelativeSquareError(pred, target):
         raise NotComputableError("The ground truth has 0.")
     return ((pred - target)**2 / target).mean()
 
+def RelativeMeanSquareError(pred, target):
+    if (target == 0).any():
+        raise NotComputableError("The ground truth has 0.")
+    return torch.sqrt((pred - target)**2 / target).mean()
+
 METRICS = pl.metrics.functional.__dict__
+METRICS['mse'] = METRICS['mean_squared_error']
+METRICS['msle'] = METRICS['mean_squared_log_error']
+METRICS['mae'] = METRICS['mean_absolute_error']
 METRICS['delta1'] = Delta1_multi_gpu#Delta(exp=1, name="delta1")
 METRICS['delta2'] = Delta2_multi_gpu#Delta(exp=2, name="delta2")
 METRICS['delta3'] = Delta3_multi_gpu#Delta(exp=3, name="delta3")
 METRICS['log10'] = Log10_multi_gpu#Log10(name="log10")
 METRICS['absrel'] = AbsoluteRelativeError
 METRICS['sqrel'] = RelativeSquareError
+METRICS['rmse'] = RelativeMeanSquareError
