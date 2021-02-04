@@ -235,7 +235,7 @@ class VNLModule(BaseModule):
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
         self.save_visualization(x, y, y_hat, batch_idx)
-        return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
+        return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -280,7 +280,7 @@ class VNLModule(BaseModule):
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
-            'monitor': 'val_checkpoint_on'
+            'monitor': 'delta1'
         }
         return [optimizer], [scheduler]
 

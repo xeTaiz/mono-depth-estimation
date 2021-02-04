@@ -158,7 +158,7 @@ class DORNModule(BaseModule):
         pred_d, pred_ord = self(x)
         y_hat = self.label_to_depth(pred_d)
         self.save_visualization(x, y, y_hat, batch_idx)
-        return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
+        return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
@@ -182,7 +182,7 @@ class DORNModule(BaseModule):
         scheduler = {
             'scheduler': lr_scheduler,
             'reduce_on_plateua': True,
-            'monitor': 'val_checkpoint_on'
+            'monitor': 'delta1'
         }
         return [optimizer], [scheduler]
 
