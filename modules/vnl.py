@@ -2,7 +2,7 @@ import torch
 import pytorch_lightning as pl
 import criteria
 from network import VNL
-import visualize
+import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np
 import cv2
@@ -119,9 +119,21 @@ def preprocess(A, B, phase):
     data = {'A': A_resize, 'B': B_resize, 'A_raw': torch.from_numpy(A/255).type(torch.float32), 'B_raw': B, 'invalid_side': np.array(invalid_side), 'ratio': np.float32(1.0 / resize_ratio)}
     return data
 
+def training_preprocess(rgb, depth):
+    A = np.array(rgb, dtype=np.uint8)
+    B = np.array(depth, dtype=np.float32) / 10.0
+    return preprocess(A, B, 'train')
+    
+
+def validation_preprocess(rgb, depth):
+    A = np.array(rgb, dtype=np.uint8)
+    B = np.array(depth, dtype=np.float32) / 10.0
+    return preprocess(A, B, 'val')
+
+
 class VNLModule(BaseModule):
-    def __init__(self, *args, **kwargs):
-        super(VNLModule, self).__init__(*args, **kwargs)
+    def __init__(self, hparams, *args, **kwargs):
+        super(VNLModule, self).__init__(hparams, *args, **kwargs)
         self.params = pl.utilities.parsing.AttributeDict()
         self.params.depth_min = self.hparams.depth_min
         self.params.encoder = self.hparams.encoder
@@ -142,15 +154,31 @@ class VNLModule(BaseModule):
         self.params.depth_bin_interval = (np.log10(self.hparams.depth_max) - np.log10(self.hparams.depth_min)) / self.hparams.dec_out_c
         self.params.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.hparams.dec_out_c)] for j in np.arange(self.hparams.dec_out_c)]
         self.params.depth_bin_border = np.array([np.log10(self.hparams.depth_min) + self.params.depth_bin_interval * (i + 0.5) for i in range(self.hparams.dec_out_c)])
+        
+        print("=> creating Model")
         self.model = VNL.MetricDepthModel(self.params)
+        print("=> model created.")
         self.criterion = criteria.ModelLoss(self.params)
-
         if self.hparams.ckpt:
             state_dict = {}
             for key, value in torch.load(self.hparams.ckpt)["state_dict"].items():
                 state_dict[key[6:]] = value
             self.model.load_state_dict(state_dict)
-        
+
+    def setup_model(self):
+        return None
+
+    def setup_model_from_ckpt(self):
+        return None
+
+    def setup_criterion(self):
+        return None
+
+    def output_size(self):
+        return (385, 385)
+
+    def resize(self):
+        return 400
 
     def depth_to_bins(self, depth):
         """
@@ -198,22 +226,6 @@ class VNLModule(BaseModule):
         #y_hat = y_hat[..., mask[0]:mask[1], mask[2]:mask[3]]
         return x,y,y_hat
 
-
-    def setup_model(self):
-        return None
-
-    def setup_model_from_ckpt(self):
-        return None
-
-    def setup_criterion(self):
-        return None
-
-    def output_size(self):
-        return (385, 385)
-
-    def resize(self):
-        return 400
-
     def forward(self, x):
         y_hat = self.model(x)
         return y_hat
@@ -240,7 +252,6 @@ class VNLModule(BaseModule):
         pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
-        self.save_visualization(x, y, y_hat, batch_idx)
         return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
@@ -289,19 +300,6 @@ class VNLModule(BaseModule):
             'monitor': 'val_delta1'
         }
         return [optimizer], [scheduler]
-
-    def train_preprocess(self, rgb, depth):
-        A = np.array(rgb, dtype=np.uint8)
-        B = np.array(depth, dtype=np.float32) / 10.0
-        return preprocess(A, B, 'train')
-
-    def val_preprocess(self, rgb, depth):
-        A = np.array(rgb, dtype=np.uint8)
-        B = np.array(depth, dtype=np.float32) / 10.0
-        return preprocess(A, B, 'val')
-
-    def test_preprocess(self, rgb, depth):
-        return self.val_preprocess(rgb, depth)
 
     @staticmethod
     def add_model_specific_args(subparsers):

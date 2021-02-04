@@ -78,11 +78,7 @@ def load_pretrained_imagenet_weights(model, encoder):
         raise ValueError("unknow encoder", encoder)
     weights_file = Path(Path.cwd(), "network", "pretrained_models", net, weights_file)
     convert_state_dict = convert_state_dict_mobilenet if "mobilenet" in encoder else convert_state_dict_resnext
-    if torch.cuda.is_available():
-        saved_state_dict = torch.load(weights_file)
-    else:
-        saved_state_dict = torch.load(weights_file, map_location=torch.device('cpu'))
-    pretrianed_state_dict = convert_state_dict(saved_state_dict)
+    pretrianed_state_dict = convert_state_dict(torch.load(weights_file))
 
     model_state_dict = model.state_dict()
 
