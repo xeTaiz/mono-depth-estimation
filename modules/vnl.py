@@ -180,6 +180,12 @@ class VNLModule(BaseModule):
     def resize(self):
         return 400
 
+    def train_preprocess(self, rgb, depth):
+        return training_preprocess(rgb, depth)
+
+    def val_preprocess(self, rgb, depth):
+        return validation_preprocess(rgb, depth)
+
     def depth_to_bins(self, depth):
         """
         Discretize depth into depth bins

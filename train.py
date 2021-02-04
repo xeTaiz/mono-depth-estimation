@@ -76,7 +76,7 @@ if __name__ == "__main__":
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         verbose=True,
         save_weights_only=True,
-        save_top_k=-1,
+        save_top_k=3,
         monitor='val_delta1',
         mode='max'
     )
