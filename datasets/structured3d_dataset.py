@@ -34,71 +34,15 @@ class Structured3DDataset(BaseDataset):
             scene_directory = Path(self.path)/scene_name
             self.images += [img.as_posix() for img in scene_directory.glob("**/*") if "rgb_rawlight" in img.name and self.dataset_type.split('_')[-1] in img.as_posix()]
         print("Found {} images.".format(self.__len__()))
-        
-    def training_preprocess(self, rgb, depth):
-        s = np.random.uniform(1, 1.5)
-        # color jitter
-        rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
-        # Resize
-        resize = transforms.Resize(self.resize)
-        rgb = resize(rgb)
-        depth = resize(depth)
-        # Random Rotation
-        angle = np.random.uniform(-5,5)
-        rgb = TF.rotate(rgb, angle)
-        depth = TF.rotate(depth, angle)
-        # Resize
-        resize = transforms.Resize(int(self.resize * s))
-        rgb = resize(rgb)
-        depth = resize(depth)
-        # Center crop
-        crop = transforms.CenterCrop(self.output_size)
-        rgb = crop(rgb)
-        depth = crop(depth)
-        # Random horizontal flipping
-        if np.random.uniform(0,1) > 0.5:
-            rgb = TF.hflip(rgb)
-            depth = TF.hflip(depth)
-        # Transform to tensor
-        rgb = TF.to_tensor(np.array(rgb))
-        depth = np.array(depth, dtype=np.float32)
-        depth /= 1000 
-        depth = np.clip(depth, 0.0, 10.0)
-        depth = depth / s
-        depth = TF.to_tensor(depth)
-        return rgb, depth
-
-    def validation_preprocess(self, rgb, depth):
-        # Resize
-        resize = transforms.Resize(self.resize)
-        rgb = resize(rgb)
-        depth = resize(depth)
-        # Center crop
-        crop = transforms.CenterCrop(self.output_size)
-        rgb = crop(rgb)
-        depth = crop(depth)
-        # Transform to tensor
-        rgb = TF.to_tensor(np.array(rgb))
-        depth = np.array(depth, dtype=np.float32)
-        depth /= 1000
-        depth = np.clip(depth, 0.0, 10.0)
-        depth = TF.to_tensor(depth)
-        return rgb, depth
-
-    def test_preprocess(self, rgb, depth):
-        # Transform to tensor
-        rgb = TF.to_tensor(np.array(rgb))
-        depth = np.array(depth, dtype=np.float32)
-        depth /= 1000
-        depth = np.clip(depth, 0.0, 10.0)
-        depth = TF.to_tensor(depth)
-        return rgb, depth
 
     def get_raw(self, index):
         rgb_path = self.images[index]
         depth_path = rgb_path.replace("rgb_rawlight", "depth")
         rgb = Image.open(rgb_path).convert('RGB')
         depth = Image.open(depth_path)
+        depth = np.array(depth, dtype=np.float32)
+        depth /= 1000 
+        depth = np.clip(depth, 0, 10)
         return rgb, depth
 
     @staticmethod
