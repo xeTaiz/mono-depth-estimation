@@ -63,7 +63,7 @@ class Structured3DDataset(BaseDataset):
         rgb = TF.to_tensor(np.array(rgb))
         depth = np.array(depth, dtype=np.float32)
         depth /= 1000 
-        depth = np.clip(depth, 0, 10)
+        depth = np.clip(depth, 0.0, 10.0)
         depth = depth / s
         depth = TF.to_tensor(depth)
         return rgb, depth
@@ -81,7 +81,7 @@ class Structured3DDataset(BaseDataset):
         rgb = TF.to_tensor(np.array(rgb))
         depth = np.array(depth, dtype=np.float32)
         depth /= 1000
-        depth = np.clip(depth, 0, 10)
+        depth = np.clip(depth, 0.0, 10.0)
         depth = TF.to_tensor(depth)
         return rgb, depth
 
@@ -90,7 +90,7 @@ class Structured3DDataset(BaseDataset):
         rgb = TF.to_tensor(np.array(rgb))
         depth = np.array(depth, dtype=np.float32)
         depth /= 1000
-        depth = np.clip(depth, 0, 10)
+        depth = np.clip(depth, 0.0, 10.0)
         depth = TF.to_tensor(depth)
         return rgb, depth
 
