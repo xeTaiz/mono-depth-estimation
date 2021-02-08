@@ -10,10 +10,12 @@ import urllib.request
 from scipy.io import loadmat
 import visualize
 import json
+import tarfile
 
 NYU_V2_SPLIT_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/indoor_seg_sup/splits.mat'
 NYU_V2_MAPPING_40_URL = 'https://github.com/ankurhanda/nyuv2-meta-data/raw/master/classMapping40.mat'
 NYU_V2_LABELED_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat'
+NYU_V2_SPARSE2DENSE_URL = 'http://datasets.lids.mit.edu/sparse-to-dense/data/nyudepthv2.tar.gz'
 
 VAL_MIRROR_IDX = [25, 26, 76, 77, 86, 102, 131, 161, 162, 171, 172, 194, 195, 196, 199, 259, 266, 267, 268, 269, 271, 272, 273, 276, 277, 282, 283, 285, 286, 287, 290, 292, 294, 299, 302, 303, 305, 306, 308, 310, 313, 314, 323, 391, 401, 423, 427, 435, 440, 445, 457, 458, 487, 496, 505, 579, 583, 585, 586, 606, 609, 612, 613, 619]
 TRAIN_MIRROR_IDX = [18, 20, 21, 91, 103, 104, 128, 130, 136, 139, 142, 143, 144, 145, 208, 209, 264, 269, 305, 306, 307, 308, 309, 311, 313, 317, 381, 382, 384, 386, 387, 388, 389, 391, 392, 394, 395, 396, 398, 400, 402, 404, 405, 406, 409, 412, 413, 414, 415, 416, 418, 420, 421, 423, 425, 426, 428, 439, 441, 473, 501, 532, 559, 566, 569, 574, 587, 588, 600, 608, 613, 615, 639, 640, 665, 666, 705, 706, 743, 756, 767, 768, 769, 774, 775, 780, 781, 782, 784]
@@ -31,21 +33,28 @@ def download(filename, url):
         urllib.request.urlretrieve(url, filename = filename, reporthook = my_hook(t), data = None)
 
 def get_nyu_dataset(args, split, output_size, resize):
-    return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, use_mat=args.use_mat, dataset_type=args.type)
+    return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type)
 
 class NYUDataset(BaseDataset):
-    def __init__(self, path, output_size=(228, 304), resize=250, use_mat=False, n_images=-1, dataset_type=None, *args, **kwargs):
+    def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, dataset_type=None, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
         self.output_size = output_size
         self.resize = resize
         self.nyu_depth_v2_labeled_file = None
         self.exclude_mirrors = dataset_type == "nomirrors"
         self.mirrors_only = dataset_type == "mirrors"
-        self.use_mat = self.exclude_mirrors or self.mirrors_only or use_mat
+        self.use_mat = self.exclude_mirrors or self.mirrors_only or (not dataset_type == "h5")
+
+        print("Use mat: ", self.use_mat)
         
-        if not use_mat:
+        if not self.use_mat:
             self.path = Path(path)/('train' if 'train' in self.split else 'val')
-            self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]            
+            if not self.path.exists():
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                download(self.path.parent/"nyudepthv2.tar.gz", NYU_V2_SPARSE2DENSE_URL)
+                with tarfile.open(self.path.parent/"nyudepthv2.tar.gz", "r") as targz:
+                    targz.extractall(self.path.parent)                
+            self.images = [path.as_posix() for path in self.path.glob("**/*") if path.name.endswith('.h5')]
         else:
             self.path = Path(path)
             self.images = self.load_images()
@@ -169,8 +178,7 @@ class NYUDataset(BaseDataset):
     def add_dataset_specific_args(parent_parser):
         parser = parent_parser.add_parser('nyu')
         BaseDataset.add_dataset_specific_args(parser)
-        parser.add_argument('--use_mat', default=1, type=int, help="Use NYU mat or h5")
-        parser.add_argument('--type', type=str, default=None, help="None, nomirror mirror")
+        parser.add_argument('--type', type=str, default='official', help="official (default), nomirror, mirror, h5 (45K)")
 
 if __name__ == "__main__":
     f = "mirrors.json"
