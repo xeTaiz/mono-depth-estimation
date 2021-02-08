@@ -16,6 +16,7 @@ NYU_V2_SPLIT_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/indoor_seg_sup/s
 NYU_V2_MAPPING_40_URL = 'https://github.com/ankurhanda/nyuv2-meta-data/raw/master/classMapping40.mat'
 NYU_V2_LABELED_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat'
 NYU_V2_SPARSE2DENSE_URL = 'http://datasets.lids.mit.edu/sparse-to-dense/data/nyudepthv2.tar.gz'
+NYU_V2_CORRECTED_MAT_URL = 'https://cloudstore.uni-ulm.de/s/mRwWiLCCjsC6Rkf/download'
 
 VAL_MIRROR_IDX = [25, 26, 76, 77, 86, 102, 131, 161, 162, 171, 172, 194, 195, 196, 199, 259, 266, 267, 268, 269, 271, 272, 273, 276, 277, 282, 283, 285, 286, 287, 290, 292, 294, 299, 302, 303, 305, 306, 308, 310, 313, 314, 323, 391, 401, 423, 427, 435, 440, 445, 457, 458, 487, 496, 505, 579, 583, 585, 586, 606, 609, 612, 613, 619]
 TRAIN_MIRROR_IDX = [18, 20, 21, 91, 103, 104, 128, 130, 136, 139, 142, 143, 144, 145, 208, 209, 264, 269, 305, 306, 307, 308, 309, 311, 313, 317, 381, 382, 384, 386, 387, 388, 389, 391, 392, 394, 395, 396, 398, 400, 402, 404, 405, 406, 409, 412, 413, 414, 415, 416, 418, 420, 421, 423, 425, 426, 428, 439, 441, 473, 501, 532, 559, 566, 569, 574, 587, 588, 600, 608, 613, 615, 639, 640, 665, 666, 705, 706, 743, 756, 767, 768, 769, 774, 775, 780, 781, 782, 784]
@@ -33,19 +34,21 @@ def download(filename, url):
         urllib.request.urlretrieve(url, filename = filename, reporthook = my_hook(t), data = None)
 
 def get_nyu_dataset(args, split, output_size, resize):
-    return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type)
+    return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type, use_corrected_depth=args.corrected_depth)
 
 class NYUDataset(BaseDataset):
-    def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, dataset_type=None, *args, **kwargs):
+    def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, dataset_type=None, use_corrected_depth=False, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
         self.output_size = output_size
         self.resize = resize
         self.nyu_depth_v2_labeled_file = None
         self.exclude_mirrors = dataset_type == "nomirrors"
         self.mirrors_only = dataset_type == "mirrors"
-        self.use_mat = self.exclude_mirrors or self.mirrors_only or (not dataset_type == "h5")
+        self.use_corrected_depth = use_corrected_depth and not self.split == "train"
+        self.use_mat = self.exclude_mirrors or self.mirrors_only or (not dataset_type == "h5") or self.use_corrected_depth
 
         print("Use mat: ", self.use_mat)
+        print("Use corrected depth: ", self.use_corrected_depth)
         
         if not self.use_mat:
             self.path = Path(path)/('train' if 'train' in self.split else 'val')
@@ -143,10 +146,12 @@ class NYUDataset(BaseDataset):
             return self.h5_loader(path)
 
     def load_images(self):
+        self.nyu_depth_v2_labeled_file_corrected = (self.path/"nyu_depth_v2_labeled_corrected.mat")
         self.nyu_depth_v2_labeled_file = (self.path/"nyu_depth_v2_labeled.mat")
         self.split_file = (self.path/"split.mat")
         self.mapping40_file = (self.path/"classMapping40.mat")
-        if not self.nyu_depth_v2_labeled_file.exists(): download(self.nyu_depth_v2_labeled_file, NYU_V2_LABELED_MAT_URL)
+        if self.use_corrected_depth and not self.nyu_depth_v2_labeled_file_corrected.exists(): download(self.nyu_depth_v2_labeled_file_corrected, NYU_V2_CORRECTED_MAT_URL)
+        if not self.use_corrected_depth and not self.nyu_depth_v2_labeled_file.exists(): download(self.nyu_depth_v2_labeled_file, NYU_V2_LABELED_MAT_URL)
         if not self.split_file.exists(): download(self.split_file, NYU_V2_SPLIT_MAT_URL)
         if not self.mapping40_file.exists(): download(self.mapping40_file, NYU_V2_MAPPING_40_URL)
         return np.hstack(loadmat(self.split_file)['trainNdxs' if self.split == 'train' else 'testNdxs']) - 1
@@ -159,9 +164,14 @@ class NYUDataset(BaseDataset):
         return rgb, depth
 
     def mat_loader(self, index):
-        data = h5py.File(self.nyu_depth_v2_labeled_file, "r")  
-        rgb = data['images'][index]
-        depth = data['depths'][index]        
+        if self.use_corrected_depth:
+            data = h5py.File(self.nyu_depth_v2_labeled_file_corrected, "r")  
+            depth = data['depths_corrected'][index]
+            if np.max(depth) == 0: depth = data['depths'][index]   
+        else:
+            data = h5py.File(self.nyu_depth_v2_labeled_file, "r")  
+            depth = data['depths'][index]   
+        rgb = data['images'][index]     
         rgb = np.transpose(rgb, (2, 1, 0))
         depth = np.transpose(depth, (1,0))
 
@@ -179,15 +189,16 @@ class NYUDataset(BaseDataset):
         parser = parent_parser.add_parser('nyu')
         BaseDataset.add_dataset_specific_args(parser)
         parser.add_argument('--type', type=str, default='official', help="official (default), nomirror, mirror, h5 (45K)")
+        parser.add_argument('--corrected_depth', action='store_true', help="Use corrected mirror depth")
 
 if __name__ == "__main__":
     f = "mirrors.json"
-    t = "train"
-    nyu = NYUDataset("F:/data/nyudepthv2", split=t, use_mat=True, dataset_type="mirrors")
+    t = "val"
+    nyu = NYUDataset("F:/data/nyudepthv2", split=t, dataset_type="official", use_corrected_depth=True)
     for item in nyu:
         visualize.show_item(item)
     """
-    for _ in nyu:
+    for _ in nyu:p
         pass
     if Path(f).exists():
         data = json.load(open(f, "r"))
