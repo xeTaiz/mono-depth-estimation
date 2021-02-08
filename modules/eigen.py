@@ -68,7 +68,6 @@ class EigenModule(BaseModule):
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.hparams.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
-            'reduce_on_plateua': True,
             'monitor': 'val_delta1'
         }
         return [optimizer], [scheduler]

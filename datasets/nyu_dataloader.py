@@ -31,15 +31,17 @@ def download(filename, url):
         urllib.request.urlretrieve(url, filename = filename, reporthook = my_hook(t), data = None)
 
 def get_nyu_dataset(args, split, output_size, resize):
-    return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, use_mat=args.use_mat, mirrors_only=args.mirrors_only, exclude_mirrors=args.exclude_mirrors)
+    return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, use_mat=args.use_mat, dataset_type=args.type)
 
 class NYUDataset(BaseDataset):
-    def __init__(self, path, output_size=(228, 304), resize=250, use_mat=False, n_images=-1, exclude_mirrors=False, mirrors_only=False, *args, **kwargs):
+    def __init__(self, path, output_size=(228, 304), resize=250, use_mat=False, n_images=-1, dataset_type=None, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
         self.output_size = output_size
         self.resize = resize
         self.nyu_depth_v2_labeled_file = None
-        self.use_mat = exclude_mirrors or mirrors_only or use_mat
+        self.exclude_mirrors = dataset_type == "nomirrors"
+        self.mirrors_only = dataset_type == "mirrors"
+        self.use_mat = self.exclude_mirrors or self.mirrors_only or use_mat
         
         if not use_mat:
             self.path = Path(path)/('train' if 'train' in self.split else 'val')
@@ -49,8 +51,8 @@ class NYUDataset(BaseDataset):
             self.images = self.load_images()
             self.mapping40 = np.insert(loadmat(self.mapping40_file)['mapClass'][0], 0, 0)
         assert len(self.images) > 0, "Found 0 images in subfolders of: " + path + "\n"
-        if exclude_mirrors: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if not idx in (TRAIN_MIRROR_IDX if self.split == "train" else VAL_MIRROR_IDX)]]
-        if mirrors_only: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if idx in (TRAIN_MIRROR_IDX if self.split == "train" else VAL_MIRROR_IDX)]]
+        if self.exclude_mirrors: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if not idx in (TRAIN_MIRROR_IDX if self.split == "train" else VAL_MIRROR_IDX)]]
+        if self.mirrors_only: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if idx in (TRAIN_MIRROR_IDX if self.split == "train" else VAL_MIRROR_IDX)]]
         if n_images > 0: self.images = self.images[0:n_images]
         print("Found {} images in {} folder.".format(len(self.images), self.split))
 
@@ -150,16 +152,17 @@ class NYUDataset(BaseDataset):
     def mat_loader(self, index):
         data = h5py.File(self.nyu_depth_v2_labeled_file, "r")  
         rgb = data['images'][index]
-        depth = data['depths'][index]
-        labels = data['labels'][index]
-        
+        depth = data['depths'][index]        
         rgb = np.transpose(rgb, (2, 1, 0))
         depth = np.transpose(depth, (1,0))
-        labels = np.transpose(labels, (1,0))
-        #labels_40 = self.mapping40[labels]
-        #mask = labels_40 == 19 #Mirrors
+
+        if self.mirrors_only:
+            labels = data['labels'][index]
+            labels = np.transpose(labels, (1,0))
+            labels_40 = self.mapping40[labels]
+            mask = labels_40 == 19 #Mirrors
+            depth[~mask] = 0.0
         
-        #self.indices.append(index)
         return rgb, depth
 
     @staticmethod
@@ -167,15 +170,14 @@ class NYUDataset(BaseDataset):
         parser = parent_parser.add_parser('nyu')
         BaseDataset.add_dataset_specific_args(parser)
         parser.add_argument('--use_mat', default=1, type=int, help="Use NYU mat or h5")
-        parser.add_argument('--mirrors_only', action='store_true', help="Test mirrors only")
-        parser.add_argument('--exclude_mirrors', action='store_true', help="Test while excluding mirror")
+        parser.add_argument('--type', type=str, default=None, help="None, nomirror mirror")
 
 if __name__ == "__main__":
     f = "mirrors.json"
     t = "train"
-    nyu = NYUDataset("F:/data/nyudepthv2", split=t, use_mat=True, exclude_mirrors=True)
-    #for item in nyu:
-    #    visualize.show_item(item)
+    nyu = NYUDataset("F:/data/nyudepthv2", split=t, use_mat=True, dataset_type="mirrors")
+    for item in nyu:
+        visualize.show_item(item)
     """
     for _ in nyu:
         pass
