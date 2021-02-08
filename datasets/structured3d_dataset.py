@@ -22,9 +22,11 @@ class Structured3DDataset(BaseDataset):
 
     def load_scene_names(self):
         if self.split == 'train':
-            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][0:3000]
+            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][0:3400]
+        elif self.split == 'val':
+            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][3400:3450]
         else:
-            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][3000:]
+            self.scene_names = [d.stem for d in Path(self.path).glob("*") if d.is_dir()][3450:]
 
     def load_images(self):
         self.images = []
