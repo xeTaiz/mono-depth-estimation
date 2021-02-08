@@ -10,6 +10,13 @@ from torchvision import transforms
 import torchvision.transforms.functional as TF
 import numpy as np
 
+
+NAME2FUNC = {
+    "nyu": get_nyu_dataset,
+    "structured3d": get_structured3d_dataset,
+    "floorplan3d": get_floorplan3d_dataset
+}
+
 class BaseModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
@@ -157,18 +164,12 @@ class BaseModule(pl.LightningModule):
         training_dataset = []
         validation_dataset = []
         test_dataset = []
-        if hasattr(args, "nyu"):
-            if args.nyu.training:   training_dataset.append(  get_nyu_dataset(args.nyu, 'train', self.output_size(), self.resize()))
-            if args.nyu.validation: validation_dataset.append(get_nyu_dataset(args.nyu, 'val', self.output_size(), self.resize()))
-            if args.nyu.test:       test_dataset.append(      get_nyu_dataset(args.nyu, 'test', self.output_size(), self.resize()))
-        if hasattr(args, "floorplan3d"):
-            if args.floorplan3d.training:   training_dataset.append(  get_floorplan3d_dataset(args.floorplan3d, 'train', self.output_size(), self.resize()))
-            if args.floorplan3d.validation: validation_dataset.append(get_floorplan3d_dataset(args.floorplan3d, 'val', self.output_size(), self.resize()))
-            if args.floorplan3d.test:       test_dataset.append(      get_floorplan3d_dataset(args.floorplan3d, 'test', self.output_size(), self.resize()))
-        if hasattr(args, "structured3d"):
-            if args.structured3d.training:   training_dataset.append(  get_structured3d_dataset(args.structured3d, 'train', self.output_size(), self.resize()))
-            if args.structured3d.validation: validation_dataset.append(get_structured3d_dataset(args.structured3d, 'val', self.output_size(), self.resize()))
-            if args.structured3d.test:       test_dataset.append(      get_structured3d_dataset(args.structured3d, 'test', self.output_size(), self.resize()))
+        for name, data_setargs in args.training:
+            training_dataset.append(NAME2FUNC[name](data_setargs, 'train', self.output_size(), self.resize()))
+        for name, data_setargs in args.validation:
+            validation_dataset.append(NAME2FUNC[name](data_setargs, 'val', self.output_size(), self.resize())) 
+        for name, data_setargs in args.test:
+            test_dataset.append(NAME2FUNC[name](data_setargs, 'test', self.output_size(), self.resize()))        
 
         if len(training_dataset) > 1:   training_dataset = [ConcatDataset(training_dataset)]
         if len(validation_dataset) > 1: validation_dataset = [ConcatDataset(validation_dataset)]

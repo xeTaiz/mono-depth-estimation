@@ -31,14 +31,25 @@ def parse_args_into_namespaces(parser, commands):
 
     # Split all commands to separate namespace
     pos = 0
+    train_datasets = []
+    val_datasets = []
+    test_datasets = []
     while len(split_argv):
         pos += 1
         cmd, *args_raw = split_argv.pop(0)
         assert cmd[0].isalpha(), 'Command must start with a letter.'
         args_parsed = commands.choices[cmd].parse_args(args_raw, namespace=Namespace())
-        setattr(args, "method" if cmd in ['bts', 'eigen', 'vnl', 'dorn', 'midas', 'laina'] else cmd, args_parsed)
+        if cmd in ["nyu", "structured3d", "floorplan3d"]:
+            if args_parsed.training: train_datasets.append((cmd, args_parsed))
+            if args_parsed.validation: val_datasets.append((cmd, args_parsed))
+            if args_parsed.test:      test_datasets.append((cmd, args_parsed))
+        else:
+            setattr(args, "method" if cmd in ['bts', 'eigen', 'vnl', 'dorn', 'midas', 'laina'] else cmd, args_parsed)
+    setattr(args, "training" , train_datasets)
+    setattr(args, "validation" , val_datasets)
+    setattr(args, "test" , test_datasets)
     assert hasattr(args, "method"), "Please provide the method you want to use: bts, eigen, vnl, dorn, midas, laina"
-    assert any([hasattr(args, m) for m in ['nyu', 'structured3d', 'floorplan3d']]), "Please provide data set to use: nyu, floorplan3d, structured3d"
+    assert args.training and args.validation, "Please provide data training AND validation dataset"
     # convert args in more usable format
 
     return args
@@ -62,7 +73,7 @@ if __name__ == "__main__":
     register_module_specific_arguments(commands)
     
     args = parse_args_into_namespaces(parser, commands)
-    print(args.method)
+    print(args.training)
     
     # windows safe
     if sys.platform in ["win32"]:
