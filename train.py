@@ -122,12 +122,7 @@ if __name__ == "__main__":
     if args.globals.find_learning_rate:
         # Run learning rate finder
         lr_finder = trainer.tuner.lr_find(module)
-
-        # Results can be found in
-        lr_finder.results
-
-        # Plot with
-        fig = lr_finder.plot(suggest=True)
-        fig.show()
-    else:
-        trainer.fit(module)
+        suggested_lr = lr_finder.suggestion()
+        args.method.learning_rate = suggested_lr
+        module = get_module(args)
+    trainer.fit(module)
