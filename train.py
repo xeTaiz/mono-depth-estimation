@@ -62,6 +62,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_epochs', default=150, type=int, help='Maximum number ob epochs to train')
     parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
     parser.add_argument('--worker', default=6, type=int, help='Number of workers for data loader')
+    parser.add_argument('--find_learning_rate', action='store_true', help="Finding learning rate.")
 
 
 
@@ -118,4 +119,15 @@ if __name__ == "__main__":
 
     # Fit model
     module = get_module(args)
-    trainer.fit(module)
+    if args.globals.find_learning_rate:
+        # Run learning rate finder
+        lr_finder = trainer.tuner.lr_find(module)
+
+        # Results can be found in
+        lr_finder.results
+
+        # Plot with
+        fig = lr_finder.plot(suggest=True)
+        fig.show()
+    else:
+        trainer.fit(module)
