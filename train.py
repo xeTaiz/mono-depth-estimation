@@ -123,6 +123,8 @@ if __name__ == "__main__":
         # Run learning rate finder
         lr_finder = trainer.tuner.lr_find(module)
         suggested_lr = lr_finder.suggestion()
+        print("Old learning rate: ", args.method.learning_rate)
         args.method.learning_rate = suggested_lr
-        module = get_module(args)
-    trainer.fit(module)
+        print("Suggested learning rate: ", args.method.learning_rate)
+    else:
+        trainer.fit(module)
