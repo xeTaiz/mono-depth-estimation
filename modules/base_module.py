@@ -6,10 +6,6 @@ from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType, get
 from datasets.structured3d_dataset import Structured3DDataset, get_structured3d_dataset
 from metrics import MetricLogger
 import visualize
-from torchvision import transforms
-import torchvision.transforms.functional as TF
-import numpy as np
-
 
 NAME2FUNC = {
     "nyu": get_nyu_dataset,
@@ -20,27 +16,31 @@ NAME2FUNC = {
 class BaseModule(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
-        self.globals = hparams
+        self.globals = hparams.globals
         self.hparams = hparams.method
         self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(hparams)
-        self.train_dataset.transform = self.train_preprocess               
-        self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                    batch_size=self.hparams.batch_size, 
-                                                    shuffle=True, 
-                                                    num_workers=hparams.globals.worker, 
-                                                    pin_memory=True)
-        self.val_dataset.transform = self.val_preprocess 
-        self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=hparams.globals.worker, 
-                                                    pin_memory=True) 
+        if self.train_dataset:
+            self.train_dataset.transform = self.train_preprocess               
+            self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
+                                                        batch_size=self.hparams.batch_size, 
+                                                        shuffle=True, 
+                                                        num_workers=self.globals.worker, 
+                                                        pin_memory=True)
+        else: self.train_loader = None                                                          
+        if self.val_dataset:                                                
+            self.val_dataset.transform = self.val_preprocess 
+            self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
+                                                        batch_size=1, 
+                                                        shuffle=False, 
+                                                        num_workers=self.globals.worker, 
+                                                        pin_memory=True) 
+        else: self.val_loader = None  
         if self.test_dataset: 
             self.test_dataset.transform = self.test_preprocess                                                
             self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
                                                         batch_size=1, 
                                                         shuffle=False, 
-                                                        num_workers=hparams.globals.worker, 
+                                                        num_workers=self.globals.worker, 
                                                         pin_memory=True)
         else: self.test_loader = None                                 
         if self.hparams.ckpt:
@@ -52,8 +52,8 @@ class BaseModule(pl.LightningModule):
             self.model = self.setup_model()
             print("=> model created.")
         self.criterion = self.setup_criterion()
-        self.metric_logger = MetricLogger(metrics=hparams.globals.metrics, module=self)
-        self.skip = len(self.val_loader) // 9
+        self.metric_logger = MetricLogger(metrics=self.globals.metrics, module=self)
+        if self.val_loader: self.skip = len(self.val_loader) // 9
 
     def output_size(self):
         raise NotImplementedError()
@@ -95,60 +95,13 @@ class BaseModule(pl.LightningModule):
         raise NotImplementedError()
 
     def train_preprocess(self, rgb, depth):
-        s = np.random.uniform(1, 1.5)
-        depth = depth / s
-
-        if isinstance(rgb, np.ndarray):
-            rgb = transforms.ToPILImage()(rgb)
-        if isinstance(depth, np.ndarray):
-            depth = transforms.ToPILImage()(depth)
-        # color jitter
-        rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
-        # Resize
-        resize = transforms.Resize(self.resize())
-        rgb = resize(rgb)
-        depth = resize(depth)
-        # Random Rotation
-        angle = np.random.uniform(-5,5)
-        rgb = TF.rotate(rgb, angle)
-        depth = TF.rotate(depth, angle)
-        # Resize
-        resize = transforms.Resize(int(self.resize() * s))
-        rgb = resize(rgb)
-        depth = resize(depth)
-        # Center crop
-        crop = transforms.CenterCrop(self.output_size())
-        rgb = crop(rgb)
-        depth = crop(depth)
-        # Random horizontal flipping
-        if np.random.uniform(0,1) > 0.5:
-            rgb = TF.hflip(rgb)
-            depth = TF.hflip(depth)
-        # Transform to tensor
-        rgb = TF.to_tensor(np.array(rgb))
-        depth = TF.to_tensor(np.array(depth))
-        return rgb, depth
+        raise NotImplementedError()
 
     def val_preprocess(self, rgb, depth):
-        if isinstance(rgb, np.ndarray):
-            rgb = transforms.ToPILImage()(rgb)
-        if isinstance(depth, np.ndarray):
-            depth = transforms.ToPILImage()(depth)
-        # Resize
-        resize = transforms.Resize(self.resize())
-        rgb = resize(rgb)
-        depth = resize(depth)
-        # Center crop
-        crop = transforms.CenterCrop(self.output_size())
-        rgb = crop(rgb)
-        depth = crop(depth)
-        # Transform to tensor
-        rgb = TF.to_tensor(np.array(rgb))
-        depth = TF.to_tensor(np.array(depth))
-        return rgb, depth
+        raise NotImplementedError()
 
     def test_preprocess(self, rgb, depth):
-        return self.val_preprocess(rgb, depth)
+        raise NotImplementedError()
 
     def save_visualization(self, x, y, y_hat, batch_idx):
         if batch_idx == 0:
@@ -175,21 +128,17 @@ class BaseModule(pl.LightningModule):
         if len(validation_dataset) > 1: validation_dataset = [ConcatDataset(validation_dataset)]
         if len(test_dataset) > 1:       test_dataset = [ConcatDataset(test_dataset)]
 
-        assert len(training_dataset) > 0, "No training dataset specified!"
-        assert len(validation_dataset) > 0, "No validation dataset specified!"
-
-        training_dataset = training_dataset[0]
-        validation_dataset = validation_dataset[0]
+        training_dataset = training_dataset[0] if training_dataset else None
+        validation_dataset = validation_dataset[0] if validation_dataset else None
         test_dataset = test_dataset[0] if test_dataset else None
         return training_dataset, validation_dataset, test_dataset
 
     @staticmethod
-    def add_default_args(parser, name, learning_rate, batch_size, ckpt=None, hfile=None):
+    def add_default_args(parser, name, learning_rate, batch_size, ckpt=None):
         parser.add_argument('--name', default=name, type=str, help="Method for training.")
         parser.add_argument('--learning_rate', default=learning_rate, type=float, help='Learning Rate')
         parser.add_argument('--batch_size',    default=batch_size,     type=int,   help='Batch Size')
         parser.add_argument('--ckpt',    default=ckpt,     type=str,   help='Load checkpoint')
-        parser.add_argument('--hfile',    default=hfile,     type=str,   help='hparams for checkpoint')
 
     @staticmethod
     def add_model_specific_args(parser):

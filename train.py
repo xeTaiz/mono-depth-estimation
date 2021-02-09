@@ -49,9 +49,6 @@ def parse_args_into_namespaces(parser, commands):
     setattr(args, "validation" , val_datasets)
     setattr(args, "test" , test_datasets)
     assert hasattr(args, "method"), "Please provide the method you want to use: bts, eigen, vnl, dorn, midas, laina"
-    assert args.training and args.validation, "Please provide data training AND validation dataset"
-    # convert args in more usable format
-
     return args
 
 if __name__ == "__main__":
@@ -73,7 +70,7 @@ if __name__ == "__main__":
     register_module_specific_arguments(commands)
     
     args = parse_args_into_namespaces(parser, commands)
-    print(args.training)
+    assert args.training and args.validation, "Please provide data training AND validation dataset"
     
     # windows safe
     if sys.platform in ["win32"]:
@@ -88,6 +85,7 @@ if __name__ == "__main__":
         verbose=True,
         save_weights_only=True,
         save_top_k=3,
+        filename='{epoch}-{val_delta1}',
         monitor='val_delta1',
         mode='max'
     )
