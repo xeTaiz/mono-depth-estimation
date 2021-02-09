@@ -185,7 +185,10 @@ def resnet101(pretrained=True):
             import urllib
             weights_file.parent.mkdir(parents=True)
             urllib.request.urlretrieve("http://sceneparsing.csail.mit.edu/model/pretrained_resnet/resnet101-imagenet.pth", weights_file.as_posix())
-        saved_state_dict = torch.load(weights_file.as_posix())
+        if torch.cuda.is_available():
+            saved_state_dict = torch.load(weights_file.as_posix(), map_location=torch.device('cuda:0'))
+        else:
+            saved_state_dict = torch.load(weights_file.as_posix(), map_location=torch.device('cpu'))
         # saved_state_dict = torch.load('./pretrained_models/resnet101-imagenet.pth')
         new_params = resnet101.state_dict().copy()
         for i in saved_state_dict:

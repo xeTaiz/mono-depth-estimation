@@ -1,11 +1,14 @@
 import torch
 import pytorch_lightning as pl
 from datasets.dataset import ConcatDataset
-from datasets.nyu_dataloader import NYUDataset, get_nyu_dataset
-from datasets.floorplan3d_dataloader import Floorplan3DDataset, DatasetType, get_floorplan3d_dataset
-from datasets.structured3d_dataset import Structured3DDataset, get_structured3d_dataset
+from datasets.nyu_dataloader import get_nyu_dataset
+from datasets.floorplan3d_dataloader import get_floorplan3d_dataset
+from datasets.structured3d_dataset import get_structured3d_dataset
 from metrics import MetricLogger
 import visualize
+from torchvision import transforms
+import torchvision.transforms.functional as TF
+import numpy as np
 
 NAME2FUNC = {
     "nyu": get_nyu_dataset,
@@ -95,13 +98,60 @@ class BaseModule(pl.LightningModule):
         raise NotImplementedError()
 
     def train_preprocess(self, rgb, depth):
-        raise NotImplementedError()
+        s = np.random.uniform(1, 1.5)
+        depth = depth / s
+
+        if isinstance(rgb, np.ndarray):
+            rgb = transforms.ToPILImage()(rgb)
+        if isinstance(depth, np.ndarray):
+            depth = transforms.ToPILImage()(depth)
+        # color jitter
+        rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
+        # Resize
+        resize = transforms.Resize(self.resize())
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Random Rotation
+        angle = np.random.uniform(-5,5)
+        rgb = TF.rotate(rgb, angle)
+        depth = TF.rotate(depth, angle)
+        # Resize
+        resize = transforms.Resize(int(self.resize() * s))
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Center crop
+        crop = transforms.CenterCrop(self.output_size())
+        rgb = crop(rgb)
+        depth = crop(depth)
+        # Random horizontal flipping
+        if np.random.uniform(0,1) > 0.5:
+            rgb = TF.hflip(rgb)
+            depth = TF.hflip(depth)
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = TF.to_tensor(np.array(depth))
+        return rgb, depth
 
     def val_preprocess(self, rgb, depth):
-        raise NotImplementedError()
+        if isinstance(rgb, np.ndarray):
+            rgb = transforms.ToPILImage()(rgb)
+        if isinstance(depth, np.ndarray):
+            depth = transforms.ToPILImage()(depth)
+        # Resize
+        resize = transforms.Resize(self.resize())
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Center crop
+        crop = transforms.CenterCrop(self.output_size())
+        rgb = crop(rgb)
+        depth = crop(depth)
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = TF.to_tensor(np.array(depth))
+        return rgb, depth
 
     def test_preprocess(self, rgb, depth):
-        raise NotImplementedError()
+        return self.val_preprocess(rgb, depth)
 
     def save_visualization(self, x, y, y_hat, batch_idx):
         if batch_idx == 0:

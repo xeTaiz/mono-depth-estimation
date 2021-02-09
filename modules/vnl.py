@@ -161,7 +161,7 @@ class VNLModule(BaseModule):
         self.criterion = criteria.ModelLoss(self.params)
         if self.hparams.ckpt:
             state_dict = {}
-            for key, value in torch.load(self.hparams.ckpt)["state_dict"].items():
+            for key, value in torch.load(self.hparams.ckpt, map_location=self.device)["state_dict"].items():
                 state_dict[key[6:]] = value
             self.model.load_state_dict(state_dict)
 
@@ -209,7 +209,7 @@ class VNLModule(BaseModule):
         :return: 1-channel depth, [b, 1, h, w]
         """
         depth_bin = depth_bin.permute(0, 2, 3, 1) #[b, h, w, c]
-        depth_bin_border = torch.tensor(self.params.depth_bin_border, dtype=torch.float32).cuda()
+        depth_bin_border = torch.tensor(self.params.depth_bin_border, dtype=torch.float32).to(self.device)
         depth = depth_bin * depth_bin_border
         depth = torch.sum(depth, dim=3, dtype=torch.float32, keepdim=True)
         depth = 10 ** depth
@@ -220,11 +220,11 @@ class VNLModule(BaseModule):
         invalid_side = data['invalid_side'][0]
         pred_depth = y_hat[0].squeeze(0).detach()
         pred_depth = pred_depth[invalid_side[0]:pred_depth.size(0) - invalid_side[1], :]
-        pred_depth = pred_depth / data['ratio'][0].cuda()
+        pred_depth = pred_depth / data['ratio'][0].to(self.device)
         pred_depth = torch.from_numpy(resize_image(pred_depth, data['B_raw'][0].shape)).unsqueeze(0)
         targ_depth = data['B_raw'][0].unsqueeze(0)
         image = data['A_raw'][0].unsqueeze(0)
-        x,y,y_hat= image.cuda(), targ_depth.unsqueeze(0).cuda(), pred_depth.unsqueeze(0).cuda()
+        x,y,y_hat= image.to(self.device), targ_depth.unsqueeze(0).to(self.device), pred_depth.unsqueeze(0).to(self.device)
         #if self.hparams.test_dataset == 'nyu':
         #mask = (45, 471, 41, 601)
         #x = x[..., mask[0]:mask[1], mask[2]:mask[3]]

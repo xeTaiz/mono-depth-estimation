@@ -5,6 +5,7 @@
 
 
 import torch
+from torch._C import device
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
@@ -870,11 +871,13 @@ class VNL_Loss(nn.Module):
                  delta_diff_y=0.01, delta_diff_z=0.01,
                  delta_z=0.0001, sample_ratio=0.15):
         super(VNL_Loss, self).__init__()
-        self.fx = torch.tensor([focal_x], dtype=torch.float32).cuda()
-        self.fy = torch.tensor([focal_y], dtype=torch.float32).cuda()
+        self.device = torch.device('cpu')
+        if torch.cuda.is_available(): self.device = torch.device('cuda:0')
+        self.fx = torch.tensor([focal_x], dtype=torch.float32).to(self.device)
+        self.fy = torch.tensor([focal_y], dtype=torch.float32).to(self.device)
         self.input_size = input_size
-        self.u0 = torch.tensor(input_size[1] // 2, dtype=torch.float32).cuda()
-        self.v0 = torch.tensor(input_size[0] // 2, dtype=torch.float32).cuda()
+        self.u0 = torch.tensor(input_size[1] // 2, dtype=torch.float32).to(self.device)
+        self.v0 = torch.tensor(input_size[0] // 2, dtype=torch.float32).to(self.device)
         self.init_image_coor()
         self.delta_cos = delta_cos
         self.delta_diff_x = delta_diff_x
@@ -888,14 +891,14 @@ class VNL_Loss(nn.Module):
         x = np.tile(x_row, (self.input_size[0], 1))
         x = x[np.newaxis, :, :]
         x = x.astype(np.float32)
-        x = torch.from_numpy(x.copy()).cuda()
+        x = torch.from_numpy(x.copy()).to(self.device)
         self.u_u0 = x - self.u0
 
         y_col = np.arange(0, self.input_size[0])  # y_col = np.arange(0, height)
         y = np.tile(y_col, (self.input_size[1], 1)).T
         y = y[np.newaxis, :, :]
         y = y.astype(np.float32)
-        y = torch.from_numpy(y.copy()).cuda()
+        y = torch.from_numpy(y.copy()).to(self.device)
         self.v_v0 = y - self.v0
 
     def transfer_xyz(self, depth):
