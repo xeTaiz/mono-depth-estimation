@@ -48,6 +48,7 @@ class BtsModule(BaseModule):
 
     def setup_model(self):
         model = Bts.BtsModel(max_depth=self.hparams.max_depth, bts_size=self.hparams.bts_size, encoder_version=self.hparams.encoder)
+        """
         model.decoder.apply(weights_init_xavier)
         if self.hparams.bn_no_track_stats:
             print("Disabling tracking running stats in batch norm layers")
@@ -79,6 +80,7 @@ class BtsModule(BaseModule):
                 # print(name, name2)
                 if any(x in name2 for x in fixing_layers):
                     parameters.requires_grad = False
+        """
         return model
 
     def setup_model_from_ckpt(self):
@@ -145,11 +147,28 @@ class BtsModule(BaseModule):
             rgb = transforms.ToPILImage()(rgb)
         if isinstance(depth, np.ndarray):
             depth = transforms.ToPILImage()(depth)
+
+        height = rgb.height
+        width = rgb.width
+        left_margin = width * 0.05
+        right_margin = width * (1.0 - 0.05)
+        top_margin = height * 0.05
+        bot_margin = height * (1.0 - 0.05)
+        depth = depth.crop((left_margin, top_margin, right_margin, bot_margin))
+        rgb     = rgb.crop((left_margin, top_margin, right_margin, bot_margin))
+
         
         # Random rotation
         angle = transforms.RandomRotation.get_params([-2.5, 2.5])
         rgb = TF.rotate(rgb, angle)
         depth = TF.rotate(depth, angle)
+
+        # Resize
+        h = int(np.random.choice([416, 452, 489, 507, 518, 550, 600, 650, 720]))
+        resize = transforms.Resize(h)
+        rgb = resize(rgb)
+        depth = resize(depth)
+
 
         # Random Crop
         i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=self.output_size())
