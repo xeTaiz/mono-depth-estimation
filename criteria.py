@@ -848,7 +848,7 @@ class WCEL_Loss(nn.Module):
         self.weight = torch.from_numpy(self.weight)
 
     def forward(self, pred_logit, gt_bins, gt):
-        self.weight = self.weight.to(pred_logit.device)
+        self.weight = self.weight.to(device=pred_logit.device, dtype=torch.float)
         classes_range = torch.arange(self.args.dec_out_c, device=gt_bins.device, dtype=gt_bins.dtype)
         log_pred = torch.nn.functional.log_softmax(pred_logit, 1)
         log_pred = torch.t(torch.transpose(log_pred, 0, 1).reshape(log_pred.size(1), -1))
