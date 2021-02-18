@@ -845,6 +845,7 @@ class WCEL_Loss(nn.Module):
         self.args = args
         self.weight = self.args.wce_loss_weight
         self.weight /= np.sum(self.weight, 1, keepdims=True)
+        self.weight = torch.from_numpy(self.weight)
 
     def forward(self, pred_logit, gt_bins, gt):
         self.weight = self.weight.to(pred_logit.device)
