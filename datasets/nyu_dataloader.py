@@ -36,7 +36,7 @@ def download(filename, url):
         urllib.request.urlretrieve(url, filename = filename, reporthook = my_hook(t), data = None)
 
 def get_nyu_dataset(args, split, output_size, resize):
-    return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type, use_corrected_depth=args.corrected_depth)
+    return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type)
 
 class NYUDataset(BaseDataset):
     def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, dataset_type=None, *args, **kwargs):
@@ -48,7 +48,7 @@ class NYUDataset(BaseDataset):
         self.exclude_mirrors = dataset_type == 'no_mirror'
         self.mirrors_only = dataset_type in ['mirror', 'mirror_corrected']
         self.use_corrected_depth = 'corrected' in dataset_type and not self.split == "train"
-        self.use_mat = dataset_type == 'labeled'
+        self.use_mat = not dataset_type == 'sparse_2_dense'
 
         print("Use mat: ", self.use_mat)
         print("Use corrected depth: ", self.use_corrected_depth)
