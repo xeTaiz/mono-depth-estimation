@@ -12,6 +12,8 @@ import visualize
 import json
 import tarfile
 
+DATASET_TYPES = ['labeled', 'no_mirror', 'mirror', 'mirror_corrected', 'sparse_2_dense']
+
 NYU_V2_SPLIT_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/indoor_seg_sup/splits.mat'
 NYU_V2_MAPPING_40_URL = 'https://github.com/ankurhanda/nyuv2-meta-data/raw/master/classMapping40.mat'
 NYU_V2_LABELED_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat'
@@ -37,15 +39,16 @@ def get_nyu_dataset(args, split, output_size, resize):
     return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type, use_corrected_depth=args.corrected_depth)
 
 class NYUDataset(BaseDataset):
-    def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, dataset_type=None, use_corrected_depth=False, *args, **kwargs):
+    def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, dataset_type=None, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
+        assert dataset_type in DATASET_TYPES, "unknow NYU data set: [{}] available: []".format(dataset_type, DATASET_TYPES)
         self.output_size = output_size
         self.resize = resize
         self.nyu_depth_v2_labeled_file = None
-        self.exclude_mirrors = dataset_type == "nomirrors"
-        self.mirrors_only = dataset_type == "mirrors"
-        self.use_corrected_depth = use_corrected_depth and not self.split == "train"
-        self.use_mat = self.exclude_mirrors or self.mirrors_only or (not dataset_type == "h5") or self.use_corrected_depth
+        self.exclude_mirrors = dataset_type == 'no_mirror'
+        self.mirrors_only = dataset_type in ['mirror', 'mirror_corrected']
+        self.use_corrected_depth = 'corrected' in dataset_type and not self.split == "train"
+        self.use_mat = dataset_type == 'labeled'
 
         print("Use mat: ", self.use_mat)
         print("Use corrected depth: ", self.use_corrected_depth)
@@ -188,8 +191,7 @@ class NYUDataset(BaseDataset):
     def add_dataset_specific_args(parent_parser):
         parser = parent_parser.add_parser('nyu')
         BaseDataset.add_dataset_specific_args(parser)
-        parser.add_argument('--type', type=str, default='official', help="official (default), nomirror, mirror, h5 (45K)")
-        parser.add_argument('--corrected_depth', action='store_true', help="Use corrected mirror depth")
+        parser.add_argument('--type', type=str, default='labeled', help="available: {}".format(DATASET_TYPES))
 
 if __name__ == "__main__":
     f = "mirrors.json"
