@@ -159,15 +159,6 @@ class VNLModule(BaseModule):
         self.model = VNL.MetricDepthModel(self.params)
         print("=> model created.")
         self.criterion = criteria.ModelLoss(self.params)
-        if self.method.ckpt:
-            state_dict = {}
-            for key, value in torch.load(self.method.ckpt, map_location=self.device)["state_dict"].items():
-                s = key.split('depth_model.encoder_modules.bottomup.res4.')
-                if len(s)>1:
-                    i = int(s[1].split('.')[0])
-                    if i > 5: continue
-                state_dict[key[6:]] = value
-            self.model.load_state_dict(state_dict)
 
     def setup_model(self):
         return None
