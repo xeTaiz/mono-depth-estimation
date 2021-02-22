@@ -27,17 +27,17 @@ class MidasModule(BaseModule):
             urllib.request.urlretrieve("https://github.com/intel-isl/MiDaS/releases/download/v2/model-f46da743.pt", filename = filename, reporthook = my_hook(t), data = None)
 
     def setup_criterion(self):
-        if self.hparams.loss in ['ssil1', 'ssimse', 'l1', 'mse', 'trim']:
-            return criteria.MidasLoss(alpha=self.hparams.alpha, loss=self.hparams.loss, reduction=self.hparams.reduction)
-        elif self.hparams.loss == 'eigen':
+        if self.method.loss in ['ssil1', 'ssimse', 'l1', 'mse', 'trim']:
+            return criteria.MidasLoss(alpha=self.method.alpha, loss=self.method.loss, reduction=self.method.reduction)
+        elif self.method.loss == 'eigen':
             return criteria.MaskedDepthLoss()
-        elif self.hparams.loss == 'laina':
+        elif self.method.loss == 'laina':
             return criteria.MaskedL1Loss()
-        elif self.hparams.loss == 'ssitrim':
-            return criteria.TrimmedProcrustesLoss(alpha=self.hparams.alpha, reduction=self.hparams.reduction)
+        elif self.method.loss == 'ssitrim':
+            return criteria.TrimmedProcrustesLoss(alpha=self.method.alpha, reduction=self.method.reduction)
 
     def setup_model(self):
-        if self.hparams.pretrained: return torch.hub.load("intel-isl/MiDaS", "MiDaS")
+        if self.method.pretrained: return torch.hub.load("intel-isl/MiDaS", "MiDaS")
         else:                       return MiDaS.MidasNet(features=256)
 
     def output_size(self):
@@ -63,7 +63,7 @@ class MidasModule(BaseModule):
         x, y = batch
         y_hat = self(x)
         loss = self.criterion(y_hat, y)
-        if "ssi" in self.hparams.loss:
+        if "ssi" in self.method.loss:
             y_hat, y = self.scale_shift(y_hat, y)
         return self.metric_logger.log_train(y_hat, y, loss)
 
@@ -71,7 +71,7 @@ class MidasModule(BaseModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        if "ssi" in self.hparams.loss:
+        if "ssi" in self.method.loss:
             y_hat, y = self.scale_shift(y_hat, y)
         self.save_visualization(x, y, y_hat, batch_idx)
         return self.metric_logger.log_val(y_hat, y)
@@ -80,7 +80,7 @@ class MidasModule(BaseModule):
         if batch_idx == 0: self.metric_logger.reset()
         y = batch['depth']
         y_hat = self(batch['rgb'])
-        if "ssi" in self.hparams.loss:
+        if "ssi" in self.method.loss:
             y_hat, y = self.scale_shift(y_hat, y)
         y_hat = torch.nn.functional.interpolate(y_hat, (640, 640), mode='bilinear')
         y_hat = y_hat[..., 0:480, 0:640]
@@ -88,11 +88,11 @@ class MidasModule(BaseModule):
 
     def configure_optimizers(self):
         # different modules have different learning rate
-        train_params = [{'params': self.model.pretrained.parameters(), 'lr': self.hparams.learning_rate * 0.1},
-                        {'params': self.model.scratch.parameters(), 'lr': self.hparams.learning_rate}]
+        train_params = [{'params': self.model.pretrained.parameters(), 'lr': self.method.learning_rate * 0.1},
+                        {'params': self.model.scratch.parameters(), 'lr': self.method.learning_rate}]
 
-        optimizer = torch.optim.Adam(train_params, lr=self.hparams.learning_rate)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.hparams.lr_patience)
+        optimizer = torch.optim.Adam(train_params, lr=self.method.learning_rate)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.method.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'monitor': 'val_delta1'

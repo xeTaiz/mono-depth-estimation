@@ -65,31 +65,31 @@ def get_labels_sid(dataset, depth):
 class DORNModule(BaseModule):
     def __init__(self, *args, **kwargs):
         super(DORNModule, self).__init__(*args, **kwargs)
-        self.alpha = torch.tensor(self.hparams.alpha).float()
-        self.beta = torch.tensor(self.hparams.beta).float()
-        self.ord_num = torch.tensor(self.hparams.ord_num).int()
+        self.alpha = torch.tensor(self.method.alpha).float()
+        self.beta = torch.tensor(self.method.beta).float()
+        self.ord_num = torch.tensor(self.method.ord_num).int()
 
     def output_size(self):
-        return self.hparams.input_size
+        return self.method.input_size
 
     def resize(self):
-        return self.hparams.input_size[0]
+        return self.method.input_size[0]
 
     def setup_criterion(self):
         return criteria.ordLoss()
 
     def setup_model(self):
-        return Dorn.DORN(self.hparams)
+        return Dorn.DORN(self.method)
 
     def label_to_depth(self, label):
-        if self.hparams.discretization == "SID":
+        if self.method.discretization == "SID":
             depth = torch.exp(torch.log(self.alpha) + torch.log(self.beta / self.alpha) * label / self.ord_num)
         else:
             depth = self.alpha + (self.beta - self.alpha) * label / self.ord_num
         return depth
 
     def depth_to_label(self, depth):
-        if self.hparams.discretization == "SID":
+        if self.method.discretization == "SID":
             label = self.ord_num * torch.log(depth / self.alpha) / torch.log(self.beta / self.alpha)
         else:
             label = self.ord_num * (depth - self.alpha) / (self.beta - self.alpha)
@@ -174,11 +174,11 @@ class DORNModule(BaseModule):
 
     def configure_optimizers(self):
         # different modules have different learning rate
-        train_params = [{'params': self.model.backbone.parameters(), 'lr': self.hparams.learning_rate},
-                        {'params': self.model.SceneUnderstandingModule.parameters(), 'lr': self.hparams.learning_rate * 10}]
+        train_params = [{'params': self.model.backbone.parameters(), 'lr': self.method.learning_rate},
+                        {'params': self.model.SceneUnderstandingModule.parameters(), 'lr': self.method.learning_rate * 10}]
 
-        optimizer = torch.optim.SGD(train_params, lr=self.hparams.learning_rate, weight_decay=self.hparams.weight_decay)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.hparams.lr_patience)
+        optimizer = torch.optim.SGD(train_params, lr=self.method.learning_rate, weight_decay=self.method.weight_decay)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.method.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'monitor': 'val_delta1'

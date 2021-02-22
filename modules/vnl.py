@@ -135,33 +135,33 @@ class VNLModule(BaseModule):
     def __init__(self, *args, **kwargs):
         super(VNLModule, self).__init__(*args, **kwargs)
         self.params = pl.utilities.parsing.AttributeDict()
-        self.params.depth_min = self.hparams.depth_min
-        self.params.encoder = self.hparams.encoder
-        self.params.enc_dim_in = self.hparams.enc_dim_in
-        self.params.enc_dim_out = self.hparams.enc_dim_out
-        self.params.pretrained = self.hparams.pretrained
-        self.params.freeze_backbone = self.hparams.freeze_backbone
-        self.params.init_type = self.hparams.init_type
-        self.params.dec_dim_in = self.hparams.dec_dim_in
-        self.params.dec_dim_out = self.hparams.dec_dim_out
-        self.params.dec_out_c = self.hparams.dec_out_c        
-        self.params.focal_x = self.hparams.focal_x
-        self.params.focal_y = self.hparams.focal_y
-        self.params.crop_size = self.hparams.crop_size
-        self.params.diff_loss_weight = self.hparams.diff_loss_weight
+        self.params.depth_min = self.method.depth_min
+        self.params.encoder = self.method.encoder
+        self.params.enc_dim_in = self.method.enc_dim_in
+        self.params.enc_dim_out = self.method.enc_dim_out
+        self.params.pretrained = self.method.pretrained
+        self.params.freeze_backbone = self.method.freeze_backbone
+        self.params.init_type = self.method.init_type
+        self.params.dec_dim_in = self.method.dec_dim_in
+        self.params.dec_dim_out = self.method.dec_dim_out
+        self.params.dec_out_c = self.method.dec_out_c        
+        self.params.focal_x = self.method.focal_x
+        self.params.focal_y = self.method.focal_y
+        self.params.crop_size = self.method.crop_size
+        self.params.diff_loss_weight = self.method.diff_loss_weight
 
-        self.params.depth_min_log = np.log10(self.hparams.depth_min)
-        self.params.depth_bin_interval = (np.log10(self.hparams.depth_max) - np.log10(self.hparams.depth_min)) / self.hparams.dec_out_c
-        self.params.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.hparams.dec_out_c)] for j in np.arange(self.hparams.dec_out_c)]
-        self.params.depth_bin_border = np.array([np.log10(self.hparams.depth_min) + self.params.depth_bin_interval * (i + 0.5) for i in range(self.hparams.dec_out_c)])
+        self.params.depth_min_log = np.log10(self.method.depth_min)
+        self.params.depth_bin_interval = (np.log10(self.method.depth_max) - np.log10(self.method.depth_min)) / self.method.dec_out_c
+        self.params.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.method.dec_out_c)] for j in np.arange(self.method.dec_out_c)]
+        self.params.depth_bin_border = np.array([np.log10(self.method.depth_min) + self.params.depth_bin_interval * (i + 0.5) for i in range(self.method.dec_out_c)])
         
         print("=> creating Model")
         self.model = VNL.MetricDepthModel(self.params)
         print("=> model created.")
         self.criterion = criteria.ModelLoss(self.params)
-        if self.hparams.ckpt:
+        if self.method.ckpt:
             state_dict = {}
-            for key, value in torch.load(self.hparams.ckpt, map_location=self.device)["state_dict"].items():
+            for key, value in torch.load(self.method.ckpt, map_location=self.device)["state_dict"].items():
                 s = key.split('depth_model.encoder_modules.bottomup.res4.')
                 if len(s)>1:
                     i = int(s[1].split('.')[0])
@@ -195,11 +195,11 @@ class VNLModule(BaseModule):
         :return: depth bins [1, h, w]
         """
         invalid_mask = depth < 0.
-        depth[depth < self.hparams.depth_min] = self.hparams.depth_min
-        depth[depth > self.hparams.depth_max] = self.hparams.depth_max
+        depth[depth < self.method.depth_min] = self.method.depth_min
+        depth[depth > self.method.depth_max] = self.method.depth_max
         bins = ((torch.log10(depth) - self.params.depth_min_log) / self.params.depth_bin_interval).to(torch.int)
-        bins[invalid_mask] = self.hparams.dec_out_c + 1
-        bins[bins == self.hparams.dec_out_c] = self.hparams.dec_out_c - 1
+        bins[invalid_mask] = self.method.dec_out_c + 1
+        bins[bins == self.method.dec_out_c] = self.method.dec_out_c - 1
         depth[invalid_mask] = -1.0
         return bins
 
@@ -226,7 +226,7 @@ class VNLModule(BaseModule):
         targ_depth = data['B_raw'][0].unsqueeze(0)
         image = data['A_raw'][0].unsqueeze(0)
         x,y,y_hat= image.to(self.device), targ_depth.unsqueeze(0).to(self.device), pred_depth.unsqueeze(0).to(self.device)
-        #if self.hparams.test_dataset == 'nyu':
+        #if self.method.test_dataset == 'nyu':
         #mask = (45, 471, 41, 601)
         #x = x[..., mask[0]:mask[1], mask[2]:mask[3]]
         #y = y[..., mask[0]:mask[1], mask[2]:mask[3]]
@@ -246,9 +246,9 @@ class VNLModule(BaseModule):
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def predicted_depth_map(self, logits, cls):
-        if self.hparams.prediction_method == 'classification':
+        if self.method.prediction_method == 'classification':
             pred_depth = self.bins_to_depth(cls)
-        elif self.hparams.prediction_method == 'regression':
+        elif self.method.prediction_method == 'regression':
             pred_depth = torch.nn.functional.sigmoid(logits)
         else:
             raise ValueError("Unknown prediction methods")
@@ -287,9 +287,9 @@ class VNLModule(BaseModule):
             else:
                 nograd_param_names.append(key)
 
-        lr_encoder = self.hparams.learning_rate
-        lr_decoder = self.hparams.learning_rate * self.hparams.scale_decoder_lr
-        weight_decay = self.hparams.weight_decay
+        lr_encoder = self.method.learning_rate
+        lr_decoder = self.method.learning_rate * self.method.scale_decoder_lr
+        weight_decay = self.method.weight_decay
 
         net_params = [
             {'params': encoder_params,
@@ -300,7 +300,7 @@ class VNLModule(BaseModule):
              'weight_decay': weight_decay},
             ]
         optimizer = torch.optim.SGD(net_params, momentum=0.9)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.hparams.lr_patience)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.method.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'monitor': 'val_delta1'

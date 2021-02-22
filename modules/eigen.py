@@ -9,7 +9,7 @@ class EigenModule(BaseModule):
         return criteria.MaskedDepthLoss()
 
     def setup_model(self):
-        return Eigen.Eigen(scale1=self.hparams.backbone, pretrained=self.hparams.pretrained)
+        return Eigen.Eigen(scale1=self.method.backbone, pretrained=self.method.pretrained)
 
     def forward(self, x):
         y_hat = self.model(x)
@@ -52,12 +52,12 @@ class EigenModule(BaseModule):
 
     def configure_optimizers(self):
         # different modules have different learning rate
-        train_params = [{'params': self.model.scale1.parameters(), 'lr': self.hparams.learning_rate},
-                        {'params': self.model.scale2.parameters(), 'lr': self.hparams.learning_rate},
-                        {'params': self.model.scale3.parameters(), 'lr': self.hparams.learning_rate}]
+        train_params = [{'params': self.model.scale1.parameters(), 'lr': self.method.learning_rate},
+                        {'params': self.model.scale2.parameters(), 'lr': self.method.learning_rate},
+                        {'params': self.model.scale3.parameters(), 'lr': self.method.learning_rate}]
 
-        optimizer = torch.optim.Adam(train_params, lr=self.hparams.learning_rate)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.hparams.lr_patience)
+        optimizer = torch.optim.Adam(train_params, lr=self.method.learning_rate)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.method.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'monitor': 'val_delta1'

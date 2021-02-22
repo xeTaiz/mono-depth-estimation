@@ -47,27 +47,27 @@ def augment_image(image):
 class BtsModule(BaseModule):
 
     def setup_model(self):
-        model = Bts.BtsModel(max_depth=self.hparams.max_depth, bts_size=self.hparams.bts_size, encoder_version=self.hparams.encoder)
+        model = Bts.BtsModel(max_depth=self.method.max_depth, bts_size=self.method.bts_size, encoder_version=self.method.encoder)
         """
         model.decoder.apply(weights_init_xavier)
-        if self.hparams.bn_no_track_stats:
+        if self.method.bn_no_track_stats:
             print("Disabling tracking running stats in batch norm layers")
             model.apply(bn_init_as_tf)
 
-        if self.hparams.fix_first_conv_blocks:
-            if 'resne' in self.hparams.encoder:
+        if self.method.fix_first_conv_blocks:
+            if 'resne' in self.method.encoder:
                 fixing_layers = ['base_model.conv1', 'base_model.layer1.0', 'base_model.layer1.1', '.bn']
             else:
                 fixing_layers = ['conv0', 'denseblock1.denselayer1', 'denseblock1.denselayer2', 'norm']
             print("Fixing first two conv blocks")
-        elif self.hparams.fix_first_conv_block:
-            if 'resne' in self.hparams.encoder:
+        elif self.method.fix_first_conv_block:
+            if 'resne' in self.method.encoder:
                 fixing_layers = ['base_model.conv1', 'base_model.layer1.0', '.bn']
             else:
                 fixing_layers = ['conv0', 'denseblock1.denselayer1', 'norm']
             print("Fixing first conv block")
         else:
-            if 'resne' in self.hparams.encoder:
+            if 'resne' in self.method.encoder:
                 fixing_layers = ['base_model.conv1', '.bn']
             else:
                 fixing_layers = ['conv0', 'norm']
@@ -84,7 +84,7 @@ class BtsModule(BaseModule):
         return model
 
     def setup_criterion(self):
-        return criteria.silog_loss(variance_focus=self.hparams.variance_focus)
+        return criteria.silog_loss(variance_focus=self.method.variance_focus)
 
     def output_size(self):
         return (416, 544)
@@ -120,14 +120,14 @@ class BtsModule(BaseModule):
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
-        train_param = [{'params': self.model.encoder.parameters(), 'weight_decay': self.hparams.weight_decay},
+        train_param = [{'params': self.model.encoder.parameters(), 'weight_decay': self.method.weight_decay},
                        {'params': self.model.decoder.parameters(), 'weight_decay': 0}]
         # Training parameters
-        optimizer = torch.optim.AdamW(train_param, lr=self.hparams.learning_rate, eps=self.hparams.adam_eps)
-        #total_iters = (len(self.train_loader) // self.hparams.batch_size) * self.hparams.max_epochs
+        optimizer = torch.optim.AdamW(train_param, lr=self.method.learning_rate, eps=self.method.adam_eps)
+        #total_iters = (len(self.train_loader) // self.method.batch_size) * self.method.max_epochs
         #lr_optim = build_lr_optim_lambda(total_iters)
         #lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_optim)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.hparams.lr_patience)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.method.lr_patience)
         scheduler = {
             'scheduler': lr_scheduler,
             'monitor': 'val_delta1'
