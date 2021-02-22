@@ -17,15 +17,18 @@ NAME2FUNC = {
 }
 
 class BaseModule(pl.LightningModule):
-    def __init__(self, hparams):
-        super().__init__()
+    def __init__(self, hparams, *args, **kwargs):
+        super().__init__()        
+        self.save_hyperparameters()
         self.globals = hparams.globals
-        self.hparams = hparams.method
-        self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(hparams)
+        self.method = hparams.method
+        self.hparams.hparams.test = self.hparams.test if 'test' in self.hparams else []
+        self.hparams = self.hparams.hparams
+        self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(self.hparams)
         if self.train_dataset:
             self.train_dataset.transform = self.train_preprocess               
             self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                        batch_size=self.hparams.batch_size, 
+                                                        batch_size=self.method.batch_size, 
                                                         shuffle=True, 
                                                         num_workers=self.globals.worker, 
                                                         pin_memory=True)
@@ -46,14 +49,9 @@ class BaseModule(pl.LightningModule):
                                                         num_workers=self.globals.worker, 
                                                         pin_memory=True)
         else: self.test_loader = None                                 
-        if self.hparams.ckpt:
-            print("=> loading Model from ckeckpoint")
-            self.model = self.setup_model_from_ckpt()
-            print("=> model loaded.")
-        else:
-            print("=> creating Model")
-            self.model = self.setup_model()
-            print("=> model created.")
+        print("=> creating Model")
+        self.model = self.setup_model()
+        print("=> model created.")
         self.criterion = self.setup_criterion()
         self.metric_logger = MetricLogger(metrics=self.globals.metrics, module=self)
         if self.val_loader: self.skip = len(self.val_loader) // 9

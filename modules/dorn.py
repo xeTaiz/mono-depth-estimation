@@ -80,14 +80,6 @@ class DORNModule(BaseModule):
 
     def setup_model(self):
         return Dorn.DORN(self.hparams)
-    
-    def setup_model_from_ckpt(self):
-        model = self.setup_model()
-        state_dict = {}
-        for key, value in torch.load(self.hparams.ckpt, map_location=self.device)["state_dict"].items():
-            state_dict[key[6:]] = value
-        model.load_state_dict(state_dict)
-        return model
 
     def label_to_depth(self, label):
         if self.hparams.discretization == "SID":

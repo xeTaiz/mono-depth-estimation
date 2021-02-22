@@ -11,14 +11,6 @@ class EigenModule(BaseModule):
     def setup_model(self):
         return Eigen.Eigen(scale1=self.hparams.backbone, pretrained=self.hparams.pretrained)
 
-    def setup_model_from_ckpt(self):
-        model = self.setup_model()
-        state_dict = {}
-        for key, value in torch.load(self.hparams.ckpt, map_location=self.device)["state_dict"].items():
-            state_dict[key[6:]] = value
-        model.load_state_dict(state_dict)
-        return model
-
     def forward(self, x):
         y_hat = self.model(x)
         return y_hat

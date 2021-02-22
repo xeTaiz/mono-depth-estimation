@@ -132,8 +132,8 @@ def validation_preprocess(rgb, depth):
 
 
 class VNLModule(BaseModule):
-    def __init__(self, hparams, *args, **kwargs):
-        super(VNLModule, self).__init__(hparams, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super(VNLModule, self).__init__(*args, **kwargs)
         self.params = pl.utilities.parsing.AttributeDict()
         self.params.depth_min = self.hparams.depth_min
         self.params.encoder = self.hparams.encoder
@@ -170,9 +170,6 @@ class VNLModule(BaseModule):
             self.model.load_state_dict(state_dict)
 
     def setup_model(self):
-        return None
-
-    def setup_model_from_ckpt(self):
         return None
 
     def setup_criterion(self):

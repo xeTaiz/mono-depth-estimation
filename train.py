@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         verbose=True,
-        save_weights_only=True,
+        #save_weights_only=True,
         save_top_k=3,
         filename='{epoch}-{val_delta1}',
         monitor='val_delta1',
@@ -114,8 +114,8 @@ if __name__ == "__main__":
             'gpu_capability': torch.cuda.get_device_capability(0) if use_gpu else None
             })
    
-    if hasattr(trainer, 'logger'):
-        trainer.logger.log_hyperparams(yaml) # Log random seed
+    #if hasattr(trainer, 'logger'):
+    #    trainer.logger.log_hyperparams(yaml) # Log random seed
 
     # Fit model
     module = get_module(args)
