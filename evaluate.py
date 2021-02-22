@@ -3,8 +3,6 @@ from modules import get_module, register_module_specific_arguments
 from datasets import register_dataset_specific_arguments
 import pytorch_lightning as pl
 from train import parse_args_into_namespaces
-from modules.vnl import VNLModule
-from pathlib import Path
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 if __name__ == "__main__":

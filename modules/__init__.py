@@ -1,3 +1,4 @@
+from pathlib import Path
 from modules import eigen, bts, vnl, midas, laina, dorn
 
 def register_module_specific_arguments(subparser):
@@ -19,5 +20,5 @@ def get_module(args):
     if args.method.name == "laina": module = laina.FCRNModule
     if args.method.name == "bts":   module = bts.BtsModule
     assert module, "Please select method!"
-    if args.method.ckpt: return module.load_from_checkpoint(args.method.ckpt, test=args.test)
+    if args.method.ckpt: return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, hparams_file=(Path(args.method.ckpt).parents[1]/"hparams.yaml").as_posix(), test=args.test)
     else: return module(args)
