@@ -186,7 +186,7 @@ class ResidualConvUnit(nn.Module):
             features, features, kernel_size=3, stride=1, padding=1, bias=True
         )
 
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
 
     def forward(self, x):
         """Forward pass.
