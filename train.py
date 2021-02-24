@@ -44,7 +44,7 @@ def parse_args_into_namespaces(parser, commands):
             if args_parsed.validation: val_datasets.append((cmd, args_parsed))
             if args_parsed.test:      test_datasets.append((cmd, args_parsed))
         else:
-            setattr(args, "method" if cmd in ['bts', 'eigen', 'vnl', 'dorn', 'midas', 'laina'] else cmd, args_parsed)
+            setattr(args, "method" if cmd in ['bts', 'eigen', 'vnl', 'dorn', 'midas', 'laina', 'my'] else cmd, args_parsed)
     setattr(args, "training" , train_datasets)
     setattr(args, "validation" , val_datasets)
     setattr(args, "test" , test_datasets)

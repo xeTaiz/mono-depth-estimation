@@ -1,5 +1,5 @@
 from pathlib import Path
-from modules import eigen, bts, vnl, midas, laina, dorn
+from modules import eigen, bts, vnl, midas, laina, dorn, my
 
 def register_module_specific_arguments(subparser):
     return [
@@ -8,7 +8,8 @@ def register_module_specific_arguments(subparser):
         dorn.DORNModule.add_model_specific_args(subparser),
         midas.MidasModule.add_model_specific_args(subparser),
         vnl.VNLModule.add_model_specific_args(subparser),
-        laina.FCRNModule.add_model_specific_args(subparser)
+        laina.FCRNModule.add_model_specific_args(subparser),
+        my.MyModule.add_model_specific_args(subparser)
     ]
 
 def get_module(args):
@@ -19,6 +20,7 @@ def get_module(args):
     if args.method.name == "dorn":  module = dorn.DORNModule
     if args.method.name == "laina": module = laina.FCRNModule
     if args.method.name == "bts":   module = bts.BtsModule
+    if args.method.name == "my":    module = my.MyNet
     assert module, "Please select method!"
     if args.method.ckpt: return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, hparams_file=(Path(args.method.ckpt).parents[1]/"hparams.yaml").as_posix(), test=args.test)
     else: return module(args)
