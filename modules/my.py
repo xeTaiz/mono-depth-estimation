@@ -67,8 +67,8 @@ class MyModule(BaseModule):
 
     def configure_optimizers(self):
         # different modules have different learning rate
-        train_params = [{'params': self.model.get_1x_lr_params(), 'lr': self.method.learning_rate},
-                        {'params': self.model.get_10x_lr_params(), 'lr': self.method.learning_rate * 10}]
+        train_params = [{'params': self.model.encoder.parameters(), 'lr': self.method.learning_rate},
+                        {'params': self.model.decoder.parameters(), 'lr': self.method.learning_rate * 10}]
 
         optimizer = torch.optim.Adam(train_params, lr=self.method.learning_rate)
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=self.method.lr_patience)
