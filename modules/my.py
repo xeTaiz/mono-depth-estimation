@@ -157,4 +157,5 @@ class MyModule(BaseModule):
     def add_model_specific_args(subparsers):
         parser = subparsers.add_parser('my', help='MyModel specific parameters')
         BaseModule.add_default_args(parser, name="my", learning_rate=0.0001, batch_size=16)
+        parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         return parser

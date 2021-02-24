@@ -116,7 +116,7 @@ if __name__ == "__main__":
    
     #if hasattr(trainer, 'logger'):
     #    trainer.logger.log_hyperparams(yaml) # Log random seed
-
+    torch.autograd.set_detect_anomaly(True)
     # Fit model
     module = get_module(args)
     if args.globals.find_learning_rate:
