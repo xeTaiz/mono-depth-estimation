@@ -1,13 +1,26 @@
 import torch
 import torch.nn as nn
 
+class Conv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)
+        self.activation = nn.ELU()
+        self.bn = nn.BatchNorm2d(in_channels)
+
+    def forward(self, x):
+        x = self.activation(x)
+        x = self.bn(x)
+        x = self.conv(x)
+        return x
+
 class GlobalConsitency(nn.Module):
     def __init__(self, channels, input_size=(384, 384), out_feat=64):
         super().__init__()
         self.inc = nn.Upsample(scale_factor=2)
         self.avg = nn.AdaptiveMaxPool2d((input_size[0] // 2, input_size[1] // 2))
-        self.conv = nn.Conv2d(channels, channels // 2, kernel_size=3, bias=False, padding=1, stride=1)
-        self.conv_final = nn.Conv2d(channels // 2, out_feat, kernel_size=3, bias=False, padding=1, stride=1)
+        self.conv = Conv2d(channels, channels // 2, kernel_size=3, padding=1, stride=1)
+        self.conv_final = Conv2d(channels // 2, out_feat, kernel_size=3, padding=1, stride=1)
 
     def forward(self, x0, x1):
         x1 = self.inc(x1)
@@ -23,10 +36,10 @@ class Details(nn.Module):
         super().__init__()
         self.c = int(channels / (scale * scale))
         self.shuffle = nn.PixelShuffle(scale)
-        self.down       = nn.Conv2d(self.c,      self.c *  2,  kernel_size=3, stride=2, padding=1, bias=False)
-        self.conv       = nn.Conv2d(self.c *  4, self.c *  2,  kernel_size=3, stride=1, padding=1, bias=False)
-        self.conv2      = nn.Conv2d(self.c *  2, self.c     ,  kernel_size=3, stride=1, padding=1, bias=False)
-        self.conv_final = nn.Conv2d(self.c     ,    out_feat,  kernel_size=3, stride=1, padding=1, bias=False)
+        self.down       = Conv2d(self.c,      self.c *  2,  kernel_size=3, stride=2, padding=1)
+        self.conv       = Conv2d(self.c *  4, self.c *  2,  kernel_size=3, stride=1, padding=1)
+        self.conv2      = Conv2d(self.c *  2, self.c     ,  kernel_size=3, stride=1, padding=1)
+        self.conv_final = Conv2d(self.c     ,    out_feat,  kernel_size=3, stride=1, padding=1)
         self.up = nn.Upsample(scale_factor=2)
 
     def forward(self, x0, x1):
@@ -44,17 +57,17 @@ class Sharpness(nn.Module):
     def __init__(self, encoder_feature_sizes, out_feat=64):
         super().__init__()
         [feat0, feat1, feat2] = encoder_feature_sizes[2:5]
-        self.tconv0 = nn.ConvTranspose2d(feat1,      feat1 // 2, kernel_size=4, padding=1, stride=2, bias=False)
-        self.tconv1 = nn.ConvTranspose2d(feat2,      feat2 // 4, kernel_size=4, padding=1, stride=2, bias=False)
-        self.tconv2 = nn.ConvTranspose2d(feat2 // 4, feat2 // 8, kernel_size=4, padding=1, stride=2, bias=False)
+        self.tconv0 = nn.ConvTranspose2d(feat1,      feat1 // 2, kernel_size=4, padding=1, stride=2)
+        self.tconv1 = nn.ConvTranspose2d(feat2,      feat2 // 4, kernel_size=4, padding=1, stride=2)
+        self.tconv2 = nn.ConvTranspose2d(feat2 // 4, feat2 // 8, kernel_size=4, padding=1, stride=2)
 
         self.up0 = nn.Sequential(
             nn.Upsample(scale_factor=2), 
-            nn.Conv2d(feat0 + feat1 // 2 + feat2 // 8, out_feat * 2, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(feat0 + feat1 // 2 + feat2 // 8, out_feat * 2, kernel_size=3, stride=1, padding=1),
             nn.ReLU())
         self.up1 = nn.Sequential(
             nn.Upsample(scale_factor=2), 
-            nn.Conv2d(out_feat * 2, out_feat, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(out_feat * 2, out_feat, kernel_size=3, stride=1, padding=1),
             nn.ReLU())
 
     def forward(self, x0, x1, x2):
@@ -72,8 +85,8 @@ class Sharpness(nn.Module):
 class Weighter(nn.Module):
     def __init__(self, input_size, in_feat):
         super().__init__()
-        self.conv = nn.Conv2d(in_feat, in_feat // 2, kernel_size=3, stride=2, padding=1, bias=False)
-        self.weights = nn.Linear(input_size[0] * input_size[1] // 16, 3)
+        self.conv = Conv2d(in_feat, in_feat // 2, kernel_size=3, stride=2, padding=1)
+        self.mlp = nn.Linear(input_size[0] * input_size[1] // 16, 3)
 
     def forward(self, x):
         [a,b,c] = x
@@ -84,7 +97,7 @@ class Weighter(nn.Module):
 
         x = torch.cat([a, b, c], dim=1)
         x = torch.flatten(x, start_dim=2)
-        x = self.weights(x)
+        x = self.mlp(x)
         #x = x.sigmoid()
         x = torch.mean(x, dim=1)
         x = x / torch.sum(x)
