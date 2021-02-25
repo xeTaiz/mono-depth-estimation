@@ -146,7 +146,7 @@ class my_decoder(nn.Module):
 
         assert not torch.isnan(glob_d).any(), "NaN in glob"
         assert not torch.isnan(detail_d).any(), "NaN in detail"
-        assert not torch.isnan(sharpness_d.any()), "NaN in sharpness"
+        assert not torch.isnan(sharpness_d).any(), "NaN in sharpness"
 
         scale = self.weighter([glob, detail, sharpness])
     
