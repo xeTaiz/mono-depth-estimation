@@ -73,7 +73,7 @@ if __name__ == "__main__":
     args = parse_args_into_namespaces(parser, commands)
     assert args.training and args.validation, "Please provide data training AND validation dataset"
 
-    if args.detect_anomaly:
+    if args.globals.detect_anomaly:
         print("Enabling anomaly detection")
         torch.autograd.set_detect_anomaly(True)
     
