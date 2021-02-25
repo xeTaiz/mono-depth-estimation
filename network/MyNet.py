@@ -136,25 +136,25 @@ class my_decoder(nn.Module):
         detail = self.details(x1, x2)
         sharpness = self.sharpness(x2, x3, dense_features)
 
-        assert not torch.isnan(glob), "NaN in glob"
-        assert not torch.isnan(detail), "NaN in detail"
-        assert not torch.isnan(sharpness), "NaN in sharpness"
+        assert not torch.isnan(glob).any(), "NaN in glob"
+        assert not torch.isnan(detail).any(), "NaN in detail"
+        assert not torch.isnan(sharpness).any(), "NaN in sharpness"
 
         glob_d = self.get_depth(glob)
         detail_d = self.get_depth(detail)
         sharpness_d = self.get_depth(sharpness)
 
-        assert not torch.isnan(glob_d), "NaN in glob"
-        assert not torch.isnan(detail_d), "NaN in detail"
-        assert not torch.isnan(sharpness_d), "NaN in sharpness"
+        assert not torch.isnan(glob_d).any(), "NaN in glob"
+        assert not torch.isnan(detail_d).any(), "NaN in detail"
+        assert not torch.isnan(sharpness_d.any()), "NaN in sharpness"
 
         scale = self.weighter([glob, detail, sharpness])
     
         x = torch.cat([glob_d.unsqueeze(1), detail_d.unsqueeze(1), sharpness_d.unsqueeze(1)], dim=1)
-        assert not torch.isnan(x), "NaN in prediction"
+        assert not torch.isnan(x).any(), "NaN in prediction"
         x = x * scale[:,:,None, None, None]
         x = torch.sum(x, dim=1)
-        assert not torch.isnan(x), "NaN in prediction"
+        assert not torch.isnan(x).any(), "NaN in prediction"
         return x
 
 class encoder(nn.Module):
