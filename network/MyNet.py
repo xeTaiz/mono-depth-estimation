@@ -1,21 +1,6 @@
 import torch
 import torch.nn as nn
 
-from prettytable import PrettyTable
-
-def count_parameters(model):
-    table = PrettyTable(["Modules", "Parameters"])
-    total_params = 0
-    for name, parameter in model.named_parameters():
-        if not parameter.requires_grad: 
-            continue
-        param = parameter.numel()
-        table.add_row([name, param])
-        total_params+=param
-    print(table)
-    print(f"Total Trainable Params: {total_params}")
-    return total_params
-
 class GlobalConsitency(nn.Module):
     def __init__(self, channels, input_size=(384, 384), out_feat=64):
         super().__init__()
@@ -270,7 +255,6 @@ class MyModel(nn.Module):
 if __name__ == "__main__":
     input_size = (384, 384)
     model = MyModel(input_size=input_size, encoder_version='resnext101_bts')
-    count_parameters(model)
     img = torch.rand((2,3, input_size[0], input_size[1]))
     y_hat = model(img)
     print(y_hat.shape)
