@@ -33,7 +33,7 @@ class MyModule(BaseModule):
         return 400
 
     def setup_model(self):
-        return MyNet.MyModel(self.output_size())
+        return MyNet.MyModel(self.output_size(), epsilon=self.method.epsilon)
 
     def setup_criterion(self):
         return criteria.MidasLoss(alpha=0.5, loss='mse', reduction='batch-based')
@@ -158,4 +158,5 @@ class MyModule(BaseModule):
         parser = subparsers.add_parser('my', help='MyModel specific parameters')
         BaseModule.add_default_args(parser, name="my", learning_rate=0.0001, batch_size=16)
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
+        parser.add_argument('--epsilon', default=1e-2, type=float, help='Weight epsilon')
         return parser

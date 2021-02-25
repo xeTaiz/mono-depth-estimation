@@ -83,7 +83,7 @@ class Sharpness(nn.Module):
         return x
 
 class Weighter(nn.Module):
-    def __init__(self, input_size, in_feat, epsilon=1e-6):
+    def __init__(self, input_size, in_feat, epsilon):
         super().__init__()
         self.epsilon = epsilon
         self.conv = Conv2d(in_feat, in_feat // 2, kernel_size=3, stride=2, padding=1)
@@ -109,7 +109,7 @@ class Weighter(nn.Module):
 
 
 class my_decoder(nn.Module):
-    def __init__(self, input_size, encoder_feature_sizes):
+    def __init__(self, input_size, encoder_feature_sizes, epsilon):
         super().__init__()
         self.refine0 = FeatureFusionBlock(encoder_feature_sizes[0])
         self.refine1 = FeatureFusionBlock(encoder_feature_sizes[1])
@@ -120,7 +120,7 @@ class my_decoder(nn.Module):
         self.details = Details(encoder_feature_sizes[1], out_feat=64)
         self.sharpness = Sharpness(encoder_feature_sizes, out_feat=64)
 
-        self.weighter = Weighter(input_size=input_size, in_feat=64)    
+        self.weighter = Weighter(input_size=input_size, in_feat=64, epsilon=epsilon)    
 
         self.get_depth = nn.Sequential(nn.Upsample(scale_factor=2),nn.Conv2d(64, 1, 3, 1, 1, bias=False), nn.Sigmoid())    
 
@@ -260,10 +260,10 @@ class FeatureFusionBlock(nn.Module):
         return output
 
 class MyModel(nn.Module):
-    def __init__(self, input_size=(384, 384), encoder_version='densenet161_bts'):
+    def __init__(self, input_size=(384, 384), encoder_version='densenet161_bts', epsilon=1e-2):
         super(MyModel, self).__init__()
         self.encoder = encoder(encoder_version)
-        self.decoder = my_decoder(input_size, self.encoder.feat_out_channels)
+        self.decoder = my_decoder(input_size, self.encoder.feat_out_channels, epsilon)
 
     def forward(self, x):
         skip_feat = self.encoder(x)
