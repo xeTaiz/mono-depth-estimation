@@ -148,7 +148,7 @@ class my_decoder(nn.Module):
 
         scale_a, scale_b, scale_c = self.weighter([glob, detail, sharpness])
     
-        depth = glob_d * scale_a[:,None, None, None] + detail_d * scale_b[:,None, None, None] + sharpness_d * scale_c[:,None, None, None]
+        depth = glob_d * scale_a[:,None, None] + detail_d * scale_b[:,None, None] + sharpness_d * scale_c[:,None, None]
         depth /= 3.0
         depth *= 10.0
         return depth
@@ -280,4 +280,4 @@ if __name__ == "__main__":
     model = MyModel(input_size=input_size, encoder_version='resnext101_bts')
     img = torch.rand((2,3, input_size[0], input_size[1]))
     y_hat = model(img)
-    print(y_hat)
+    print(y_hat.shape)
