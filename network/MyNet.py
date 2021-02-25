@@ -32,7 +32,7 @@ class GlobalConsitency(nn.Module):
         return x
 
 class Details(nn.Module):
-    def __init__(self, channels, input_size=(384,384), scale=2, out_feat=64):
+    def __init__(self, channels, scale=2, out_feat=64):
         super().__init__()
         self.c = int(channels / (scale * scale))
         self.shuffle = nn.PixelShuffle(scale)
@@ -83,9 +83,8 @@ class Sharpness(nn.Module):
         return x
 
 class Weighter(nn.Module):
-    def __init__(self, input_size, in_feat, epsilon):
+    def __init__(self, input_size, in_feat):
         super().__init__()
-        self.epsilon = epsilon
         self.conv = Conv2d(in_feat, in_feat // 2, kernel_size=3, stride=2, padding=1)
         self.mlp = nn.Linear(input_size[0] * input_size[1] // 16, 3)
 
@@ -101,15 +100,12 @@ class Weighter(nn.Module):
         x = self.mlp(x)
        
         x = torch.mean(x, dim=1)
-        if torch.sum(x) < self.epsilon:
-            x = torch.ones_like(x) / 3.0
-        else:
-            x = x / torch.sum(x)
+        x = x.sigmoid()
         return x
 
 
 class my_decoder(nn.Module):
-    def __init__(self, input_size, encoder_feature_sizes, epsilon):
+    def __init__(self, input_size, encoder_feature_sizes):
         super().__init__()
         self.refine0 = FeatureFusionBlock(encoder_feature_sizes[0])
         self.refine1 = FeatureFusionBlock(encoder_feature_sizes[1])
@@ -120,7 +116,7 @@ class my_decoder(nn.Module):
         self.details = Details(encoder_feature_sizes[1], out_feat=64)
         self.sharpness = Sharpness(encoder_feature_sizes, out_feat=64)
 
-        self.weighter = Weighter(input_size=input_size, in_feat=64, epsilon=epsilon)    
+        self.weighter = Weighter(input_size=input_size, in_feat=64)    
 
         self.get_depth = nn.Sequential(nn.Upsample(scale_factor=2),nn.Conv2d(64, 1, 3, 1, 1, bias=False), nn.Sigmoid())    
 
@@ -145,7 +141,7 @@ class my_decoder(nn.Module):
     
         x = torch.cat([glob_d.unsqueeze(1), detail_d.unsqueeze(1), sharpness_d.unsqueeze(1)], dim=1)
         x = x * scale[:,:,None, None, None]
-        x = torch.sum(x, dim=1)
+        x = torch.sum(x, dim=1) / 3
         return x
 
 class encoder(nn.Module):
@@ -260,10 +256,10 @@ class FeatureFusionBlock(nn.Module):
         return output
 
 class MyModel(nn.Module):
-    def __init__(self, input_size=(384, 384), encoder_version='densenet161_bts', epsilon=1e-2):
+    def __init__(self, input_size=(384, 384), encoder_version='densenet161_bts'):
         super(MyModel, self).__init__()
         self.encoder = encoder(encoder_version)
-        self.decoder = my_decoder(input_size, self.encoder.feat_out_channels, epsilon)
+        self.decoder = my_decoder(input_size, self.encoder.feat_out_channels)
 
     def forward(self, x):
         skip_feat = self.encoder(x)
