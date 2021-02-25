@@ -63,7 +63,7 @@ if __name__ == "__main__":
     parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
     parser.add_argument('--worker', default=6, type=int, help='Number of workers for data loader')
     parser.add_argument('--find_learning_rate', action='store_true', help="Finding learning rate.")
-
+    parser.add_argument('--detect_anomaly', action='store_true', help='Enables pytorch anomaly detection')
 
 
     commands = parser.add_subparsers(title='Commands')
@@ -72,6 +72,10 @@ if __name__ == "__main__":
     
     args = parse_args_into_namespaces(parser, commands)
     assert args.training and args.validation, "Please provide data training AND validation dataset"
+
+    if args.detect_anomaly:
+        print("Enabling anomaly detection")
+        torch.autograd.set_detect_anomaly(True)
     
     # windows safe
     if sys.platform in ["win32"]:
