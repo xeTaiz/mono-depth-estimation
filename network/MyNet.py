@@ -86,7 +86,7 @@ class Weighter(nn.Module):
     def __init__(self, input_size, in_feat):
         super().__init__()
         self.conv = Conv2d(in_feat, in_feat // 2, kernel_size=3, stride=2, padding=1)
-        self.mlp = nn.Linear(input_size[0] * input_size[1] // 16, 3)
+        self.mlp = nn.Linear(input_size[0] * input_size[1] // 16, 1)
 
     def forward(self, x):
         [a,b,c] = x
@@ -95,13 +95,23 @@ class Weighter(nn.Module):
         b = self.conv(b)
         c = self.conv(c)
 
-        x = torch.cat([a, b, c], dim=1)
-        x = torch.flatten(x, start_dim=2)
-        x = self.mlp(x)
-       
-        x = torch.mean(x, dim=1)
-        x = x.sigmoid()
-        return x
+        a = torch.flatten(a, start_dim=2)
+        b = torch.flatten(b, start_dim=2)
+        c = torch.flatten(c, start_dim=2)
+
+        a = self.mlp(a)
+        b = self.mlp(b)
+        c = self.mlp(c)
+
+        a = torch.sum(a, dim=1)
+        b = torch.sum(b, dim=1)
+        c = torch.sum(c, dim=1)
+
+        a = a.sigmoid()
+        b = b.sigmoid()
+        c = c.sigmoid()
+
+        return a,b,c
 
 
 class my_decoder(nn.Module):
@@ -136,13 +146,12 @@ class my_decoder(nn.Module):
         detail_d = self.get_depth(detail)
         sharpness_d = self.get_depth(sharpness)
 
-
-        scale = self.weighter([glob, detail, sharpness])
+        scale_a, scale_b, scale_c = self.weighter([glob, detail, sharpness])
     
-        x = torch.cat([glob_d.unsqueeze(1), detail_d.unsqueeze(1), sharpness_d.unsqueeze(1)], dim=1)
-        x = x * scale[:,:,None, None, None]
-        x = torch.sum(x, dim=1) / 3
-        return x
+        depth = glob_d * scale_a[:,None, None, None] + detail_d * scale_b[:,None, None, None] + sharpness_d * scale_c[:,None, None, None]
+        depth /= 3.0
+        depth *= 10.0
+        return depth
 
 class encoder(nn.Module):
     def __init__(self, version):
@@ -271,4 +280,4 @@ if __name__ == "__main__":
     model = MyModel(input_size=input_size, encoder_version='resnext101_bts')
     img = torch.rand((2,3, input_size[0], input_size[1]))
     y_hat = model(img)
-    print(y_hat.shape)
+    print(y_hat)
