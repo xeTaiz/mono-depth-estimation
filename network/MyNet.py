@@ -98,9 +98,10 @@ class Weighter(nn.Module):
         x = torch.cat([a, b, c], dim=1)
         x = torch.flatten(x, start_dim=2)
         x = self.mlp(x)
-        #x = x.sigmoid()
+       
         x = torch.mean(x, dim=1)
-        x = x / torch.sum(x)
+        div = 1.0 if torch.sum(x) == 0 else torch.sum(x)
+        x = x / div
         return x
 
 
