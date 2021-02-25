@@ -1,6 +1,21 @@
 import torch
 import torch.nn as nn
 
+from prettytable import PrettyTable
+
+def count_parameters(model):
+    table = PrettyTable(["Modules", "Parameters"])
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: 
+            continue
+        param = parameter.numel()
+        table.add_row([name, param])
+        total_params+=param
+    print(table)
+    print(f"Total Trainable Params: {total_params}")
+    return total_params
+
 class GlobalConsitency(nn.Module):
     def __init__(self, channels, input_size=(384, 384), out_feat=64):
         super().__init__()
@@ -41,25 +56,32 @@ class Details(nn.Module):
         return x
 
 class Sharpness(nn.Module):
-    def __init__(self, channels, out_feat=64):
+    def __init__(self, encoder_feature_sizes, out_feat=64):
         super().__init__()
-        self.conv1 = nn.Conv2d(channels[0], channels[0] * 2, kernel_size=3, stride=2, padding=1)
-        self.conv2 = nn.Conv2d(channels[1], channels[1] * 2, kernel_size=3, stride=2, padding=1)
+        [feat0, feat1, feat2] = encoder_feature_sizes[2:5]
+        self.tconv0 = nn.ConvTranspose2d(feat1,      feat1 // 2, kernel_size=4, padding=1, stride=2, bias=False)
+        self.tconv1 = nn.ConvTranspose2d(feat2,      feat2 // 4, kernel_size=4, padding=1, stride=2, bias=False)
+        self.tconv2 = nn.ConvTranspose2d(feat2 // 4, feat2 // 8, kernel_size=4, padding=1, stride=2, bias=False)
 
-        self.tconv1 = nn.ConvTranspose2d(channels[0] * 4 + channels[1] * 2 + channels[2], out_channels=channels[0] * 4 + channels[1] * 2, kernel_size=4, stride=2, padding=1, bias=False)
-        self.tconv2 = nn.ConvTranspose2d(channels[0] * 4 + channels[1] * 2, out_channels=channels[0] * 4, kernel_size=4, stride=2, padding=1, bias=False)
-        self.tconv3 = nn.ConvTranspose2d(channels[0] * 4, out_channels=out_feat, kernel_size=4, stride=2, padding=1, bias=False)
-        self.tconv_final = nn.ConvTranspose2d(out_feat, out_feat, kernel_size=4, stride=2, padding=1, bias=False)
+        self.up0 = nn.Sequential(
+            nn.Upsample(scale_factor=2), 
+            nn.Conv2d(feat0 + feat1 // 2 + feat2 // 8, out_feat * 2, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.ReLU())
+        self.up1 = nn.Sequential(
+            nn.Upsample(scale_factor=2), 
+            nn.Conv2d(out_feat * 2, out_feat, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.ReLU())
 
     def forward(self, x0, x1, x2):
-        x0 = self.conv1(x0)
-        x0 = self.conv2(x0)
-        x1 = self.conv2(x1)
+        x1 = self.tconv0(x1) 
+        x2 = self.tconv1(x2) 
+        x2 = self.tconv2(x2)
+        
         x = torch.cat([x0, x1, x2], dim=1)
-        x = self.tconv1(x)
-        x = self.tconv2(x)
-        x = self.tconv3(x)
-        x = self.tconv_final(x)
+        
+        x = self.up0(x)
+        x = self.up1(x)
+        
         return x
 
 class Weighter(nn.Module):
@@ -94,7 +116,7 @@ class my_decoder(nn.Module):
 
         self.global_con = GlobalConsitency(encoder_feature_sizes[0] + encoder_feature_sizes[1], input_size=input_size, out_feat=64)
         self.details = Details(encoder_feature_sizes[1], out_feat=64)
-        self.sharpness = Sharpness([encoder_feature_sizes[2], encoder_feature_sizes[3], encoder_feature_sizes[4]], out_feat=64)
+        self.sharpness = Sharpness(encoder_feature_sizes, out_feat=64)
 
         self.weighter = Weighter(input_size=input_size, in_feat=64)    
 
@@ -247,7 +269,8 @@ class MyModel(nn.Module):
 
 if __name__ == "__main__":
     input_size = (384, 384)
-    model = MyModel(input_size=input_size)
+    model = MyModel(input_size=input_size, encoder_version='resnext101_bts')
+    count_parameters(model)
     img = torch.rand((2,3, input_size[0], input_size[1]))
     y_hat = model(img)
     print(y_hat.shape)
