@@ -83,8 +83,9 @@ class Sharpness(nn.Module):
         return x
 
 class Weighter(nn.Module):
-    def __init__(self, input_size, in_feat):
+    def __init__(self, input_size, in_feat, epsilon=1e-6):
         super().__init__()
+        self.epsilon = epsilon
         self.conv = Conv2d(in_feat, in_feat // 2, kernel_size=3, stride=2, padding=1)
         self.mlp = nn.Linear(input_size[0] * input_size[1] // 16, 3)
 
@@ -100,8 +101,10 @@ class Weighter(nn.Module):
         x = self.mlp(x)
        
         x = torch.mean(x, dim=1)
-        div = 1.0 if torch.sum(x) == 0 else torch.sum(x)
-        x = x / div
+        if torch.sum(x) < self.epsilon:
+            x = torch.ones_like(x) / 3.0
+        else:
+            x = x / torch.sum(x)
         return x
 
 
