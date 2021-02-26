@@ -12,7 +12,7 @@ import visualize
 import json
 import tarfile
 
-DATASET_TYPES = ['labeled', 'no_mirror', 'mirror', 'mirror_corrected', 'sparse_2_dense']
+DATASET_TYPES = ['labeled', 'no_mirror', 'corrected', 'mirror', 'mirror_corrected', 'sparse_2_dense']
 
 NYU_V2_SPLIT_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/indoor_seg_sup/splits.mat'
 NYU_V2_MAPPING_40_URL = 'https://github.com/ankurhanda/nyuv2-meta-data/raw/master/classMapping40.mat'
@@ -42,6 +42,7 @@ class NYUDataset(BaseDataset):
     def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, dataset_type=None, *args, **kwargs):
         super(NYUDataset, self).__init__(*args, **kwargs)
         assert dataset_type in DATASET_TYPES, "unknow NYU data set: [{}] available: []".format(dataset_type, DATASET_TYPES)
+        assert not ("corrected" in dataset_type and self.split == "train"), "Cannot use corrected depth during training!!"
         self.output_size = output_size
         self.resize = resize
         self.nyu_depth_v2_labeled_file = None
