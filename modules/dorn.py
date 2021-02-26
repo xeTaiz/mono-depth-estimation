@@ -5,7 +5,7 @@ from network import Dorn
 import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np 
-from modules.base_module import BaseModule
+from modules.base_module import BaseModule, freeze_params
 
 def get_depth_sid(dataset, labels):
     if dataset == 'kitti':
@@ -80,6 +80,9 @@ class DORNModule(BaseModule):
 
     def setup_model(self):
         return Dorn.DORN(self.method)
+
+    def freeze_encoder(self):
+        freeze_params(self.model.backbone)
 
     def label_to_depth(self, label):
         if self.method.discretization == "SID":
