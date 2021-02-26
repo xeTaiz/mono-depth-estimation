@@ -6,7 +6,7 @@ import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np
 import cv2
-from modules.base_module import BaseModule
+from modules.base_module import BaseModule, freeze_params
 
 RGB_PIXEL_MEANS = (0.485, 0.456, 0.406)  # (102.9801, 115.9465, 122.7717)
 RGB_PIXEL_VARS = (0.229, 0.224, 0.225)  # (1, 1, 1)
@@ -155,10 +155,13 @@ class VNLModule(BaseModule):
         self.params.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.method.dec_out_c)] for j in np.arange(self.method.dec_out_c)]
         self.params.depth_bin_border = np.array([np.log10(self.method.depth_min) + self.params.depth_bin_interval * (i + 0.5) for i in range(self.method.dec_out_c)])
         
-        print("=> creating Model")
         self.model = VNL.MetricDepthModel(self.params)
-        print("=> model created.")
         self.criterion = criteria.ModelLoss(self.params)
+        if self.method.freeze_encoder:
+            freeze_params(self.model.depth_model.encoder_modules)
+    
+    def freeze_encoder(self):
+        pass
 
     def setup_model(self):
         return None
