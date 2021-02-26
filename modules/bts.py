@@ -84,7 +84,7 @@ class BtsModule(BaseModule):
         return model
 
     def freeze_encoder(self):
-        freeze_params(self.encoder)
+        freeze_params(self.model.encoder)
 
     def setup_criterion(self):
         return criteria.silog_loss(variance_focus=self.method.variance_focus)
