@@ -5,7 +5,7 @@ from network import Bts
 import numpy as np
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
-from modules.base_module import BaseModule
+from modules.base_module import BaseModule, freeze_params
 
 def build_lr_optim_lambda(total_iters):
     def lr_optim_lambda(iter):
@@ -82,6 +82,9 @@ class BtsModule(BaseModule):
                     parameters.requires_grad = False
         """
         return model
+
+    def freeze_encoder(self):
+        freeze_params(self.encoder)
 
     def setup_criterion(self):
         return criteria.silog_loss(variance_focus=self.method.variance_focus)
