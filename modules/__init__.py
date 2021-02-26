@@ -1,3 +1,4 @@
+from argparse import Namespace
 from pathlib import Path
 from modules import eigen, bts, vnl, midas, laina, dorn, my
 
@@ -22,5 +23,12 @@ def get_module(args):
     if args.method.name == "bts":   module = bts.BtsModule
     if args.method.name == "my":    module = my.MyModule
     assert module, "Please select method!"
-    if args.method.ckpt: return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, hparams_file=(Path(args.method.ckpt).parents[1]/"hparams.yaml").as_posix(), test=args.test)
+    if args.method.ckpt: 
+        hparams = Namespace()
+        hparams.globals = args.globals
+        hparams.method = args.method
+        hparams.training = args.training
+        hparams.validation = args.validation
+        hparams.test = args.test
+        return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, hparams_file=(Path(args.method.ckpt).parents[1]/"hparams.yaml").as_posix(), hparams=hparams)
     else: return module(args)
