@@ -1,13 +1,26 @@
 import torch
 import torch.nn as nn
 
+class Conv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)
+        self.activation = nn.ELU()
+        self.bn = nn.BatchNorm2d(in_channels)
+
+    def forward(self, x):
+        x = self.activation(x)
+        x = self.bn(x)
+        x = self.conv(x)
+        return x
+
 class GlobalConsitency(nn.Module):
     def __init__(self, channels, input_size=(384, 384), out_feat=64):
         super().__init__()
         self.inc = nn.Upsample(scale_factor=2)
         self.avg = nn.AdaptiveMaxPool2d((input_size[0] // 2, input_size[1] // 2))
-        self.conv = nn.Conv2d(channels, channels // 2, kernel_size=3, bias=False, padding=1, stride=1)
-        self.conv_final = nn.Conv2d(channels // 2, out_feat, kernel_size=3, bias=False, padding=1, stride=1)
+        self.conv = Conv2d(channels, channels // 2, kernel_size=3, padding=1, stride=1)
+        self.conv_final = Conv2d(channels // 2, out_feat, kernel_size=3, padding=1, stride=1)
 
     def forward(self, x0, x1):
         x1 = self.inc(x1)
@@ -19,14 +32,14 @@ class GlobalConsitency(nn.Module):
         return x
 
 class Details(nn.Module):
-    def __init__(self, channels, input_size=(384,384), scale=2, out_feat=64):
+    def __init__(self, channels, scale=2, out_feat=64):
         super().__init__()
         self.c = int(channels / (scale * scale))
         self.shuffle = nn.PixelShuffle(scale)
-        self.down       = nn.Conv2d(self.c,      self.c *  2,  kernel_size=3, stride=2, padding=1, bias=False)
-        self.conv       = nn.Conv2d(self.c *  4, self.c *  2,  kernel_size=3, stride=1, padding=1, bias=False)
-        self.conv2      = nn.Conv2d(self.c *  2, self.c     ,  kernel_size=3, stride=1, padding=1, bias=False)
-        self.conv_final = nn.Conv2d(self.c     ,    out_feat,  kernel_size=3, stride=1, padding=1, bias=False)
+        self.down       = Conv2d(self.c,      self.c *  2,  kernel_size=3, stride=2, padding=1)
+        self.conv       = Conv2d(self.c *  4, self.c *  2,  kernel_size=3, stride=1, padding=1)
+        self.conv2      = Conv2d(self.c *  2, self.c     ,  kernel_size=3, stride=1, padding=1)
+        self.conv_final = Conv2d(self.c     ,    out_feat,  kernel_size=3, stride=1, padding=1)
         self.up = nn.Upsample(scale_factor=2)
 
     def forward(self, x0, x1):
@@ -41,32 +54,39 @@ class Details(nn.Module):
         return x
 
 class Sharpness(nn.Module):
-    def __init__(self, channels, out_feat=64):
+    def __init__(self, encoder_feature_sizes, out_feat=64):
         super().__init__()
-        self.conv1 = nn.Conv2d(channels[0], channels[0] * 2, kernel_size=3, stride=2, padding=1)
-        self.conv2 = nn.Conv2d(channels[1], channels[1] * 2, kernel_size=3, stride=2, padding=1)
+        [feat0, feat1, feat2] = encoder_feature_sizes[2:5]
+        self.tconv0 = nn.ConvTranspose2d(feat1,      feat1 // 2, kernel_size=4, padding=1, stride=2)
+        self.tconv1 = nn.ConvTranspose2d(feat2,      feat2 // 4, kernel_size=4, padding=1, stride=2)
+        self.tconv2 = nn.ConvTranspose2d(feat2 // 4, feat2 // 8, kernel_size=4, padding=1, stride=2)
 
-        self.tconv1 = nn.ConvTranspose2d(channels[0] * 4 + channels[1] * 2 + channels[2], out_channels=channels[0] * 4 + channels[1] * 2, kernel_size=4, stride=2, padding=1, bias=False)
-        self.tconv2 = nn.ConvTranspose2d(channels[0] * 4 + channels[1] * 2, out_channels=channels[0] * 4, kernel_size=4, stride=2, padding=1, bias=False)
-        self.tconv3 = nn.ConvTranspose2d(channels[0] * 4, out_channels=out_feat, kernel_size=4, stride=2, padding=1, bias=False)
-        self.tconv_final = nn.ConvTranspose2d(out_feat, out_feat, kernel_size=4, stride=2, padding=1, bias=False)
+        self.up0 = nn.Sequential(
+            nn.Upsample(scale_factor=2), 
+            nn.Conv2d(feat0 + feat1 // 2 + feat2 // 8, out_feat * 2, kernel_size=3, stride=1, padding=1),
+            nn.ReLU())
+        self.up1 = nn.Sequential(
+            nn.Upsample(scale_factor=2), 
+            nn.Conv2d(out_feat * 2, out_feat, kernel_size=3, stride=1, padding=1),
+            nn.ReLU())
 
     def forward(self, x0, x1, x2):
-        x0 = self.conv1(x0)
-        x0 = self.conv2(x0)
-        x1 = self.conv2(x1)
+        x1 = self.tconv0(x1) 
+        x2 = self.tconv1(x2) 
+        x2 = self.tconv2(x2)
+        
         x = torch.cat([x0, x1, x2], dim=1)
-        x = self.tconv1(x)
-        x = self.tconv2(x)
-        x = self.tconv3(x)
-        x = self.tconv_final(x)
+        
+        x = self.up0(x)
+        x = self.up1(x)
+        
         return x
 
 class Weighter(nn.Module):
     def __init__(self, input_size, in_feat):
         super().__init__()
-        self.conv = nn.Conv2d(in_feat, in_feat // 2, kernel_size=3, stride=2, padding=1, bias=False)
-        self.weights = nn.Linear(input_size[0] * input_size[1] // 16, 3)
+        self.conv = Conv2d(in_feat, in_feat // 2, kernel_size=3, stride=2, padding=1)
+        self.mlp = nn.Linear(input_size[0] * input_size[1] // 16, 1)
 
     def forward(self, x):
         [a,b,c] = x
@@ -75,13 +95,23 @@ class Weighter(nn.Module):
         b = self.conv(b)
         c = self.conv(c)
 
-        x = torch.cat([a, b, c], dim=1)
-        x = torch.flatten(x, start_dim=2)
-        x = self.weights(x)
-        #x = x.sigmoid()
-        x = torch.mean(x, dim=1)
-        x = x / torch.sum(x)
-        return x
+        a = torch.flatten(a, start_dim=2)
+        b = torch.flatten(b, start_dim=2)
+        c = torch.flatten(c, start_dim=2)
+
+        a = self.mlp(a)
+        b = self.mlp(b)
+        c = self.mlp(c)
+
+        a = torch.sum(a, dim=1)
+        b = torch.sum(b, dim=1)
+        c = torch.sum(c, dim=1)
+
+        a = a.sigmoid()
+        b = b.sigmoid()
+        c = c.sigmoid()
+
+        return a,b,c
 
 
 class my_decoder(nn.Module):
@@ -94,7 +124,7 @@ class my_decoder(nn.Module):
 
         self.global_con = GlobalConsitency(encoder_feature_sizes[0] + encoder_feature_sizes[1], input_size=input_size, out_feat=64)
         self.details = Details(encoder_feature_sizes[1], out_feat=64)
-        self.sharpness = Sharpness([encoder_feature_sizes[2], encoder_feature_sizes[3], encoder_feature_sizes[4]], out_feat=64)
+        self.sharpness = Sharpness(encoder_feature_sizes, out_feat=64)
 
         self.weighter = Weighter(input_size=input_size, in_feat=64)    
 
@@ -116,12 +146,12 @@ class my_decoder(nn.Module):
         detail_d = self.get_depth(detail)
         sharpness_d = self.get_depth(sharpness)
 
-        scale = self.weighter([glob, detail, sharpness])
+        scale_a, scale_b, scale_c = self.weighter([glob, detail, sharpness])
     
-        x = torch.cat([glob_d.unsqueeze(1), detail_d.unsqueeze(1), sharpness_d.unsqueeze(1)], dim=1)
-        x = x * scale[:,:,None, None, None]
-        x = torch.sum(x, dim=1)
-        return x
+        depth = glob_d * scale_a[:,None, None] + detail_d * scale_b[:,None, None] + sharpness_d * scale_c[:,None, None]
+        depth /= 3.0
+        depth *= 10.0
+        return depth
 
 class encoder(nn.Module):
     def __init__(self, version):
@@ -186,7 +216,7 @@ class ResidualConvUnit(nn.Module):
             features, features, kernel_size=3, stride=1, padding=1, bias=True
         )
 
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
 
     def forward(self, x):
         """Forward pass.
@@ -247,7 +277,7 @@ class MyModel(nn.Module):
 
 if __name__ == "__main__":
     input_size = (384, 384)
-    model = MyModel(input_size=input_size)
+    model = MyModel(input_size=input_size, encoder_version='resnext101_bts')
     img = torch.rand((2,3, input_size[0], input_size[1]))
     y_hat = model(img)
     print(y_hat.shape)

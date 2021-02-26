@@ -44,7 +44,7 @@ def parse_args_into_namespaces(parser, commands):
             if args_parsed.validation: val_datasets.append((cmd, args_parsed))
             if args_parsed.test:      test_datasets.append((cmd, args_parsed))
         else:
-            setattr(args, "method" if cmd in ['bts', 'eigen', 'vnl', 'dorn', 'midas', 'laina'] else cmd, args_parsed)
+            setattr(args, "method" if cmd in ['bts', 'eigen', 'vnl', 'dorn', 'midas', 'laina', 'my'] else cmd, args_parsed)
     setattr(args, "training" , train_datasets)
     setattr(args, "validation" , val_datasets)
     setattr(args, "test" , test_datasets)
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
     parser.add_argument('--worker', default=6, type=int, help='Number of workers for data loader')
     parser.add_argument('--find_learning_rate', action='store_true', help="Finding learning rate.")
-
+    parser.add_argument('--detect_anomaly', action='store_true', help='Enables pytorch anomaly detection')
 
 
     commands = parser.add_subparsers(title='Commands')
@@ -72,6 +72,10 @@ if __name__ == "__main__":
     
     args = parse_args_into_namespaces(parser, commands)
     assert args.training and args.validation, "Please provide data training AND validation dataset"
+
+    if args.globals.detect_anomaly:
+        print("Enabling anomaly detection")
+        torch.autograd.set_detect_anomaly(True)
     
     # windows safe
     if sys.platform in ["win32"]:
@@ -116,7 +120,7 @@ if __name__ == "__main__":
    
     #if hasattr(trainer, 'logger'):
     #    trainer.logger.log_hyperparams(yaml) # Log random seed
-
+    torch.autograd.set_detect_anomaly(True)
     # Fit model
     module = get_module(args)
     if args.globals.find_learning_rate:
