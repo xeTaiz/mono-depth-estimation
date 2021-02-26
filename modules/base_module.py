@@ -20,11 +20,12 @@ class BaseModule(pl.LightningModule):
     def __init__(self, hparams, *args, **kwargs):
         super().__init__()        
         self.save_hyperparameters()
-        self.globals = hparams.globals
-        self.method = hparams.method
-        self.hparams.hparams.test = self.hparams.test if 'test' in self.hparams else []
-        self.hparams = self.hparams.hparams
-        self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(self.hparams)
+        self.globals = self.hparams.hparams.globals
+        self.method  = self.hparams.hparams.method
+        self.hparams.training = self.hparams.hparams.training
+        self.hparams.validation = self.hparams.hparams.validation
+        self.hparams.test = self.hparams.hparams.test
+        self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(self.hparams.hparams)
         if self.train_dataset:
             self.train_dataset.transform = self.train_preprocess               
             self.train_loader = torch.utils.data.DataLoader(self.train_dataset,

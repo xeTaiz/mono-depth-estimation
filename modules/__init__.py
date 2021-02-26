@@ -24,6 +24,7 @@ def get_module(args):
     if args.method.name == "my":    module = my.MyModule
     assert module, "Please select method!"
     if args.method.ckpt: 
+        print("Loading checkpoint: {}".format(args.method.ckpt))
         hparams = Namespace()
         hparams.globals = args.globals
         hparams.method = args.method
