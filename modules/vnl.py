@@ -157,7 +157,7 @@ class VNLModule(BaseModule):
         
         self.model = VNL.MetricDepthModel(self.params)
         self.criterion = criteria.ModelLoss(self.params)
-        if self.method.freeze_encoder:
+        if 'freeze_encoder' in self.method and self.method.freeze_encoder:
             freeze_params(self.model.depth_model.encoder_modules)
     
     def freeze_encoder(self):

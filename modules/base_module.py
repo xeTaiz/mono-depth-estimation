@@ -24,12 +24,12 @@ class BaseModule(pl.LightningModule):
     def __init__(self, hparams, *args, **kwargs):
         super().__init__()        
         self.save_hyperparameters()
-        self.globals = self.hparams.hparams.globals
-        self.method  = self.hparams.method if 'method' in self.hparams else self.hparams.hparams.method
-        self.hparams.training = self.hparams.hparams.training
-        self.hparams.validation = self.hparams.hparams.validation
-        self.hparams.test = self.hparams.hparams.test
-        self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(self.hparams.hparams)
+        self.globals = self.hparams.globals        
+        hparams.training = self.hparams.training
+        hparams.validation = self.hparams.validation
+        hparams.test = self.hparams.test
+        self.method  = hparams.method
+        self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(hparams)
         if self.train_dataset:
             self.train_dataset.transform = self.train_preprocess               
             self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
@@ -60,7 +60,7 @@ class BaseModule(pl.LightningModule):
         self.criterion = self.setup_criterion()
         self.metric_logger = MetricLogger(metrics=self.globals.metrics, module=self)
         if self.val_loader: self.skip = len(self.val_loader) // 9
-        if self.method.freeze_encoder:
+        if 'freeze_encoder' in self.method and self.method.freeze_encoder:
             print("freezing encoder")
             self.freeze_encoder()
 

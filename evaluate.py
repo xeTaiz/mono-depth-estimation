@@ -29,5 +29,5 @@ if __name__ == "__main__":
     )
 
     # Fit model
-    module = get_module(args)
+    module = get_module(args, True)
     trainer.test(module)
