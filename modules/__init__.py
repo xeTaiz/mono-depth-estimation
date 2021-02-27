@@ -27,7 +27,7 @@ def get_module(args):
         print("Loading checkpoint: {}".format(args.method.ckpt))
         hparams = Namespace()
         hparams.globals = args.globals
-        hparams.method = args.method
+        #hparams.method = args.method
         hparams.training = args.training
         hparams.validation = args.validation
         hparams.test = args.test

@@ -132,3 +132,5 @@ if __name__ == "__main__":
         print("Suggested learning rate: ", args.method.learning_rate)
     else:
         trainer.fit(module)
+        if args.test:
+            trainer.test(module)

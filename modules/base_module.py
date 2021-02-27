@@ -21,7 +21,7 @@ class BaseModule(pl.LightningModule):
         super().__init__()        
         self.save_hyperparameters()
         self.globals = self.hparams.hparams.globals
-        self.method  = self.hparams.hparams.method
+        self.method  = self.hparams.method if 'method' in self.hparams else self.hparams.hparams.method
         self.hparams.training = self.hparams.hparams.training
         self.hparams.validation = self.hparams.hparams.validation
         self.hparams.test = self.hparams.hparams.test

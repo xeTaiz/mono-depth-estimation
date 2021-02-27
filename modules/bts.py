@@ -114,9 +114,9 @@ class BtsModule(BaseModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
-        y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
-        y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
+        #x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
+        #y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
+        #y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
