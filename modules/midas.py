@@ -7,7 +7,7 @@ import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np
 import cv2
-from modules.base_module import BaseModule
+from modules.base_module import BaseModule, freeze_params
 
 midas_transform = torch.hub.load("intel-isl/MiDaS", "transforms").default_transform 
 
@@ -39,6 +39,9 @@ class MidasModule(BaseModule):
     def setup_model(self):
         if self.method.pretrained: return torch.hub.load("intel-isl/MiDaS", "MiDaS")
         else:                       return MiDaS.MidasNet(features=256)
+
+    def freeze_encoder(self):
+        freeze_params(self.model.pretrained)
 
     def output_size(self):
         return (384, 384)

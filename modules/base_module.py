@@ -16,6 +16,10 @@ NAME2FUNC = {
     "floorplan3d": get_floorplan3d_dataset
 }
 
+def freeze_params(m):
+    for p in m.parameters():
+        p.requires_grad = False
+
 class BaseModule(pl.LightningModule):
     def __init__(self, hparams, *args, **kwargs):
         super().__init__()        
@@ -56,6 +60,12 @@ class BaseModule(pl.LightningModule):
         self.criterion = self.setup_criterion()
         self.metric_logger = MetricLogger(metrics=self.globals.metrics, module=self)
         if self.val_loader: self.skip = len(self.val_loader) // 9
+        if self.method.freeze_encoder:
+            print("freezing encoder")
+            self.freeze_encoder()
+
+    def freeze_encoder(self):
+        raise NotImplementedError()
 
     def output_size(self):
         raise NotImplementedError()
@@ -188,6 +198,7 @@ class BaseModule(pl.LightningModule):
         parser.add_argument('--learning_rate', default=learning_rate, type=float, help='Learning Rate')
         parser.add_argument('--batch_size',    default=batch_size,     type=int,   help='Batch Size')
         parser.add_argument('--ckpt',    default=ckpt,     type=str,   help='Load checkpoint')
+        parser.add_argument('--freeze_encoder', action='store_true', help='Freeze encoder')
 
     @staticmethod
     def add_model_specific_args(parser):
