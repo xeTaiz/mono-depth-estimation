@@ -11,6 +11,7 @@ from scipy.io import loadmat
 import visualize
 import json
 import tarfile
+import cv2
 
 DATASET_TYPES = ['labeled', 'no_mirror', 'corrected', 'mirror', 'mirror_corrected', 'sparse_2_dense']
 
@@ -37,6 +38,54 @@ def download(filename, url):
 
 def get_nyu_dataset(args, split, output_size, resize):
     return NYUDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type)
+
+def correct_depth(index, depth, points, path):
+    def __correct(depth, points, path):
+        mask = cv2.imread(path.as_posix(), cv2.IMREAD_GRAYSCALE)
+        mask = cv2.dilate(mask,np.ones((5,5),np.uint8),iterations = 1)
+        _, mask = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        mask = (mask.astype(np.float32) / 255).astype(bool)
+        p0 = points[0:2]
+        p1 = points[2:4]
+        p2 = points[4:6]
+        # New code
+        d0 = np.append(p0, depth[p0[0], p0[1]])
+        d1 = np.append(p1, depth[p1[0], p1[1]])
+        d2 = np.append(p2, depth[p2[0], p2[1]])
+
+        a = d0 - d1
+        b = d2 - d1
+        v = d1
+        
+        depth = np.copy(depth)
+
+        (y_axis, x_axis) = np.where(mask==True)
+        all_pixels = [[y,x] for (y,x) in zip(y_axis, x_axis)]
+        
+        all_pixels = np.array(all_pixels)
+        b_div = b[1]/b[0]
+        
+        top = all_pixels[:, 1] - v[1] - all_pixels[:, 0]*b_div + b_div*v[0]
+        bottom = a[1] - a[0]*b_div
+        
+        s = top / bottom
+        t = (all_pixels[:, 0] - v[0] - a[0]*s)/b[0]
+        correct_depth = v[2] + a[2]*s + b[2]*t
+        depth[all_pixels[:, 0], all_pixels[:, 1]] = correct_depth
+
+        return depth, mask
+
+
+    pts = points[str(index)]
+    if len(pts) == 2:
+        depth, mask = __correct(depth, pts[0], Path(path)/"{}_1.png")
+        depth, mask1 = __correct(depth, pts[1], Path(path)/"{}_2.png")
+        mask[mask1] = 1
+    elif len(pts) == 6:
+        depth, mask = __correct(depth, pts, Path(path)/"{}.png")
+    else:
+        raise ValueError()
+    return depth, mask
 
 class NYUDataset(BaseDataset):
     def __init__(self, path, output_size=(228, 304), resize=250, n_images=-1, dataset_type=None, *args, **kwargs):
@@ -118,6 +167,24 @@ class NYUDataset(BaseDataset):
         
         return rgb, depth
 
+    def depth_correct_writer(self, index):
+        with open("points.json", "r") as json_file:
+            points = json.load(json_file)
+        data = h5py.File(self.nyu_depth_v2_labeled_file, "r")  
+        depth = data['depths'][index]       
+        rgb = data['images'][index]     
+        rgb = np.transpose(rgb, (2, 1, 0))
+        depth = np.transpose(depth, (1,0))
+
+        labels = data['labels'][index]
+        labels = np.transpose(labels, (1,0))
+        labels_40 = self.mapping40[labels]
+
+        depth_corrected, mask = correct_depth(index, depth, points, "./")
+        depth_corrected[~mask] = 0.0
+        
+        return rgb, depth_corrected
+
     @staticmethod
     def add_dataset_specific_args(parent_parser):
         parser = parent_parser.add_parser('nyu')
@@ -127,7 +194,7 @@ class NYUDataset(BaseDataset):
 if __name__ == "__main__":
     f = "mirrors.json"
     t = "val"
-    nyu = NYUDataset("F:/data/nyudepthv2", split=t, dataset_type="official", use_corrected_depth=True)
+    nyu = NYUDataset("F:/data/nyudepthv2", split=t, dataset_type="labeled")
     for item in nyu:
         visualize.show_item(item)
     """
