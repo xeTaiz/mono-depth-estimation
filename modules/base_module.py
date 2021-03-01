@@ -21,15 +21,10 @@ def freeze_params(m):
         p.requires_grad = False
 
 class BaseModule(pl.LightningModule):
-    def __init__(self, hparams, *args, **kwargs):
+    def __init__(self, globals, method, training, validation, test, *args, **kwargs):
         super().__init__()        
-        self.save_hyperparameters()
-        self.globals = self.hparams.globals        
-        hparams.training = self.hparams.training
-        hparams.validation = self.hparams.validation
-        hparams.test = self.hparams.test
-        self.method  = hparams.method
-        self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset(hparams)
+        self.save_hyperparameters(globals, method, training, validation, test)
+        self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset()
         if self.train_dataset:
             self.train_dataset.transform = self.train_preprocess               
             self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
@@ -172,15 +167,15 @@ class BaseModule(pl.LightningModule):
             filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
             visualize.save_image(self.img_merge, filename)
 
-    def get_dataset(self, args):
+    def get_dataset(self):
         training_dataset = []
         validation_dataset = []
         test_dataset = []
-        for name, data_setargs in args.training:
+        for name, data_setargs in self.hparams.training:
             training_dataset.append(NAME2FUNC[name](data_setargs, 'train', self.output_size(), self.resize()))
-        for name, data_setargs in args.validation:
+        for name, data_setargs in self.hparams.validation:
             validation_dataset.append(NAME2FUNC[name](data_setargs, 'val', self.output_size(), self.resize())) 
-        for name, data_setargs in args.test:
+        for name, data_setargs in self.hparams.test:
             test_dataset.append(NAME2FUNC[name](data_setargs, 'test', self.output_size(), self.resize()))        
 
         if len(training_dataset) > 1:   training_dataset = [ConcatDataset(training_dataset)]
