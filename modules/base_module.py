@@ -21,10 +21,13 @@ def freeze_params(m):
         p.requires_grad = False
 
 class BaseModule(pl.LightningModule):
-    def __init__(self, globals, method, training, validation, test, *args, **kwargs):
-        super().__init__()        
-        self.save_hyperparameters('globals', 'method', 'training', 'validation', 'test')
-        self.method = method
+    def __init__(self, globals, training, validation, test, method=None, *args, **kwargs):
+        super().__init__()    
+        self.save_hyperparameters()
+        if method is None:
+            self.method = self.hparams
+        else:
+            self.method = method
         self.globals = globals
         self.training = training
         self.validation = validation

@@ -13,7 +13,7 @@ def register_module_specific_arguments(subparser):
         my.MyModule.add_model_specific_args(subparser)
     ]
 
-def get_module(args, test=False):
+def get_module(args):
     module = None
     if args.method.name == "eigen": module = eigen.EigenModule
     if args.method.name == "midas": module = midas.MidasModule
@@ -25,13 +25,7 @@ def get_module(args, test=False):
     assert module, "Please select method!"
     if args.method.ckpt: 
         print("Loading checkpoint: {}".format(args.method.ckpt))
-        hparams = Namespace()
-        hparams.globals = args.globals
-        hparams.method = args.method
-        hparams.training = args.training
-        hparams.validation = args.validation
-        hparams.test = args.test
-        return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, hparams_file=(Path(args.method.ckpt).parents[1]/"hparams.yaml").as_posix(), globals=args.globals, training=args.training, validation=args.validation, test=args.test)
+        return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, globals=args.globals, training=args.training, validation=args.validation, test=args.test)
     else:
         dict_args = vars(args) 
         return module(**dict_args)

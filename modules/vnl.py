@@ -262,7 +262,7 @@ class VNLModule(BaseModule):
         pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
-        filename = "{}/{}/version_{}/test{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, batch_idx)
+        filename = "{}/{}/version_{}/test_{}".format(self.logger.save_dir, self.logger.name, self.logger.version, batch_idx)
         visualize.save_images(filename, batch_idx, x, y, y_hat)
         return self.metric_logger.log_test(y_hat, y)
 
