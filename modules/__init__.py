@@ -32,4 +32,6 @@ def get_module(args, test=False):
         hparams.validation = args.validation
         hparams.test = args.test
         return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, hparams_file=(Path(args.method.ckpt).parents[1]/"hparams.yaml").as_posix(), globals=args.globals, training=args.training, validation=args.validation, test=args.test)
-    else: return module(args)
+    else:
+        dict_args = vars(args) 
+        return module(**dict_args)
