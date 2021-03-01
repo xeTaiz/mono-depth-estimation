@@ -38,7 +38,7 @@ class MetricLogger(object):
         values = self.computer.compute(pred, target)
         result = {}
         for name, value in zip(self.computer.names, values):
-            self.context.log("{}".format(name), value)
+            self.context.log("{}".format(name), value, on_step=True, on_epoch=True)
             result[name] = value
         return result
 

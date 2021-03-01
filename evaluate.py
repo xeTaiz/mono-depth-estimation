@@ -30,4 +30,7 @@ if __name__ == "__main__":
 
     # Fit model
     module = get_module(args)
-    trainer.test(module)
+    result = trainer.test(module, verbose=False)
+    for key, value in result[0].items():
+        if "_epoch" in key:
+            print("{}: {}".format(key.replace("_epoch", ""), round(value, 3)))
