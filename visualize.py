@@ -55,11 +55,8 @@ def show_item(item):
 
 def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
     if path is None:return
-    mask = depth_gt == 0
-    depth_pred[mask] = 0
-    metric = MetricComputation(['mae'])
-    mae = metric.compute(depth_pred, depth_gt)[0].cpu().item()
-    path=Path(path/"mae.{}".format(round(mae,3)))
+    
+    path=Path(path)
     path.mkdir(parents=True, exist_ok=True)
     path = path.as_posix()
     min_ = np.finfo(np.float16).max

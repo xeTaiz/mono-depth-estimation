@@ -6,6 +6,7 @@ import torchvision.transforms.functional as TF
 from torchvision import transforms
 import numpy as np
 import cv2
+import visualize
 from modules.base_module import BaseModule, freeze_params
 
 RGB_PIXEL_MEANS = (0.485, 0.456, 0.406)  # (102.9801, 115.9465, 122.7717)
@@ -260,6 +261,8 @@ class VNLModule(BaseModule):
         pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
+        filename = "{}/{}/version_{}/test{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, batch_idx)
+        visualize.save_images(filename, batch_idx, x, y, y_hat)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
