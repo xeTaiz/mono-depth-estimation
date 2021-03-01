@@ -254,6 +254,7 @@ class VNLModule(BaseModule):
         pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
+        self.save_visualization(x, y, y_hat, batch_idx)
         return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
