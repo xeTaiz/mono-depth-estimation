@@ -23,7 +23,12 @@ def freeze_params(m):
 class BaseModule(pl.LightningModule):
     def __init__(self, globals, method, training, validation, test, *args, **kwargs):
         super().__init__()        
-        self.save_hyperparameters(globals, method, training, validation, test)
+        self.save_hyperparameters('globals', 'method', 'training', 'validation', 'test')
+        self.method = method
+        self.globals = globals
+        self.training = training
+        self.validation = validation
+        self.test = test
         self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset()
         if self.train_dataset:
             self.train_dataset.transform = self.train_preprocess               
@@ -171,11 +176,11 @@ class BaseModule(pl.LightningModule):
         training_dataset = []
         validation_dataset = []
         test_dataset = []
-        for name, data_setargs in self.hparams.training:
+        for name, data_setargs in self.training:
             training_dataset.append(NAME2FUNC[name](data_setargs, 'train', self.output_size(), self.resize()))
-        for name, data_setargs in self.hparams.validation:
+        for name, data_setargs in self.validation:
             validation_dataset.append(NAME2FUNC[name](data_setargs, 'val', self.output_size(), self.resize())) 
-        for name, data_setargs in self.hparams.test:
+        for name, data_setargs in self.test:
             test_dataset.append(NAME2FUNC[name](data_setargs, 'test', self.output_size(), self.resize()))        
 
         if len(training_dataset) > 1:   training_dataset = [ConcatDataset(training_dataset)]
