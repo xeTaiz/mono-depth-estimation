@@ -6,6 +6,7 @@ import numpy as np
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 from modules.base_module import BaseModule, freeze_params
+import visualize
 
 def build_lr_optim_lambda(total_iters):
     def lr_optim_lambda(iter):
@@ -120,6 +121,8 @@ class BtsModule(BaseModule):
         #x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
         #y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         #y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
+        filename = "{}/{}/version_{}/test_{}".format(self.logger.save_dir, self.logger.name, self.logger.version, batch_idx)
+        visualize.save_images(filename, batch_idx, x, y, y_hat)
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
