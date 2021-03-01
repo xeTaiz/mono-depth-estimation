@@ -49,7 +49,6 @@ class BtsModule(BaseModule):
 
     def setup_model(self):
         model = Bts.BtsModel(max_depth=self.method.max_depth, bts_size=self.method.bts_size, encoder_version=self.method.encoder)
-        """
         model.decoder.apply(weights_init_xavier)
         if self.method.bn_no_track_stats:
             print("Disabling tracking running stats in batch norm layers")
@@ -81,7 +80,6 @@ class BtsModule(BaseModule):
                 # print(name, name2)
                 if any(x in name2 for x in fixing_layers):
                     parameters.requires_grad = False
-        """
         return model
 
     def freeze_encoder(self):
