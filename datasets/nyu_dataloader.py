@@ -45,9 +45,14 @@ def correct_depth(index, depth, points, path):
         mask = cv2.dilate(mask,np.ones((5,5),np.uint8),iterations = 1)
         _, mask = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         mask = (mask.astype(np.float32) / 255).astype(bool)
+
         p0 = points[0:2]
         p1 = points[2:4]
         p2 = points[4:6]
+        p0 = [p0[1],p0[0]]
+        p1 = [p1[1],p1[0]]
+        p2 = [p2[1],p2[0]]
+        
         # New code
         d0 = np.append(p0, depth[p0[0], p0[1]])
         d1 = np.append(p1, depth[p1[0], p1[1]])
@@ -57,7 +62,7 @@ def correct_depth(index, depth, points, path):
         b = d2 - d1
         v = d1
         
-        depth = np.copy(depth)
+        depth_inc = np.copy(depth)
 
         (y_axis, x_axis) = np.where(mask==True)
         all_pixels = [[y,x] for (y,x) in zip(y_axis, x_axis)]
@@ -71,19 +76,19 @@ def correct_depth(index, depth, points, path):
         s = top / bottom
         t = (all_pixels[:, 0] - v[0] - a[0]*s)/b[0]
         correct_depth = v[2] + a[2]*s + b[2]*t
-        depth[all_pixels[:, 0], all_pixels[:, 1]] = correct_depth
-
-        return depth, mask
+        depth_inc[all_pixels[:, 0], all_pixels[:, 1]] = correct_depth
+        return depth_inc, mask
 
 
     pts = points[str(index)]
     if len(pts) == 2:
-        depth, mask = __correct(depth, pts[0], Path(path)/"{}_1.png")
-        depth, mask1 = __correct(depth, pts[1], Path(path)/"{}_2.png")
+        depth, mask = __correct(depth, pts[0], Path(path)/"{}_1.png".format(index))
+        depth, mask1 = __correct(depth, pts[1], Path(path)/"{}_2.png".format(index))
         mask[mask1] = 1
     elif len(pts) == 6:
-        depth, mask = __correct(depth, pts, Path(path)/"{}.png")
+        depth, mask = __correct(depth, pts, Path(path)/"{}.png".format(index))
     else:
+        print("error")
         raise ValueError()
     return depth, mask
 
@@ -118,6 +123,7 @@ class NYUDataset(BaseDataset):
         assert len(self.images) > 0, "Found 0 images in subfolders of: " + path + "\n"
         if self.exclude_mirrors: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if not idx in (TRAIN_MIRROR_IDX if self.split == "train" else VAL_MIRROR_IDX)]]
         if self.mirrors_only: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if idx in (TRAIN_MIRROR_IDX if self.split == "train" else VAL_MIRROR_IDX)]]
+        if self.mirrors_only: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if idx not in [2, 8, 13,15, 16, 27, 28, 34, 42, 52, 58, 60]]]
         if n_images > 0: self.images = self.images[0:n_images]
         print("Found {} images in {} folder.".format(len(self.images), self.split))
 
@@ -147,32 +153,36 @@ class NYUDataset(BaseDataset):
         return rgb, depth
 
     def mat_loader(self, index):
+        data = h5py.File(self.nyu_depth_v2_labeled_file_corrected, "r")  
+        mask = data['masks'][index]
         if self.use_corrected_depth:
-            data = h5py.File(self.nyu_depth_v2_labeled_file_corrected, "r")  
             depth = data['depths_corrected'][index]
-            if np.max(depth) == 0: depth = data['depths'][index]   
+            if np.max(depth) == 0: depth = data['depths'][index]
         else:
-            data = h5py.File(self.nyu_depth_v2_labeled_file, "r")  
-            depth = data['depths'][index]   
+            depth = data['depths'][index]
+               
         rgb = data['images'][index]     
         rgb = np.transpose(rgb, (2, 1, 0))
         depth = np.transpose(depth, (1,0))
+        mask = np.transpose(mask, (1,0))
+        mask = mask.astype(np.bool)
 
         if self.mirrors_only:
-            labels = data['labels'][index]
-            labels = np.transpose(labels, (1,0))
-            labels_40 = self.mapping40[labels]
-            mask = labels_40 == 19 #Mirrors
+            #labels = data['labels'][index]
+            #labels = np.transpose(labels, (1,0))
+            #labels_40 = self.mapping40[labels]
+            #mask = labels_40 == 19 #Mirrors
             depth[~mask] = 0.0
-        
         return rgb, depth
 
     def depth_correct_writer(self, index):
         with open("points.json", "r") as json_file:
             points = json.load(json_file)
+
         data = h5py.File(self.nyu_depth_v2_labeled_file, "r")  
         depth = data['depths'][index]       
-        rgb = data['images'][index]     
+        rgb = data['images'][index] 
+        print(depth.shape)    
         rgb = np.transpose(rgb, (2, 1, 0))
         depth = np.transpose(depth, (1,0))
 
@@ -180,10 +190,95 @@ class NYUDataset(BaseDataset):
         labels = np.transpose(labels, (1,0))
         labels_40 = self.mapping40[labels]
 
-        depth_corrected, mask = correct_depth(index, depth, points, "./")
-        depth_corrected[~mask] = 0.0
+        if str(index) in points:
+            depth_corrected, mask = correct_depth(index, depth, points, "./")
+        else:
+            depth_corrected = depth
+            mask = None
+
+        data_ = h5py.File(self.nyu_depth_v2_labeled_file_corrected, "r+")
+        rgb_ = np.transpose(rgb, (2, 1, 0))
+        depth_ = np.transpose(depth_corrected, (1,0))
+        data_['depths_corrected'][index] = depth_
+        if not 'masks' in data_:
+            data_.create_dataset('masks', shape=(1449, 640, 480), dtype=np.uint8, data=np.zeros((1449, 640, 480), dtype=np.uint8))
+        if not mask is None:
+            mask_ = np.transpose(mask, (1,0))
+            data_["masks"][index] = mask_
+        data_.close()
         
         return rgb, depth_corrected
+
+    def training_preprocess(self, rgb, depth):
+        s = np.random.uniform(1, 1.5)
+        depth = depth / s
+
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
+        # color jitter
+        rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
+        # Resize
+        resize = transforms.Resize(self.resize)
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Random Rotation
+        angle = np.random.uniform(-5,5)
+        rgb = TF.rotate(rgb, angle)
+        depth = TF.rotate(depth, angle)
+        # Resize
+        resize = transforms.Resize(int(self.resize * s))
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Center crop
+        crop = transforms.CenterCrop(self.output_size)
+        rgb = crop(rgb)
+        depth = crop(depth)
+        # Random horizontal flipping
+        if np.random.uniform(0,1) > 0.5:
+            rgb = TF.hflip(rgb)
+            depth = TF.hflip(depth)
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = TF.to_tensor(np.array(depth))
+        return rgb, depth
+
+    def validation_preprocess(self, rgb, depth):
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
+        # Resize
+        resize = transforms.Resize(self.resize)
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Center crop
+        crop = transforms.CenterCrop(self.output_size)
+        rgb = crop(rgb)
+        depth = crop(depth)
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = TF.to_tensor(np.array(depth))
+        return rgb, depth
+
+    def test_preprocess(self, rgb, depth):
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
+   
+        # Resize
+        resize = transforms.Resize(500)
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Center crop
+        crop = transforms.CenterCrop((480, 640))
+        rgb = crop(rgb)
+        depth = crop(depth)
+        # Resize
+        resize = transforms.Resize(self.output_size)
+        rgb = resize(rgb)
+        depth = resize(depth)
+        # Transform to tensor
+        rgb = TF.to_tensor(np.array(rgb))
+        depth = TF.to_tensor(np.array(depth))
+        return rgb, depth
+
 
     @staticmethod
     def add_dataset_specific_args(parent_parser):
@@ -194,8 +289,9 @@ class NYUDataset(BaseDataset):
 if __name__ == "__main__":
     f = "mirrors.json"
     t = "val"
-    nyu = NYUDataset("F:/data/nyudepthv2", split=t, dataset_type="labeled")
-    for item in nyu:
+    nyu = NYUDataset("G:/data/nyudepthv2", split=t, dataset_type="mirror")
+    for idx, item in enumerate(nyu):
+        print(idx)
         visualize.show_item(item)
     """
     for _ in nyu:p
@@ -210,4 +306,3 @@ if __name__ == "__main__":
         json.dump(data, json_file)
     
     """
-    
