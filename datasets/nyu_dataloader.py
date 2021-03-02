@@ -139,7 +139,7 @@ class NYUDataset(BaseDataset):
         self.nyu_depth_v2_labeled_file = (self.path/"nyu_depth_v2_labeled.mat")
         self.split_file = (self.path/"split.mat")
         self.mapping40_file = (self.path/"classMapping40.mat")
-        if self.use_corrected_depth and not self.nyu_depth_v2_labeled_file_corrected.exists(): download(self.nyu_depth_v2_labeled_file_corrected, NYU_V2_CORRECTED_MAT_URL)
+        if not self.nyu_depth_v2_labeled_file_corrected.exists(): download(self.nyu_depth_v2_labeled_file_corrected, NYU_V2_CORRECTED_MAT_URL)
         if not self.use_corrected_depth and not self.nyu_depth_v2_labeled_file.exists(): download(self.nyu_depth_v2_labeled_file, NYU_V2_LABELED_MAT_URL)
         if not self.split_file.exists(): download(self.split_file, NYU_V2_SPLIT_MAT_URL)
         if not self.mapping40_file.exists(): download(self.mapping40_file, NYU_V2_MAPPING_40_URL)
