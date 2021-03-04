@@ -173,7 +173,9 @@ class NYUDataset(BaseDataset):
             labels = data['labels'][index]
             labels = np.transpose(labels, (1,0))
             labels_40 = self.mapping40[labels]
-            mask = labels_40 == 19 or labels_40 == 9  #Mirrors or Windows
+            mirror_mask = labels_40 == 19  # Mirrors 
+            window_mask = labels_40 == 9 # Windows
+            mask = mirror_mask + window_mask
             depth[mask] = 0
         return rgb, depth
 
