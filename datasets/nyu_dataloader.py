@@ -13,7 +13,7 @@ import json
 import tarfile
 import cv2
 
-DATASET_TYPES = ['labeled', 'no_mirror', 'corrected', 'mirror', 'mirror_corrected', 'sparse_2_dense', 'no_mirror_no_window']
+DATASET_TYPES = ['labeled', 'no_mirror', 'corrected', 'mirror', 'mirror_corrected', 'sparse_2_dense', 'no_mirror_no_window', 'mirror_pixel', 'mirror_pixel_corrected']
 
 NYU_V2_SPLIT_MAT_URL = 'http://horatio.cs.nyu.edu/mit/silberman/indoor_seg_sup/splits.mat'
 NYU_V2_MAPPING_40_URL = 'https://github.com/ankurhanda/nyuv2-meta-data/raw/master/classMapping40.mat'
@@ -102,9 +102,10 @@ class NYUDataset(BaseDataset):
         self.resize = resize
         self.nyu_depth_v2_labeled_file = None
         self.exclude_mirrors = dataset_type == 'no_mirror'
-        self.mirrors_only = dataset_type in ['mirror', 'mirror_corrected']
+        self.mirrors_only = dataset_type in ['mirror', 'mirror_corrected', 'mirror_pixel', 'mirror_pixel_corrected']
         self.use_corrected_depth = 'corrected' in dataset_type and not self.split == "train"
         self.use_mat = not dataset_type == 'sparse_2_dense'
+        self.mirror_pixel_only = 'mirror_pixel' in dataset_type
 
         print("Use mat: ", self.use_mat)
         print("Use corrected depth: ", self.use_corrected_depth)
@@ -122,7 +123,7 @@ class NYUDataset(BaseDataset):
             self.images = self.load_images()
             self.mapping40 = np.insert(loadmat(self.mapping40_file)['mapClass'][0], 0, 0)
         assert len(self.images) > 0, "Found 0 images in subfolders of: " + path + "\n"
-        if self.exclude_mirrors: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if not idx in (TRAIN_MIRROR_IDX if self.split == "train" else VAL_MIRROR_IDX)]]
+        #if self.exclude_mirrors: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if not idx in (TRAIN_MIRROR_IDX if self.split == "train" else VAL_MIRROR_IDX)]]
         if self.mirrors_only: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if idx in (TRAIN_MIRROR_IDX if self.split == "train" else VAL_MIRROR_IDX)]]
         if self.mirrors_only: self.images = self.images[[idx for idx in np.arange(0, len(self.images)) if idx not in [2, 8, 13,15, 16, 27, 28, 34, 42, 52, 58, 60]]]
         if n_images > 0: self.images = self.images[0:n_images]
@@ -166,16 +167,18 @@ class NYUDataset(BaseDataset):
         mask = np.transpose(mask, (1,0))
         mask = mask.astype(np.bool)
 
-        if self.mirrors_only:
+        if self.mirror_pixel_only:
             depth[~mask] = 0.0
 
-        if self.dataset_type == 'no_mirror_no_window':
-            labels = data['labels'][index]
-            labels = np.transpose(labels, (1,0))
-            labels_40 = self.mapping40[labels]
-            mirror_mask = labels_40 == 19  # Mirrors 
-            window_mask = labels_40 == 9 # Windows
-            mask = mirror_mask + window_mask
+        labels = data['labels'][index]
+        labels = np.transpose(labels, (1,0))
+        labels_40 = self.mapping40[labels]
+
+        if 'no_mirror' in self.dataset_type:
+            mask = labels_40 == 19  # Mirrors 
+            depth[mask] = 0
+        if 'no_window' in self.dataset_type:
+            mask = labels_40 == 9 # Windows
             depth[mask] = 0
         return rgb, depth
 
@@ -292,10 +295,10 @@ class NYUDataset(BaseDataset):
 
 if __name__ == "__main__":
     f = "mirrors.json"
-    t = "train"
-    nyu = NYUDataset("G:/data/nyudepthv2", split=t, dataset_type="labeled")
+    t = "val"
+    nyu = NYUDataset("G:/data/nyudepthv2", split=t, dataset_type="corrected")
     for idx, item in enumerate(nyu):
-        pass#visualize.show_item(item)
+        visualize.show_item(item)
     """
     for _ in nyu:p
         pass
