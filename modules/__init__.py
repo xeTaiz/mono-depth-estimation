@@ -25,7 +25,7 @@ def get_module(args):
     assert module, "Please select method!"
     if args.method.ckpt: 
         print("Loading checkpoint: {}".format(args.method.ckpt))
-        return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, globals=args.globals, training=args.training, validation=args.validation, test=args.test)
+        return module.load_from_checkpoint(checkpoint_path=args.method.ckpt, globals=args.globals, method=args.method, training=args.training, validation=args.validation, test=args.test)
     else:
         dict_args = vars(args) 
         return module(**dict_args)

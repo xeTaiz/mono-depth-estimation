@@ -50,6 +50,7 @@ class BtsModule(BaseModule):
     def setup_model(self):
         model = Bts.BtsModel(max_depth=self.method.max_depth, bts_size=self.method.bts_size, encoder_version=self.method.encoder)
         model.decoder.apply(weights_init_xavier)
+        if not('bn_no_track_stats' in self.method or 'fix_first_conv_blocks' in self.method): return model
         if self.method.bn_no_track_stats:
             print("Disabling tracking running stats in batch norm layers")
             model.apply(bn_init_as_tf)

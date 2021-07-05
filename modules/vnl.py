@@ -158,8 +158,19 @@ class VNLModule(BaseModule):
         
         self.model = VNL.MetricDepthModel(self.params)
         self.criterion = criteria.ModelLoss(self.params)
-        if 'freeze_encoder' in self.method and  self.method.freeze_encoder:
+        if 'finetune' in self.method and self.method.finetune in [-1, -2, -3, -4, -5]:
             freeze_params(self.model.depth_model.encoder_modules)
+            layers = [
+                self.model.depth_model.decoder_modules.top,
+                self.model.depth_model.decoder_modules.topdown_fcn1,
+                self.model.depth_model.decoder_modules.topdown_fcn2,
+                self.model.depth_model.decoder_modules.topdown_fcn3,
+                self.model.depth_model.decoder_modules.topdown_fcn4,
+                self.model.depth_model.decoder_modules.topdown_fcn5,
+                self.model.depth_model.decoder_modules.topdown_predict
+            ]
+            for layer in layers[0:self.method.finetune]:
+                freeze_params(layer)
     
     def freeze_encoder(self):
         pass
@@ -330,4 +341,5 @@ class VNLModule(BaseModule):
         parser.add_argument('--prediction_method', default='classification', type=str, help='type of prediction. classification or regression')
         parser.add_argument('--data_augmentation', default='vnl', type=str, help='Choose data Augmentation Strategy: laina or vnl')
         parser.add_argument('--loss', default='vnl', type=str, help='loss function')
+        parser.add_argument('--finetune', default=0, type=int, help='freeze all layers except the last n ones')
         return parser
