@@ -1,5 +1,6 @@
-pytorch_lightning==1.1.7
+pytorch_lightning
 tqdm
 opencv-python
 h5py
 scipy
+timm

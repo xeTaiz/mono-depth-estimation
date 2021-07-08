@@ -100,7 +100,6 @@ if __name__ == "__main__":
     trainer = pl.Trainer(
         log_gpu_memory=False,
         fast_dev_run=args.globals.dev,
-        profiler=True,
         gpus=args.globals.gpus,
         overfit_batches=1 if args.globals.overfit else 0,
         precision=args.globals.precision if use_gpu else 32,
