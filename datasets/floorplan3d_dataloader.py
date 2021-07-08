@@ -48,7 +48,8 @@ class Floorplan3DDataset(BaseDataset):
             images = [f for f in scene_name.glob('**/*') if all([s in f.name for s in ['color', '.jpg']]) and self.dataset_type.value in f.parent.name]
             for img_path in images:
                 depth_path = img_path.parent/img_path.name.replace('color', 'depth').replace('jpg', 'png')
-                if img_path.exists() and depth_path.exists():
+                complete_file = Path(img_path.parents[1], "complete.txt")
+                if img_path.exists() and depth_path.exists() and complete_file.exists():
                     self.images.append(img_path)
                     self.depth.append(depth_path)
         if self.n_images > 0: self.images = self.images[0:self.n_images]
@@ -158,3 +159,4 @@ class Floorplan3DDataset(BaseDataset):
 
 if __name__ == "__main__":
     Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="train", dataset_type=DatasetType.DIFFUSE, output_size=(512,512), resize=512)
+    Floorplan3DDataset(path="/mnt/hdd/shared_datasets/Floorplan3D", split="valid", dataset_type=DatasetType.DIFFUSE, output_size=(512,512), resize=512)
