@@ -70,7 +70,7 @@ class SemiTransparentDepthDataset(BaseDataset):
 
     def get_raw(self, index):
         item = self.torch_ds[index]
-        return item['rgba'][:3].permute(1,2,0) * 255.0, item[self.depth_method].squeeze() * 10.0
+        return torch.clamp(item['rgba'][:3].permute(1,2,0).float() * 255.0, 0.0, 255.0), item[self.depth_method].squeeze().float() * 10.0
 
     def __getitem__(self, index):
         rgb, depth = self.get_raw(index)
