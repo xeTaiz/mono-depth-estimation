@@ -5,3 +5,4 @@ logs/
 result/
 *.jpg
 *.png
+network/pretrained_models
