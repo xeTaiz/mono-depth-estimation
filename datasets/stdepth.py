@@ -11,7 +11,7 @@ from torchvtk.utils import make_3d
 
 from datasets.dataset import BaseDataset
 
-def get_stpdeth_dataset(args, split, output_size, resize):
+def get_stdepth_dataset(args, split, output_size, resize):
     return SemiTransparentDepthDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type)
 
 
