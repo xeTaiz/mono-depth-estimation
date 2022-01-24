@@ -12,7 +12,7 @@ from torchvtk.utils import make_3d
 from datasets.dataset import BaseDataset
 
 def get_stdepth_dataset(args, split, output_size, resize):
-    return SemiTransparentDepthDataset(args.path, split=split, output_size=output_size, resize=resize, dataset_type=args.type)
+    return SemiTransparentDepthDataset(args.path, split=split, output_size=output_size, resize=resize, depth_method=args.depth_method)
 
 
 class SemiTransparentDepthDataset(BaseDataset):
@@ -78,3 +78,10 @@ class SemiTransparentDepthDataset(BaseDataset):
 
     def __len__(self):
         return len(self.torch_ds)
+    
+    @staticmethod
+    def add_dataset_specific_args(parent_parser):
+        parser = parent_parser.add_parser('stdepth')
+        BaseDataset.add_dataset_specific_args(parser)
+        parser.add_argument('--path', type=str, help="Path to the STdepth Dataset")
+        parser.add_argument('--depth-method', type=str, default='first_hit', help='Depth method. first_hit, max_opacity, max_gradient, wysiwyg')
