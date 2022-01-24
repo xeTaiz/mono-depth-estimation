@@ -83,5 +83,4 @@ class SemiTransparentDepthDataset(BaseDataset):
     def add_dataset_specific_args(parent_parser):
         parser = parent_parser.add_parser('stdepth')
         BaseDataset.add_dataset_specific_args(parser)
-        parser.add_argument('--path', type=str, help="Path to the STdepth Dataset")
         parser.add_argument('--depth-method', type=str, default='first_hit', help='Depth method. first_hit, max_opacity, max_gradient, wysiwyg')
