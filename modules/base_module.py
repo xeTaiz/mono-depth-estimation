@@ -4,6 +4,7 @@ from datasets.dataset import ConcatDataset
 from datasets.nyu_dataloader import get_nyu_dataset
 from datasets.floorplan3d_dataloader import get_floorplan3d_dataset
 from datasets.structured3d_dataset import get_structured3d_dataset
+from datasets.stdepth import get_stpdeth_dataset
 from metrics import MetricLogger
 import visualize
 from torchvision import transforms
@@ -13,7 +14,8 @@ import numpy as np
 NAME2FUNC = {
     "nyu": get_nyu_dataset,
     "structured3d": get_structured3d_dataset,
-    "floorplan3d": get_floorplan3d_dataset
+    "floorplan3d": get_floorplan3d_dataset,
+    "stdepth": get_stdepth_dataset
 }
 
 def freeze_params(m):
