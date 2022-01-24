@@ -4,3 +4,5 @@ opencv-python
 h5py
 scipy
 timm
+git+https://github.com/aliutkus/torchinterp1d@master#egg=torchinterp1d
+git+https://github.com/xeTaiz/torchvtk@master#egg=torchvtk
