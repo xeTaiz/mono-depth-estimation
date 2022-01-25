@@ -140,10 +140,8 @@ class BtsModule(BaseModule):
         return [optimizer], [scheduler]
 
     def train_preprocess(self, rgb, depth):
-        if isinstance(rgb, np.ndarray):
-            rgb = transforms.ToPILImage()(rgb)
-        if isinstance(depth, np.ndarray):
-            depth = transforms.ToPILImage()(depth)
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
 
         height = rgb.height
         width = rgb.width
@@ -189,10 +187,8 @@ class BtsModule(BaseModule):
         return rgb, depth
 
     def val_preprocess(self, rgb, depth):
-        if isinstance(rgb, np.ndarray):
-            rgb = transforms.ToPILImage()(rgb)
-        if isinstance(depth, np.ndarray):
-            depth = transforms.ToPILImage()(depth)
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
         # Resize
         resize = transforms.Resize(self.resize())
         rgb = resize(rgb)

@@ -27,8 +27,8 @@ class SemiTransparentDepthDataset(BaseDataset):
         self.torch_ds = TorchDataset(path)
         self.depth_method = depth_method
 
-    def default_preprocess(self, rgb, depth):
-        depth = transforms.ToPILImage()(depth)
+    def training_preprocess(self, rgb, depth):
+        #depth = transforms.ToPILImage()(depth)
         s = np.random.uniform(1, 1.5)
         # color jitter
         rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
@@ -53,28 +53,19 @@ class SemiTransparentDepthDataset(BaseDataset):
             rgb = TF.hflip(rgb)
             depth = TF.hflip(depth)
         # Transform to tensor
-        rgb = TF.to_tensor(np.array(rgb))
-        depth = np.array(depth, dtype=np.float32)
-        depth = depth / s
-        depth = TF.to_tensor(depth)
+        rgb = TF.to_tensor(rgb)
+        depth = TF.to_tensor(depth / s)
         return rgb, depth
 
-    def training_preprocess(self, rgb, depth):
-        return self.default_preprocess(rgb, depth)
-
     def validation_preprocess(self, rgb, depth):
-        return self.default_preprocess(rgb, depth)
+        return rgb, depth
 
     def test_preprocess(self, rgb, depth):
-        return self.default_preprocess(rgb, depth)
+        return rgb, depth
 
     def get_raw(self, index):
         item = self.torch_ds[index]
         return torch.clamp(item['rgba'][:3].float() * 255.0, 0.0, 255.0), item[self.depth_method].float() * 10.0
-
-    def __getitem__(self, index):
-        return self.get_raw(index)
-        # return self.transform(rgb, depth)
 
     def __len__(self):
         return len(self.torch_ds)
