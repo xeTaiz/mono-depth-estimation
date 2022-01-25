@@ -90,7 +90,7 @@ class BtsModule(BaseModule):
         return criteria.silog_loss(variance_focus=self.method.variance_focus)
 
     def output_size(self):
-        return (416, 544)
+        return (512, 512)
 
     def resize(self):
         return 450
@@ -159,7 +159,7 @@ class BtsModule(BaseModule):
         depth = TF.rotate(depth, angle)
 
         # Resize
-        h = int(np.random.choice([416, 452, 489, 507, 518, 550, 600, 650, 720]))
+        h = int(np.random.choice([512, 518, 550, 600, 650, 720]))
         resize = transforms.Resize(h)
         rgb = resize(rgb)
         depth = resize(depth)

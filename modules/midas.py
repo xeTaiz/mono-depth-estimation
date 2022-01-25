@@ -103,10 +103,8 @@ class MidasModule(BaseModule):
         return [optimizer], [scheduler]
 
     def train_preprocess(self, rgb, depth):
-        if isinstance(rgb, np.ndarray):
-            rgb = transforms.ToPILImage()(rgb)
-        if isinstance(depth, np.ndarray):
-            depth = transforms.ToPILImage()(depth)
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
         # Random resize
         size = np.random.randint(384, 720)
         resize = transforms.Resize(int(size))
@@ -130,10 +128,8 @@ class MidasModule(BaseModule):
         return rgb, depth
 
     def val_preprocess(self, rgb, depth):
-        if isinstance(rgb, np.ndarray):
-            rgb = transforms.ToPILImage()(rgb)
-        if isinstance(depth, np.ndarray):
-            depth = transforms.ToPILImage()(depth)
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
         # Resize
         resize = transforms.Resize(384)
         rgb = resize(rgb)
@@ -152,10 +148,8 @@ class MidasModule(BaseModule):
         return rgb, depth
 
     def test_preprocess(self, rgb, depth):
-        if isinstance(rgb, np.ndarray):
-            rgb = transforms.ToPILImage()(rgb)
-        if isinstance(depth, np.ndarray):
-            depth = transforms.ToPILImage()(depth)
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
         # Resize
         resize = transforms.Resize(500)
         rgb = resize(rgb)

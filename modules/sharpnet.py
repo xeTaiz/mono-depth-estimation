@@ -15,10 +15,8 @@ RGB_PIXEL_MEANS = (0.485, 0.456, 0.406)  # (102.9801, 115.9465, 122.7717)
 RGB_PIXEL_VARS = (0.229, 0.224, 0.225)  # (1, 1, 1)
 
 def training_preprocess(rgb, depth):
-    if isinstance(rgb, np.ndarray):
-        rgb = transforms.ToPILImage()(rgb)
-    if isinstance(depth, np.ndarray):
-        depth = transforms.ToPILImage()(depth)
+    rgb = transforms.ToPILImage()(rgb)
+    depth = transforms.ToPILImage()(depth)
     # Random resize
     size = np.random.randint(240, 720)
     resize = transforms.Resize(int(size))
@@ -49,10 +47,8 @@ def training_preprocess(rgb, depth):
     return rgb, depth
 
 def validation_preprocess(rgb, depth):
-    if isinstance(rgb, np.ndarray):
-        rgb = transforms.ToPILImage()(rgb)
-    if isinstance(depth, np.ndarray):
-        depth = transforms.ToPILImage()(depth)
+    rgb = transforms.ToPILImage()(rgb)
+    depth = transforms.ToPILImage()(depth)
     # Resize
     resize = transforms.Resize(240)
     rgb = resize(rgb)
