@@ -76,7 +76,7 @@ def load_pretrained_imagenet_weights(model, encoder):
         weights_file = "mobilenet_v2.pth.tar"
     else:
         raise ValueError("unknow encoder", encoder)
-    weights_file = Path(Path.cwd(), "network", "pretrained_models", net, weights_file)
+    weights_file = Path(Path.cwd(), "mono-depth-estimation", "network", "pretrained_models", net, weights_file)
     convert_state_dict = convert_state_dict_mobilenet if "mobilenet" in encoder else convert_state_dict_resnext
     if torch.cuda.is_available():
         parameters = torch.load(weights_file, map_location=torch.device('cuda:0'))
