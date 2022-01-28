@@ -12,19 +12,27 @@ from torchvtk.utils import make_3d
 from datasets.dataset import BaseDataset
 
 def get_stdepth_dataset(args, split, output_size, resize):
-    return SemiTransparentDepthDataset(args.path, split=split, output_size=output_size, resize=resize, depth_method=args.depth_method)
+    if split == 'train':
+        filter_fn = lambda fn: int(fn.name.split('_')[0].split('-')[-1]) < 400
+    elif split == 'val':
+        filter_fn = lambda fn: 400 <= int(fn.name.split('_')[0].split('-')[-1]) < 450
+    elif split == 'test':
+        filter_fn = lambda fn: 450 <= int(fn.name.split('_')[0].split('-')[-1])
+    else:
+        raise Exception(f'Invalid split: {split}. Either train, val or test')
+    return SemiTransparentDepthDataset(args.path, split=split, output_size=output_size, filter_fn=filter_fn, resize=resize, depth_method=args.depth_method)
 
 
 class SemiTransparentDepthDataset(BaseDataset):
     def __init__(self):
         super().__init__()
 
-    def __init__(self, path, resize, output_size, depth_method='first_hit', *args, **kwargs):
+    def __init__(self, path, resize, output_size, filter_fn=lambda _: True, depth_method='first_hit', *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.resize = resize
         self.output_size = output_size
         self.path = path
-        self.torch_ds = TorchDataset(path)
+        self.torch_ds = TorchDataset(path, filter_fn=filter_fn)
         self.depth_method = depth_method
 
     def training_preprocess(self, rgb, depth):
