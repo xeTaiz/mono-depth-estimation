@@ -48,10 +48,6 @@ def set_flip_pad_reshape_crop(phase, uniform_size):
     # crop
     crop_height = raw_size[size_index]
     crop_width = raw_size[size_index]
-    print('uniform_size', uniform_size)
-    print('crop_width', crop_width)
-    print('raw_size', raw_size)
-    print('size_index', size_index, 'thus', raw_size[size_index])
     start_x = np.random.randint(0, int(uniform_size[1] - crop_width)+1)
     start_y = 0 if pad_height != 0 else np.random.randint(0, int(uniform_size[0] - crop_height) + 1)
     crop_size = [start_x, start_y, crop_height, crop_width]
@@ -129,22 +125,14 @@ def permute_image(im):
     else:
         return im
 def training_preprocess(rgb, depth):
-    print('Shapes before:')
-    print(rgb.shape, depth.shape)
     rgb, depth = permute_image(rgb), permute_image(depth)
-    print('Shapes after:')
-    print(rgb.shape, depth.shape)
     A = np.array(rgb, dtype=np.uint8)
     B = np.array(depth, dtype=np.float32) / 10.0
     return preprocess(A, B, 'train')
     
 
 def validation_preprocess(rgb, depth):
-    print('Shapes before:')
-    print(rgb.shape, depth.shape)
     rgb, depth = permute_image(rgb), permute_image(depth)
-    print('Shapes after:')
-    print(rgb.shape, depth.shape)
     A = np.array(rgb, dtype=np.uint8)
     B = np.array(depth, dtype=np.float32) / 10.0
     return preprocess(A, B, 'val')

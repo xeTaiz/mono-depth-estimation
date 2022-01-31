@@ -55,8 +55,6 @@ class MetricComputation(object):
         self.sum = [0.0 for _ in self.metrics]
 
     def compute(self, pred, target):
-        print('log metric pred', pred.shape)
-        print('log metric targ', target.shape)
         pred = torch.clamp_min(pred, 1e-07)
         valid_mask = target > 0
         assert torch.sum(valid_mask) > 0, "invalid target!"
