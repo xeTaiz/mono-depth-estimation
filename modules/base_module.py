@@ -147,10 +147,8 @@ class BaseModule(pl.LightningModule):
         return rgb, depth
 
     def val_preprocess(self, rgb, depth):
-        if isinstance(rgb, np.ndarray):
-            rgb = transforms.ToPILImage()(rgb)
-        if isinstance(depth, np.ndarray):
-            depth = transforms.ToPILImage()(depth)
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
         # Resize
         resize = transforms.Resize(self.resize())
         rgb = resize(rgb)
