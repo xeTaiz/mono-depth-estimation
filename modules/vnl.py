@@ -122,8 +122,10 @@ def preprocess(A, B, phase):
 
 def permute_image(im):
     if im.ndim > 3: im = im.squeeze(0)
-    if im.size(0) in [1,3]:
+    if im.size(0) == 3:
         return im.permute(1,2,0).contiguous()
+    elif im.size(0) == 1:
+        return im.squeeze(0)
     else:
         return im
 def training_preprocess(rgb, depth):
