@@ -122,7 +122,7 @@ def preprocess(A, B, phase):
 
 def permute_image(im):
     if im.ndim > 3: im = im.squeeze(0)
-    if im.shape[0] in [1,3]:
+    if im.size(0) in [1,3]:
         return im.permute(1,2,0).contiguous()
     else:
         return im
@@ -134,7 +134,11 @@ def training_preprocess(rgb, depth):
     
 
 def validation_preprocess(rgb, depth):
+    print('Shapes before:')
+    print(rgb.shape, depth.shape)
     rgb, depth = permute_image(rgb), permute_image(depth)
+    print('Shapes after:')
+    print(rgb.shape, depth.shape)
     A = np.array(rgb, dtype=np.uint8)
     B = np.array(depth, dtype=np.float32) / 10.0
     return preprocess(A, B, 'val')
