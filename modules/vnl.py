@@ -39,7 +39,7 @@ def set_flip_pad_reshape_crop(phase, uniform_size):
     flip_flg = True if flip_prob > 0.5 and 'train' in phase else False
 
     raw_size = np.array([CROP_SIZE[1], 416, 448, 480, 512])
-    size_index = np.random.randint(0, 9) if 'train' in phase else 8
+    size_index = np.random.randint(0, len(raw_size)) if 'train' in phase else len(raw_size)-1
 
     # pad
     pad_height = raw_size[size_index] - uniform_size[0] if raw_size[size_index] > uniform_size[0] else 0
