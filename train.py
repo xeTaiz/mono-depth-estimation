@@ -58,8 +58,8 @@ if __name__ == "__main__":
     parser.add_argument('--gpus', type=int, default=1, help='Number of GPUs')
     parser.add_argument('--dev', action='store_true', help='Activate Lightning Fast Dev Run for debugging')
     parser.add_argument('--overfit', action='store_true', help='If this flag is set the network is overfit to 1 batch')
-    parser.add_argument('--min_epochs', default=50, type=int, help='Minimum number of epochs.')
-    parser.add_argument('--max_epochs', default=150, type=int, help='Maximum number ob epochs to train')
+    parser.add_argument('--min_epochs', default=10, type=int, help='Minimum number of epochs.')
+    parser.add_argument('--max_epochs', default=50, type=int, help='Maximum number ob epochs to train')
     parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
     parser.add_argument('--worker', default=6, type=int, help='Number of workers for data loader')
     parser.add_argument('--find_learning_rate', action='store_true', help="Finding learning rate.")
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     trainer = pl.Trainer(
         log_gpu_memory=False,
-        log_every_n_steps=1000,
+        val_check_interval=1000,
         fast_dev_run=args.globals.dev,
         gpus=args.globals.gpus,
         overfit_batches=1 if args.globals.overfit else 0,
