@@ -115,10 +115,8 @@ class BaseModule(pl.LightningModule):
         s = np.random.uniform(1, 1.5)
         depth = depth / s
 
-        if isinstance(rgb, np.ndarray):
-            rgb = transforms.ToPILImage()(rgb)
-        if isinstance(depth, np.ndarray):
-            depth = transforms.ToPILImage()(depth)
+        rgb = transforms.ToPILImage()(rgb)
+        depth = transforms.ToPILImage()(depth)
         # color jitter
         rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
         # Resize

@@ -121,12 +121,16 @@ def preprocess(A, B, phase):
     return data
 
 def training_preprocess(rgb, depth):
+    rgb = transforms.ToPILImage()(rgb)
+    depth = transforms.ToPILImage()(depth)
     A = np.array(rgb, dtype=np.uint8)
     B = np.array(depth, dtype=np.float32) / 10.0
     return preprocess(A, B, 'train')
     
 
 def validation_preprocess(rgb, depth):
+    rgb = transforms.ToPILImage()(rgb)
+    depth = transforms.ToPILImage()(depth)
     A = np.array(rgb, dtype=np.uint8)
     B = np.array(depth, dtype=np.float32) / 10.0
     return preprocess(A, B, 'val')
