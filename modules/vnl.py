@@ -127,7 +127,11 @@ def permute_image(im):
     else:
         return im
 def training_preprocess(rgb, depth):
+    print('Shapes before:')
+    print(rgb.shape, depth.shape)
     rgb, depth = permute_image(rgb), permute_image(depth)
+    print('Shapes after:')
+    print(rgb.shape, depth.shape)
     A = np.array(rgb, dtype=np.uint8)
     B = np.array(depth, dtype=np.float32) / 10.0
     return preprocess(A, B, 'train')
