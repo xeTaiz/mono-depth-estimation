@@ -95,15 +95,11 @@ def resize_image(img, size):
     return img
 
 def preprocess(A, B, phase):
-    if B.shape[0] != 480:
-        s = 480 / B.shape[0]
+    if B.shape[0] != 512:
+        s = 512 / B.shape[0]
         A = cv2.resize(A, (0,0), fx=s, fy=s)
         B = cv2.resize(B, (0,0), fx=s, fy=s)
-        w = B.shape[1] - 640
-        if w > 0:
-            w_off = w // 2
-            A = A[:, w_off:-(w_off+1), :]
-            B = B[:, w_off:-(w_off+1)]
+
 
     uniform_size = B.shape[0:2]
     flip_flg, crop_size, pad, resize_ratio = set_flip_pad_reshape_crop(phase, uniform_size)
