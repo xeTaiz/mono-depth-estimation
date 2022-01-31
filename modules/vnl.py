@@ -120,17 +120,21 @@ def preprocess(A, B, phase):
     data = {'A': A_resize, 'B': B_resize, 'A_raw': torch.from_numpy(A/255).type(torch.float32), 'B_raw': B, 'invalid_side': np.array(invalid_side), 'ratio': np.float32(1.0 / resize_ratio)}
     return data
 
+def permute_image(im):
+    if im.ndim > 3: im = im.squeeze(0)
+    if im.shape[0] in [1,3]:
+        return im.permute(1,2,0).contiguous()
+    else:
+        return im
 def training_preprocess(rgb, depth):
-    rgb = transforms.ToPILImage()(rgb)
-    depth = transforms.ToPILImage()(depth)
+    rgb, depth = permute_image(rgb), permute_image(depth)
     A = np.array(rgb, dtype=np.uint8)
     B = np.array(depth, dtype=np.float32) / 10.0
     return preprocess(A, B, 'train')
     
 
 def validation_preprocess(rgb, depth):
-    rgb = transforms.ToPILImage()(rgb)
-    depth = transforms.ToPILImage()(depth)
+    rgb, depth = permute_image(rgb), permute_image(depth)
     A = np.array(rgb, dtype=np.uint8)
     B = np.array(depth, dtype=np.float32) / 10.0
     return preprocess(A, B, 'val')
