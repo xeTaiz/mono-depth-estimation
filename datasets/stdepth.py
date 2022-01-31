@@ -66,10 +66,10 @@ class SemiTransparentDepthDataset(BaseDataset):
         return rgb, depth
 
     def validation_preprocess(self, rgb, depth):
-        return rgb, depth
+        return TF.to_tensor(rgb), TF.to_tensor(depth)
 
     def test_preprocess(self, rgb, depth):
-        return rgb, depth
+        return TF.to_tensor(rgb), TF.to_tensor(depth)
 
     def get_raw(self, index):
         item = self.torch_ds[index]
