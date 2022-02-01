@@ -60,7 +60,7 @@ if __name__ == "__main__":
     parser.add_argument('--overfit', action='store_true', help='If this flag is set the network is overfit to 1 batch')
     parser.add_argument('--min_epochs', default=10, type=int, help='Minimum number of epochs.')
     parser.add_argument('--max_epochs', default=50, type=int, help='Maximum number ob epochs to train')
-    parser.add_argument('--max-train-batches', default=1.0, help='Limit train dataset to percentage/amount')
+    parser.add_argument('--max-train-batches', default=1.0, type=float, help='Limit train dataset to percentage/amount')
     parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
     parser.add_argument('--worker', default=6, type=int, help='Number of workers for data loader')
     parser.add_argument('--find_learning_rate', action='store_true', help="Finding learning rate.")
