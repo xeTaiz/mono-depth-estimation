@@ -172,7 +172,7 @@ class BaseModule(pl.LightningModule):
         elif batch_idx == 8 * self.skip:
             filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
             visualize.save_image(self.img_merge, filename)
-            self.logger.experiment.add_image('images', self.img_merge, self.global_step)
+            self.logger.experiment.add_image('images', np.reshape(self.img_merge, (-1, *self.img_merge.shape[-3:]), self.global_step, dataformats='HWC')
 
     def get_dataset(self):
         training_dataset = []
