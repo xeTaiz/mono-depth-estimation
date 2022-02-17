@@ -10,6 +10,7 @@ import visualize
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 import numpy as np
+import wandb
 
 NAME2FUNC = {
     "nyu": get_nyu_dataset,
@@ -173,7 +174,7 @@ class BaseModule(pl.LightningModule):
             filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
             visualize.save_image(self.img_merge, filename)
             print(f'save_visualization(): img_merge: {self.img_merge.shape}')
-            self.logger.experiment.add_image('images', self.img_merge, self.global_step, dataformats='HWC')
+            self.logger.experiment.add_image({'images': wandb.Image(self.img_merge)})
 
     def get_dataset(self):
         training_dataset = []
