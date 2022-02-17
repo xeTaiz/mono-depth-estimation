@@ -96,6 +96,12 @@ if __name__ == "__main__":
         mode='max'
     )
 
+    early_stop_callback = pl.callbacks.EarlyStopping(
+        monitor='val_delta1',
+        mode='max',
+        patience=5
+    )
+
     use_gpu = not args.globals.gpus == 0
 
     trainer = pl.Trainer(
@@ -109,8 +115,8 @@ if __name__ == "__main__":
         amp_level='O2' if use_gpu else None,
         min_epochs=args.globals.min_epochs,
         max_epochs=args.globals.max_epochs,
-        logger=pl.loggers.TensorBoardLogger("result", name=args.method.name),
-        callbacks=[pl.callbacks.lr_monitor.LearningRateMonitor(), checkpoint_callback]
+        logger=pl.loggers.WandbLogger(project="stdepth", log_model=True),
+        callbacks=[pl.callbacks.lr_monitor.LearningRateMonitor(), checkpoint_callback, early_stop_callback]
     )
 
     yaml = args.__dict__
@@ -121,7 +127,7 @@ if __name__ == "__main__":
             })
    
     #if hasattr(trainer, 'logger'):
-    #    trainer.logger.log_hyperparams(yaml) # Log random seed
+    trainer.logger.log_hyperparams(args) # Log Hyper parameters
     torch.autograd.set_detect_anomaly(True)
     # Fit model
     module = get_module(args)
