@@ -125,8 +125,9 @@ if __name__ == "__main__":
             'gpu_name': torch.cuda.get_device_name(0) if use_gpu else None,
             'gpu_capability': torch.cuda.get_device_capability(0) if use_gpu else None
             })
-   
+    
     #if hasattr(trainer, 'logger'):
+    args.ds_name = args.training.path.name
     trainer.logger.log_hyperparams(args) # Log Hyper parameters
     torch.autograd.set_detect_anomaly(True)
     # Fit model
