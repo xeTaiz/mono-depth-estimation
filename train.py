@@ -128,6 +128,7 @@ if __name__ == "__main__":
     
     #if hasattr(trainer, 'logger'):
     args.ds_name = args.training[0][1].path.split('/')[-1]
+    args.depth_method = args.training[0][1].depth_method
     trainer.logger.log_hyperparams(args) # Log Hyper parameters
     torch.autograd.set_detect_anomaly(True)
     # Fit model
