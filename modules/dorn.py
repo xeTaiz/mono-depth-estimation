@@ -153,7 +153,6 @@ class DORNModule(BaseModule):
         y_hat = self.label_to_depth(pred_d)
         y_sid = self.depth_to_label(y)
         loss = self.criterion(pred_ord, y_sid)
-        print(x.shape, y.shape, y_hat.shape)
         self.save_visualization(x, y, y_hat, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
 
@@ -162,7 +161,6 @@ class DORNModule(BaseModule):
         x, y = batch
         pred_d, pred_ord = self(x)
         y_hat = self.label_to_depth(pred_d)
-        print(x.shape, y.shape, y_hat.shape)
         self.save_visualization(x, y, y_hat, batch_idx, nam='val')
         return self.metric_logger.log_val(y_hat, y)
 
@@ -175,7 +173,6 @@ class DORNModule(BaseModule):
         x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
         y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
-        print(x.shape, y.shape, y_hat.shape)
         self.save_visualization(x, y, y_hat, batch_idx, nam='test')
 
         return self.metric_logger.log_test(y_hat, y)

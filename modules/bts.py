@@ -190,9 +190,6 @@ class BtsModule(BaseModule):
         return rgb, depth
 
     def val_preprocess(self, rgb, depth):
-        # save_image(rgb.float()/255.0, 'test_rgb_before.png')
-        # save_image(depth, 'test_depth_before.png')
-
         rgb = transforms.ToPILImage()(rgb)
         depth = transforms.ToPILImage()(depth)
         # Resize
@@ -209,8 +206,6 @@ class BtsModule(BaseModule):
 
         rgb /= 255.0
         depth /= 255.0
-        # save_image(rgb, 'test_rgb.png')
-        # save_image(depth, 'test_depth.png')
         return rgb, depth
 
     def test_preprocess(self, rgb, depth):

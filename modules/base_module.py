@@ -117,8 +117,6 @@ class BaseModule(pl.LightningModule):
         s = np.random.uniform(1, 1.5)
         depth = depth / s
 
-        save_image(rgb.float() / 255.0, 'test_rgb_before.png')
-        save_image(depth, 'test_depth_before.png')
         rgb = transforms.ToPILImage()(rgb)
         depth = transforms.ToPILImage()(depth)
         # color jitter
@@ -146,8 +144,6 @@ class BaseModule(pl.LightningModule):
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
         depth = TF.to_tensor(np.array(depth) / 255.0)
-        save_image(rgb, 'test_rgb.png')
-        save_image(depth, 'test_depth.png')
         return rgb, depth
 
     def val_preprocess(self, rgb, depth):
@@ -182,7 +178,6 @@ class BaseModule(pl.LightningModule):
         elif batch_idx == 8 * self.skip:
             filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
             visualize.save_image(self.img_merge, filename)
-            print(f'save_visualization(): img_merge: {self.img_merge.shape}')
             self.logger.experiment.log({f'{nam}_images': wandb.Image(self.img_merge)})
 
     def get_dataset(self):
