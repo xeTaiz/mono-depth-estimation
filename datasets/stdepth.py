@@ -63,6 +63,7 @@ class SemiTransparentDepthDataset(BaseDataset):
         # Transform to tensor
         rgb = TF.to_tensor(rgb)
         depth = TF.to_tensor(depth / s)
+        print(f'train_preprocess: {rgb.shape}, {rgb.min(), rgb.max()}')
         return rgb, depth
 
     def validation_preprocess(self, rgb, depth):
@@ -73,7 +74,7 @@ class SemiTransparentDepthDataset(BaseDataset):
 
     def get_raw(self, index):
         item = self.torch_ds[index]
-        return torch.clamp(item['rgba'][:3].float() * 255.0, 0.0, 255.0), item[self.depth_method].float() * 10.0
+        return torch.clamp(item['rgba'][:3].float() * 255.0, 0.0, 255.0).byte(), item[self.depth_method].float()
 
     def __len__(self):
         return len(self.torch_ds)

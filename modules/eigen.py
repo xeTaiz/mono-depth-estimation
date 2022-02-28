@@ -29,6 +29,7 @@ class EigenModule(BaseModule):
         # bilinerar upsample
         y_hat = torch.nn.functional.interpolate(y_hat, (h, w), mode='bilinear')
         loss = self.criterion(y_hat, y)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
@@ -38,7 +39,7 @@ class EigenModule(BaseModule):
         (_, c, h, w) = y.size()
         # bilinerar upsample
         y_hat = torch.nn.functional.interpolate(y_hat, (h, w), mode='bilinear')
-        self.save_visualization(x, y, y_hat, batch_idx)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='val')
         return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
@@ -48,6 +49,7 @@ class EigenModule(BaseModule):
         x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
         y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
+        self.save_visualization(x, y, y_hat, batch_idx, nam='test')
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):

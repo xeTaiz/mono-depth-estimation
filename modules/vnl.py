@@ -127,14 +127,14 @@ def permute_image(im):
 def training_preprocess(rgb, depth):
     rgb, depth = permute_image(rgb), permute_image(depth)
     A = np.array(rgb, dtype=np.uint8)
-    B = np.array(depth, dtype=np.float32) / 10.0
+    B = np.array(depth, dtype=np.float32)
     return preprocess(A, B, 'train')
-    
+
 
 def validation_preprocess(rgb, depth):
     rgb, depth = permute_image(rgb), permute_image(depth)
     A = np.array(rgb, dtype=np.uint8)
-    B = np.array(depth, dtype=np.float32) / 10.0
+    B = np.array(depth, dtype=np.float32)
     return preprocess(A, B, 'val')
 
 
@@ -151,7 +151,7 @@ class VNLModule(BaseModule):
         self.params.init_type = self.method.init_type
         self.params.dec_dim_in = self.method.dec_dim_in
         self.params.dec_dim_out = self.method.dec_dim_out
-        self.params.dec_out_c = self.method.dec_out_c        
+        self.params.dec_out_c = self.method.dec_out_c
         self.params.focal_x = self.method.focal_x
         self.params.focal_y = self.method.focal_y
         self.params.crop_size = self.method.crop_size
@@ -161,7 +161,7 @@ class VNLModule(BaseModule):
         self.params.depth_bin_interval = (np.log10(self.method.depth_max) - np.log10(self.method.depth_min)) / self.method.dec_out_c
         self.params.wce_loss_weight = [[np.exp(-0.2 * (i - j) ** 2) for i in range(self.method.dec_out_c)] for j in np.arange(self.method.dec_out_c)]
         self.params.depth_bin_border = np.array([np.log10(self.method.depth_min) + self.params.depth_bin_interval * (i + 0.5) for i in range(self.method.dec_out_c)])
-        
+
         self.model = VNL.MetricDepthModel(self.params)
         self.criterion = criteria.ModelLoss(self.params)
         if 'finetune' in self.method and self.method.finetune in [-1, -2, -3, -4, -5]:
@@ -177,7 +177,7 @@ class VNLModule(BaseModule):
             ]
             for layer in layers[0:self.method.finetune]:
                 freeze_params(layer)
-    
+
     def freeze_encoder(self):
         pass
 
@@ -255,6 +255,8 @@ class VNLModule(BaseModule):
         loss = self.criterion(self.bins_to_depth(pred_cls), pred_logits, self.depth_to_bins(batch['B']), batch['B'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         y = batch['B']
+        x, y, y_hat = self.restore_prediction(y_hat, batch)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def predicted_depth_map(self, logits, cls):
@@ -271,7 +273,7 @@ class VNLModule(BaseModule):
         pred_logits, pred_cls = self(batch['A'])
         y_hat = self.predicted_depth_map(pred_logits, pred_cls)
         x, y, y_hat = self.restore_prediction(y_hat, batch)
-        self.save_visualization(x, y, y_hat, batch_idx)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='val')
         return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
@@ -281,6 +283,7 @@ class VNLModule(BaseModule):
         x, y, y_hat = self.restore_prediction(y_hat, batch)
         filename = "{}/{}/version_{}/test_{}".format(self.logger.save_dir, self.logger.name, self.logger.version, batch_idx)
         visualize.save_images(filename, batch_idx, x, y, y_hat)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='test')
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):

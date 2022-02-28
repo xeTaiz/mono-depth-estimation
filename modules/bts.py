@@ -5,6 +5,7 @@ from network import Bts
 import numpy as np
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
+from torchvision.utils import save_image
 from modules.base_module import BaseModule, freeze_params
 import visualize
 
@@ -104,13 +105,14 @@ class BtsModule(BaseModule):
         x, y = batch
         y_hat = self(x)
         loss = self.criterion(y_hat, y)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        self.save_visualization(x, y, y_hat, batch_idx)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='val')
         return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
@@ -121,7 +123,7 @@ class BtsModule(BaseModule):
         #y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         #y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
         filename = "{}/{}/version_{}/test_{}".format(self.logger.save_dir, self.logger.name, self.logger.version, batch_idx)
-        visualize.save_images(filename, batch_idx, x, y, y_hat)
+        visualize.save_images(filename, batch_idx, x, y, y_hat, nam='test')
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
@@ -152,7 +154,7 @@ class BtsModule(BaseModule):
         depth = depth.crop((left_margin, top_margin, right_margin, bot_margin))
         rgb     = rgb.crop((left_margin, top_margin, right_margin, bot_margin))
 
-        
+
         # Random rotation
         angle = transforms.RandomRotation.get_params([-2.5, 2.5])
         rgb = TF.rotate(rgb, angle)
@@ -176,7 +178,7 @@ class BtsModule(BaseModule):
             depth = TF.hflip(depth)
 
         rgb = np.asarray(rgb, dtype=np.float32) / 255.0
-        depth = np.asarray(depth, dtype=np.float32)
+        depth = np.asarray(depth, dtype=np.float32) / 255.0
 
         # Random gamma, brightness, color augmentation
         if np.random.uniform(0,1) > 0.5:
@@ -184,9 +186,13 @@ class BtsModule(BaseModule):
 
         rgb = TF.to_tensor(np.array(rgb))
         depth = TF.to_tensor(np.array(depth))
+
         return rgb, depth
 
     def val_preprocess(self, rgb, depth):
+        # save_image(rgb.float()/255.0, 'test_rgb_before.png')
+        # save_image(depth, 'test_depth_before.png')
+
         rgb = transforms.ToPILImage()(rgb)
         depth = transforms.ToPILImage()(depth)
         # Resize
@@ -197,12 +203,14 @@ class BtsModule(BaseModule):
         crop = transforms.CenterCrop(self.output_size())
         rgb = crop(rgb)
         depth = crop(depth)
-        
+
         rgb = TF.to_tensor(np.array(rgb, dtype=np.float32))
         depth = TF.to_tensor(np.array(depth, dtype=np.float32))
-        
+
         rgb /= 255.0
-        #depth /= 1000.0
+        depth /= 255.0
+        # save_image(rgb, 'test_rgb.png')
+        # save_image(depth, 'test_depth.png')
         return rgb, depth
 
     def test_preprocess(self, rgb, depth):

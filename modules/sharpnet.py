@@ -87,14 +87,14 @@ class SharpNetModule(pl.LightningModule):
             self.train_dataset.transform = training_preprocess
             self.val_dataset.transform = validation_preprocess
         self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                    batch_size=args.batch_size, 
-                                                    shuffle=True, 
-                                                    num_workers=args.worker, 
+                                                    batch_size=args.batch_size,
+                                                    shuffle=True,
+                                                    num_workers=args.worker,
                                                     pin_memory=True)
         self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
-                                                    batch_size=1, 
-                                                    shuffle=False, 
-                                                    num_workers=args.worker, 
+                                                    batch_size=1,
+                                                    shuffle=False,
+                                                    num_workers=args.worker,
                                                     pin_memory=True)
         self.skip = len(self.val_loader) // 9
         print("=> creating Model")
@@ -124,6 +124,7 @@ class SharpNetModule(pl.LightningModule):
         y_hat = self(x)
         #y /= 10.0
         loss = self.criterion(y_hat, y)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
@@ -131,14 +132,7 @@ class SharpNetModule(pl.LightningModule):
         x, y = batch
         #y /= 10.0
         y_hat = self(x)
-        if batch_idx == 0:
-            self.img_merge = visualize.merge_into_row(x, y, y_hat)
-        elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
-            row = visualize.merge_into_row(x, y, y_hat)
-            self.img_merge = visualize.add_row(self.img_merge, row)
-        elif batch_idx == 8 * self.skip:
-            filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
-            visualize.save_image(self.img_merge, filename)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='val')
         return self.metric_logger.log_val(y_hat, y, checkpoint_on='mae')
 
     def configure_optimizers(self):

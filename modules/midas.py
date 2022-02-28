@@ -9,10 +9,10 @@ import numpy as np
 import cv2
 from modules.base_module import BaseModule, freeze_params
 
-midas_transform = torch.hub.load("intel-isl/MiDaS", "transforms").default_transform 
+midas_transform = torch.hub.load("intel-isl/MiDaS", "transforms").default_transform
 
 class MidasModule(BaseModule):
-   
+
     def download_weights(self, filename):
         def my_hook(t):
             last_b = [0]
@@ -68,6 +68,7 @@ class MidasModule(BaseModule):
         loss = self.criterion(y_hat, y)
         if "ssi" in self.method.loss:
             y_hat, y = self.scale_shift(y_hat, y)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
@@ -76,7 +77,7 @@ class MidasModule(BaseModule):
         y_hat = self(x)
         if "ssi" in self.method.loss:
             y_hat, y = self.scale_shift(y_hat, y)
-        self.save_visualization(x, y, y_hat, batch_idx)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='val')
         return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
@@ -87,6 +88,7 @@ class MidasModule(BaseModule):
             y_hat, y = self.scale_shift(y_hat, y)
         y_hat = torch.nn.functional.interpolate(y_hat, (640, 640), mode='bilinear')
         y_hat = y_hat[..., 0:480, 0:640]
+        self.save_visualization(x, y, y_hat, batch_idx, nam='test')
         return self.metric_logger.log_test(y_hat, batch['depth_raw'])
 
     def configure_optimizers(self):
@@ -120,7 +122,7 @@ class MidasModule(BaseModule):
             depth = TF.hflip(depth)
         # Transform to tensor
         rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
-        depth = np.array(depth, dtype=np.float32)
+        depth = np.array(depth, dtype=np.float32) / 255.0
         depth = TF.to_tensor(depth)
         #mask = depth > 0
         #depth[mask] = 10. / depth[mask]
@@ -141,7 +143,7 @@ class MidasModule(BaseModule):
         # Transform to tensor
         rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
         depth = np.array(depth, dtype=np.float32)
-        depth = TF.to_tensor(depth)
+        depth = TF.to_tensor(depth) / 255.0
         #mask = depth > 0
         #depth[mask] = 10. / depth[mask]
         #depth[~mask] = 0.
@@ -170,10 +172,10 @@ class MidasModule(BaseModule):
         depth = cv2.resize(depth, (384, 384))
         # Transform to tensor
         rgb = midas_transform(rgb).squeeze(0)#TF.to_tensor(np.array(rgb)) #
-        depth = TF.to_tensor(depth)
+        depth = TF.to_tensor(depth) / 255.0
         rgb_raw = TF.to_tensor(rgb_raw)
         depth_raw = TF.to_tensor(depth_raw)
-        
+
         return {'rgb_raw': rgb_raw, 'depth_raw': depth_raw, 'rgb': rgb, 'depth': depth}
 
     @staticmethod

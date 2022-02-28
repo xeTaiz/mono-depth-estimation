@@ -4,7 +4,7 @@ import criteria
 from network import Dorn
 import torchvision.transforms.functional as TF
 from torchvision import transforms
-import numpy as np 
+import numpy as np
 from modules.base_module import BaseModule, freeze_params
 
 def get_depth_sid(dataset, labels):
@@ -130,12 +130,12 @@ class DORNModule(BaseModule):
         pred_d, pred_ord = self(batch)
         y_hat_crop = self.label_to_depth(pred_d)
         y_hat_crop = y_hat_crop * s
-        
+
         for q in range(c):
             (i,j,h,w) = params[q]
             counts[..., i:i+h, j:j+w] += 1
             y_hat[..., i:i+h, j:j+w] += y_hat_crop[q]
-            
+
         counts = counts.type(torch.float32)
         y_hat = y_hat.type(torch.float32)
         y_hat = y_hat / counts
@@ -153,6 +153,8 @@ class DORNModule(BaseModule):
         y_hat = self.label_to_depth(pred_d)
         y_sid = self.depth_to_label(y)
         loss = self.criterion(pred_ord, y_sid)
+        print(x.shape, y.shape, y_hat.shape)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
@@ -160,7 +162,8 @@ class DORNModule(BaseModule):
         x, y = batch
         pred_d, pred_ord = self(x)
         y_hat = self.label_to_depth(pred_d)
-        self.save_visualization(x, y, y_hat, batch_idx)
+        print(x.shape, y.shape, y_hat.shape)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='val')
         return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
@@ -172,7 +175,9 @@ class DORNModule(BaseModule):
         x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
         y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
-        
+        print(x.shape, y.shape, y_hat.shape)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='test')
+
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):

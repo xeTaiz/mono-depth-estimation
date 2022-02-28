@@ -4,7 +4,7 @@ from network import FCRN
 from modules.base_module import BaseModule
 
 class FCRNModule(BaseModule):
-   
+
     def output_size(self):
         return (240, 320)
 
@@ -26,13 +26,14 @@ class FCRNModule(BaseModule):
         x, y = batch
         y_hat = self(x)
         loss = self.criterion(y_hat, y)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        self.save_visualization(x, y, y_hat, batch_idx)
+        self.save_visualization(x, y, y_hat, batch_idx, nam='val')
         return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
@@ -42,6 +43,7 @@ class FCRNModule(BaseModule):
         x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
         y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
         y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
+        self.save_visualization(x, y, y_hat, batch_idx, nam='test')
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):

@@ -9,6 +9,7 @@ from metrics import MetricLogger
 import visualize
 from torchvision import transforms
 import torchvision.transforms.functional as TF
+from torchvision.utils import save_image
 import numpy as np
 import wandb
 
@@ -116,6 +117,8 @@ class BaseModule(pl.LightningModule):
         s = np.random.uniform(1, 1.5)
         depth = depth / s
 
+        save_image(rgb.float() / 255.0, 'test_rgb_before.png')
+        save_image(depth, 'test_depth_before.png')
         rgb = transforms.ToPILImage()(rgb)
         depth = transforms.ToPILImage()(depth)
         # color jitter
@@ -142,7 +145,9 @@ class BaseModule(pl.LightningModule):
             depth = TF.hflip(depth)
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
-        depth = TF.to_tensor(np.array(depth))
+        depth = TF.to_tensor(np.array(depth) / 255.0)
+        save_image(rgb, 'test_rgb.png')
+        save_image(depth, 'test_depth.png')
         return rgb, depth
 
     def val_preprocess(self, rgb, depth):
@@ -158,14 +163,18 @@ class BaseModule(pl.LightningModule):
         depth = crop(depth)
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
-        depth = TF.to_tensor(np.array(depth))
+        depth = TF.to_tensor(np.array(depth) / 255.0)
         return rgb, depth
 
     def test_preprocess(self, rgb, depth):
         return self.val_preprocess(rgb, depth)
 
-    def save_visualization(self, x, y, y_hat, batch_idx):
+    def save_visualization(self, x, y, y_hat, batch_idx, nam='val'):
+        x = x[0] if x.ndim == 4 else x
+        y = y[0] if y.ndim == 4 else y
+        y_hat = y_hat[0] if y_hat.ndim == 4 else y_hat
         if batch_idx == 0:
+            print(x.shape, y.shape, y_hat.shape)
             self.img_merge = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
             row = visualize.merge_into_row(x, y, y_hat)
@@ -174,7 +183,7 @@ class BaseModule(pl.LightningModule):
             filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
             visualize.save_image(self.img_merge, filename)
             print(f'save_visualization(): img_merge: {self.img_merge.shape}')
-            self.logger.experiment.log({'images': wandb.Image(self.img_merge)})
+            self.logger.experiment.log({f'{nam}_images': wandb.Image(self.img_merge)})
 
     def get_dataset(self):
         training_dataset = []
