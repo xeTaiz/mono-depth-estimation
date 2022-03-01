@@ -63,7 +63,6 @@ class SemiTransparentDepthDataset(BaseDataset):
         # Transform to tensor
         rgb = TF.to_tensor(rgb)
         depth = TF.to_tensor(depth / s)
-        print(f'train_preprocess: {rgb.shape}, {rgb.min(), rgb.max()}')
         return rgb, depth
 
     def validation_preprocess(self, rgb, depth):
