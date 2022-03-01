@@ -175,14 +175,14 @@ class BaseModule(pl.LightningModule):
         y = y[0] if y.ndim == 4 else y
         y_hat = y_hat[0] if y_hat.ndim == 4 else y_hat
         if batch_idx == 0:
-            self.img_merge['nam'] = visualize.merge_into_row(x, y, y_hat)
-        elif (batch_idx < 8 * self.skip['nam']) and (batch_idx % self.skip['nam'] == 0):
+            self.img_merge[nam] = visualize.merge_into_row(x, y, y_hat)
+        elif (batch_idx < 8 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0):
             row = visualize.merge_into_row(x, y, y_hat)
-            self.img_merge['nam'] = visualize.add_row(self.img_merge['nam'], row)
-        elif batch_idx == 8 * self.skip['nam']:
+            self.img_merge[nam] = visualize.add_row(self.img_merge[nam], row)
+        elif batch_idx == 8 * self.skip[nam]:
             filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
-            visualize.save_image(self.img_merge['nam'], filename)
-            self.logger.experiment.log({f'{nam}_images': wandb.Image(self.img_merge['nam'])})
+            visualize.save_image(self.img_merge[nam], filename)
+            self.logger.experiment.log({f'{nam}_images': wandb.Image(self.img_merge[nam])})
 
     def get_dataset(self):
         training_dataset = []
