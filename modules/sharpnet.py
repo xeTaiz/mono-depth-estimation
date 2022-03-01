@@ -96,7 +96,6 @@ class SharpNetModule(pl.LightningModule):
                                                     shuffle=False,
                                                     num_workers=args.worker,
                                                     pin_memory=True)
-        self.skip = len(self.val_loader) // 9
         print("=> creating Model")
         self.model = SharpNet.SharpNet(SharpNet.Bottleneck, [3, 4, 6, 3], [2, 2, 2, 2, 2], use_depth=True)
         print("=> model created.")

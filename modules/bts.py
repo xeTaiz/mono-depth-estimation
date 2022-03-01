@@ -217,7 +217,7 @@ class BtsModule(BaseModule):
         BaseModule.add_default_args(parser, name="bts", learning_rate=0.0001, batch_size=8)
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--bts_size', type=int, default=512, help='initial num_filters in bts')
-        parser.add_argument('--max_depth', type=int, default=10, help='Depth of decoder')
+        parser.add_argument('--max_depth', type=int, default=1.0, help='Depth of decoder')
         parser.add_argument('--encoder', type=str, default='densenet161_bts', help='Type of encoder')
         parser.add_argument('--variance_focus', type=float, default=0.85, help='lambda in paper: [0, 1], higher value more focus on minimizing variance of error')
         parser.add_argument('--adam_eps', type=float, help='epsilon in Adam optimizer', default=1e-3)

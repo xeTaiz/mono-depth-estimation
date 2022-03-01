@@ -343,7 +343,7 @@ class VNLModule(BaseModule):
         parser.add_argument('--scale_decoder_lr', default=0.1, type=float, help='Scaling of LR for decoder')
         parser.add_argument('--freeze_backbone', action='store_true', help='Freeze backbone')
         parser.add_argument('--depth_min', default=0.01, type=float, help='minimum depth')
-        parser.add_argument('--depth_max', default=1.7, type=float, help='maximum depth')
+        parser.add_argument('--depth_max', default=1.1, type=float, help='maximum depth')
         parser.add_argument('--focal_x', default=519.0, type=float, help='focal x')
         parser.add_argument('--focal_y', default=519.0, type=float, help='focal y')
         parser.add_argument('--diff_loss_weight', default=6, type=float, help='diff loss weight')
