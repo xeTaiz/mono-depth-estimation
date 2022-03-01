@@ -27,6 +27,7 @@ def freeze_params(m):
 class BaseModule(pl.LightningModule):
     def __init__(self, globals, training, validation, test, method=None, *args, **kwargs):
         super().__init__()    
+        self.img_merge = {}
         self.save_hyperparameters()
         if method is None:
             self.method = self.hparams.hparams.method if 'hparams' in self.hparams else self.hparams
@@ -170,15 +171,14 @@ class BaseModule(pl.LightningModule):
         y = y[0] if y.ndim == 4 else y
         y_hat = y_hat[0] if y_hat.ndim == 4 else y_hat
         if batch_idx == 0:
-            print(x.shape, y.shape, y_hat.shape)
-            self.img_merge = visualize.merge_into_row(x, y, y_hat)
+            self.img_merge['nam'] = visualize.merge_into_row(x, y, y_hat)
         elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
             row = visualize.merge_into_row(x, y, y_hat)
-            self.img_merge = visualize.add_row(self.img_merge, row)
+            self.img_merge['nam'] = visualize.add_row(self.img_merge['nam'], row)
         elif batch_idx == 8 * self.skip:
             filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
-            visualize.save_image(self.img_merge, filename)
-            self.logger.experiment.log({f'{nam}_images': wandb.Image(self.img_merge)})
+            visualize.save_image(self.img_merge['nam'], filename)
+            self.logger.experiment.log({f'{nam}_images': wandb.Image(self.img_merge['nam'])})
 
     def get_dataset(self):
         training_dataset = []
