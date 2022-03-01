@@ -26,7 +26,7 @@ def freeze_params(m):
 
 class BaseModule(pl.LightningModule):
     def __init__(self, globals, training, validation, test, method=None, *args, **kwargs):
-        super().__init__()    
+        super().__init__()
         self.img_merge = {}
         self.save_hyperparameters()
         if method is None:
@@ -39,35 +39,39 @@ class BaseModule(pl.LightningModule):
         self.test = test
         self.train_dataset, self.val_dataset, self.test_dataset = self.get_dataset()
         if self.train_dataset:
-            self.train_dataset.transform = self.train_preprocess               
+            self.train_dataset.transform = self.train_preprocess
             self.train_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                                        batch_size=self.method.batch_size, 
-                                                        shuffle=True, 
-                                                        num_workers=self.globals.worker, 
+                                                        batch_size=self.method.batch_size,
+                                                        shuffle=True,
+                                                        num_workers=self.globals.worker,
                                                         pin_memory=True)
-        else: self.train_loader = None                                                          
-        if self.val_dataset:                                                
-            self.val_dataset.transform = self.val_preprocess 
+        else: self.train_loader = None
+        if self.val_dataset:
+            self.val_dataset.transform = self.val_preprocess
             self.val_loader = torch.utils.data.DataLoader(self.val_dataset,
-                                                        batch_size=1, 
-                                                        shuffle=False, 
-                                                        num_workers=self.globals.worker, 
-                                                        pin_memory=True) 
-        else: self.val_loader = None  
-        if self.test_dataset: 
-            self.test_dataset.transform = self.test_preprocess                                                
-            self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
-                                                        batch_size=1, 
-                                                        shuffle=False, 
-                                                        num_workers=self.globals.worker, 
+                                                        batch_size=1,
+                                                        shuffle=False,
+                                                        num_workers=self.globals.worker,
                                                         pin_memory=True)
-        else: self.test_loader = None                                 
+        else: self.val_loader = None
+        if self.test_dataset:
+            self.test_dataset.transform = self.test_preprocess
+            self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
+                                                        batch_size=1,
+                                                        shuffle=False,
+                                                        num_workers=self.globals.worker,
+                                                        pin_memory=True)
+        else: self.test_loader = None
         print("=> creating Model")
         self.model = self.setup_model()
         print("=> model created.")
         self.criterion = self.setup_criterion()
         self.metric_logger = MetricLogger(metrics=self.globals.metrics, module=self)
-        if self.val_loader: self.skip = len(self.val_loader) // 9
+        self.skip = {}
+        if self.val_loader:   self.skip['val'] =   len(self.val_loader) // 9
+        if self.train_loader: self.skip['train'] = len(self.train_loader) // 9
+        if self.test_loader:  self.skip['test'] =  len(self.tesst_loader) // 9
+
         if 'freeze_encoder' in self.method and self.method.freeze_encoder:
             print("freezing encoder")
             self.freeze_encoder()
@@ -86,7 +90,7 @@ class BaseModule(pl.LightningModule):
 
     def setup_model_from_ckpt(self):
         raise NotImplementedError()
-    
+
     def setup_criterion(self):
         raise NotImplementedError()
 
@@ -172,10 +176,10 @@ class BaseModule(pl.LightningModule):
         y_hat = y_hat[0] if y_hat.ndim == 4 else y_hat
         if batch_idx == 0:
             self.img_merge['nam'] = visualize.merge_into_row(x, y, y_hat)
-        elif (batch_idx < 8 * self.skip) and (batch_idx % self.skip == 0):
+        elif (batch_idx < 8 * self.skip['nam']) and (batch_idx % self.skip['nam'] == 0):
             row = visualize.merge_into_row(x, y, y_hat)
             self.img_merge['nam'] = visualize.add_row(self.img_merge['nam'], row)
-        elif batch_idx == 8 * self.skip:
+        elif batch_idx == 8 * self.skip['nam']:
             filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
             visualize.save_image(self.img_merge['nam'], filename)
             self.logger.experiment.log({f'{nam}_images': wandb.Image(self.img_merge['nam'])})
@@ -187,9 +191,9 @@ class BaseModule(pl.LightningModule):
         for name, data_setargs in self.training:
             training_dataset.append(NAME2FUNC[name](data_setargs, 'train', self.output_size(), self.resize()))
         for name, data_setargs in self.validation:
-            validation_dataset.append(NAME2FUNC[name](data_setargs, 'val', self.output_size(), self.resize())) 
+            validation_dataset.append(NAME2FUNC[name](data_setargs, 'val', self.output_size(), self.resize()))
         for name, data_setargs in self.test:
-            test_dataset.append(NAME2FUNC[name](data_setargs, 'test', self.output_size(), self.resize()))        
+            test_dataset.append(NAME2FUNC[name](data_setargs, 'test', self.output_size(), self.resize()))
 
         if len(training_dataset) > 1:   training_dataset = [ConcatDataset(training_dataset)]
         if len(validation_dataset) > 1: validation_dataset = [ConcatDataset(validation_dataset)]
