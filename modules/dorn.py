@@ -20,6 +20,10 @@ def get_depth_sid(dataset, labels):
         min = 0.0552
         max = 10.0
         K = 68.0
+    elif dataset == 'stdepth':
+        min = 1e-3
+        max = 1.0
+        K = 68.0
     else:
         print('No Dataset named as ', dataset)
 
@@ -48,6 +52,10 @@ def get_labels_sid(dataset, depth):
     elif dataset == 'floorplan3d':
         alpha = 0.0552
         beta = 10.0
+        K = 68.0
+    elif dataset == 'stdepth':
+        min = 1e-3
+        max = 1.0
         K = 68.0
     else:
         print('No Dataset named as ', dataset)
@@ -198,8 +206,8 @@ class DORNModule(BaseModule):
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--weight_decay', default=0.0005, type=float, help='Weight decay')
         parser.add_argument('--ord_num', default=68, type=float, help='ordinal number')
-        parser.add_argument('--alpha', default=1.0, type=float, help='alpha')
-        parser.add_argument('--beta', default=80.0, type=float, help='beta')
+        parser.add_argument('--alpha', default=0.001, type=float, help='alpha')
+        parser.add_argument('--beta', default=1.0, type=float, help='beta')
         parser.add_argument('--input_size', default=(257, 353), help='image size')
         parser.add_argument('--kernel_size', default=16, type=int, help='kernel size')
         parser.add_argument('--pyramid', default=[4, 8, 12], nargs='+', help='pyramid')
