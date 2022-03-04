@@ -52,7 +52,8 @@ class MidasNet(BaseModel):
             nn.Conv2d(128, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(True),
             nn.Conv2d(32, 1, kernel_size=1, stride=1, padding=0),
-            nn.ReLU(True) if non_negative else nn.Identity(),
+            # nn.ReLU(True) if non_negative else nn.Identity(),
+            nn.Sigmoid(True)
         )
 
         if path:
