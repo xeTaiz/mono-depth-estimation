@@ -70,7 +70,7 @@ class BaseModule(pl.LightningModule):
         self.skip = {}
         if self.val_loader:   self.skip['val'] =   len(self.val_loader) // 9
         if self.train_loader: self.skip['train'] = len(self.train_loader) // 9
-        if self.test_loader:  self.skip['test'] =  len(self.tesst_loader) // 9
+        if self.test_loader:  self.skip['test'] =  len(self.test_loader) // 9
 
         if 'freeze_encoder' in self.method and self.method.freeze_encoder:
             print("freezing encoder")
