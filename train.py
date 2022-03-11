@@ -74,6 +74,9 @@ if __name__ == "__main__":
     args = parse_args_into_namespaces(parser, commands)
     assert args.training and args.validation, "Please provide data training AND validation dataset"
 
+    args.ds_name = args.training[0][1].path.split('/')[-1]
+    args.depth_method = args.training[0][1].depth_method
+
     if args.globals.detect_anomaly:
         print("Enabling anomaly detection")
         torch.autograd.set_detect_anomaly(True)
@@ -91,6 +94,7 @@ if __name__ == "__main__":
         verbose=True,
         #save_weights_only=True,
         save_top_k=1,
+        dirpath=f'checkpoints/{args.method.name}-{args.ds_name}/{args.depth_method}',
         filename='{epoch}-{val_delta1}',
         monitor='val_delta1',
         mode='max'
@@ -127,8 +131,7 @@ if __name__ == "__main__":
             })
     
     #if hasattr(trainer, 'logger'):
-    args.ds_name = args.training[0][1].path.split('/')[-1]
-    args.depth_method = args.training[0][1].depth_method
+    
     trainer.logger.log_hyperparams(args) # Log Hyper parameters
     torch.autograd.set_detect_anomaly(True)
     # Fit model
