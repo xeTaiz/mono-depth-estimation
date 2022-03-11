@@ -5,11 +5,12 @@ from datasets.nyu_dataloader import get_nyu_dataset
 from datasets.floorplan3d_dataloader import get_floorplan3d_dataset
 from datasets.structured3d_dataset import get_structured3d_dataset
 from datasets.stdepth import get_stdepth_dataset
+from datasets.stdepth_multi import get_stdepthmulti_dataset
 from metrics import MetricLogger
 import visualize
 from torchvision import transforms
 import torchvision.transforms.functional as TF
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
 import numpy as np
 import wandb
 
@@ -17,7 +18,8 @@ NAME2FUNC = {
     "nyu": get_nyu_dataset,
     "structured3d": get_structured3d_dataset,
     "floorplan3d": get_floorplan3d_dataset,
-    "stdepth": get_stdepth_dataset
+    "stdepth": get_stdepth_dataset,
+    "stdepthmulti": get_stdepthmulti_dataset
 }
 
 def freeze_params(m):
@@ -175,14 +177,14 @@ class BaseModule(pl.LightningModule):
         y = y[0] if y.ndim == 4 else y
         y_hat = y_hat[0] if y_hat.ndim == 4 else y_hat
         if batch_idx == 0:
-            self.img_merge[nam] = visualize.merge_into_row(x, y, y_hat)
-        elif (batch_idx < 8 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0):
-            row = visualize.merge_into_row(x, y, y_hat)
-            self.img_merge[nam] = visualize.add_row(self.img_merge[nam], row)
-        elif batch_idx == 8 * self.skip[nam]:
-            filename = "{}/{}/version_{}/epoch{}.jpg".format(self.logger.save_dir, self.logger.name, self.logger.version, self.current_epoch)
-            visualize.save_image(self.img_merge[nam], filename)
-            self.logger.experiment.log({f'{nam}_images': wandb.Image(self.img_merge[nam])})
+            self.img_merge[nam] = [x] + [y[[i,i,i]] for i in range(y.size(0))] + \
+                                  [x] + [y_hat[[i,i,i]] for i in range(y.size(0))]
+        elif (batch_idx < 4 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0):
+            self.img_merge[nam] += [x] + [y[[i,i,i]] for i in range(y.size(0))] + \
+                                   [x] + [y_hat[[i,i,i]] for i in range(y.size(0))]
+        elif batch_idx == 4 * self.skip[nam]:
+            merged = make_grid(self.img_merge[nam], nrow=8)
+            self.logger.experiment.log({f'{nam}_images': wandb.Image(merged)})
 
     def get_dataset(self):
         training_dataset = []

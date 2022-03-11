@@ -143,7 +143,7 @@ class BtsModule(BaseModule):
 
     def train_preprocess(self, rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
+        depth = map(transforms.ToPILImage(), depth)
 
         height = rgb.height
         width = rgb.width
@@ -151,62 +151,61 @@ class BtsModule(BaseModule):
         right_margin = width * (1.0 - 0.05)
         top_margin = height * 0.05
         bot_margin = height * (1.0 - 0.05)
-        depth = depth.crop((left_margin, top_margin, right_margin, bot_margin))
+        depth = map(lambda d: d.crop((left_margin, top_margin, right_margin, bot_margin)), depth)
         rgb     = rgb.crop((left_margin, top_margin, right_margin, bot_margin))
 
 
         # Random rotation
         angle = transforms.RandomRotation.get_params([-2.5, 2.5])
         rgb = TF.rotate(rgb, angle)
-        depth = TF.rotate(depth, angle)
+        depth = map(lambda d: TF.rotate(d, angle), depth)
 
         # Resize
         h = int(np.random.choice([512, 518, 550, 600, 650, 720]))
         resize = transforms.Resize(h)
         rgb = resize(rgb)
-        depth = resize(depth)
+        depth = map(resize, depth)
 
 
         # Random Crop
         i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=self.output_size())
         rgb = TF.crop(rgb, i, j, h, w)
-        depth = TF.crop(depth, i, j, h, w)
+        depth = map(lambda d: TF.crop(d, i, j, h, w), depth)
 
         # Random flipping
         if np.random.uniform(0,1) > 0.5:
             rgb = TF.hflip(rgb)
-            depth = TF.hflip(depth)
+            depth = map(TF.hflip, depth)
 
         rgb = np.asarray(rgb, dtype=np.float32) / 255.0
-        depth = np.asarray(depth, dtype=np.float32) / 255.0
+        depth = map(lambda d: np.asarray(d, dtype=np.float32) / 255.0, depth)
 
         # Random gamma, brightness, color augmentation
         if np.random.uniform(0,1) > 0.5:
             rgb = augment_image(rgb)
 
         rgb = TF.to_tensor(np.array(rgb))
-        depth = TF.to_tensor(np.array(depth))
+        depth = map(lambda d: TF.to_tensor(np.array(d)), depth)
 
-        return rgb, depth
+        return rgb, torch.cat(list(depth), dim=0)
 
     def val_preprocess(self, rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
+        depth = map(transforms.ToPILImage(), depth)
         # Resize
         resize = transforms.Resize(self.resize())
         rgb = resize(rgb)
-        depth = resize(depth)
+        depth = map(resize, depth)
         # Center crop
         crop = transforms.CenterCrop(self.output_size())
         rgb = crop(rgb)
-        depth = crop(depth)
+        depth = map(crop, depth)
 
         rgb = TF.to_tensor(np.array(rgb, dtype=np.float32))
-        depth = TF.to_tensor(np.array(depth, dtype=np.float32))
+        depth = map(lambda d: TF.to_tensor(np.array(d, dtype=np.float32)) / 255.0, depth)
 
         rgb /= 255.0
-        depth /= 255.0
-        return rgb, depth
+        return rgb, torch.cat(list(depth), dim=0)
 
     def test_preprocess(self, rgb, depth):
         return self.val_preprocess(rgb, depth)

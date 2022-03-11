@@ -39,7 +39,7 @@ def parse_args_into_namespaces(parser, commands):
         cmd, *args_raw = split_argv.pop(0)
         assert cmd[0].isalpha(), 'Command must start with a letter.'
         args_parsed = commands.choices[cmd].parse_args(args_raw, namespace=Namespace())
-        if cmd in ["nyu", "structured3d", "floorplan3d", "stdepth"]:
+        if cmd in ["nyu", "structured3d", "floorplan3d", "stdepth", "stdepthmulti"]:
             if args_parsed.training: train_datasets.append((cmd, args_parsed))
             if args_parsed.validation: val_datasets.append((cmd, args_parsed))
             if args_parsed.test:      test_datasets.append((cmd, args_parsed))
