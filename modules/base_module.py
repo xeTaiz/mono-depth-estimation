@@ -177,11 +177,11 @@ class BaseModule(pl.LightningModule):
         y = y[0] if y.ndim == 4 else y
         y_hat = y_hat[0] if y_hat.ndim == 4 else y_hat
         if batch_idx == 0:
-            self.img_merge[nam] = [x] + [y[[i,i,i]] for i in range(y.size(0))] + \
-                                  [x] + [y_hat[[i,i,i]] for i in range(y.size(0))]
+            self.img_merge[nam] = [x] + [y[[i,i,i]] for i in range(7)] + \
+                                  [x] + [y_hat[[i,i,i]] for i in range(7)]
         elif (batch_idx < 4 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0):
-            self.img_merge[nam] += [x] + [y[[i,i,i]] for i in range(y.size(0))] + \
-                                   [x] + [y_hat[[i,i,i]] for i in range(y.size(0))]
+            self.img_merge[nam] += [x] + [y[[i,i,i]] for i in range(7)] + \
+                                   [x] + [y_hat[[i,i,i]] for i in range(7)]
         elif batch_idx == 4 * self.skip[nam]:
             merged = make_grid(self.img_merge[nam], nrow=8)
             self.logger.experiment.log({f'{nam}_images': wandb.Image(merged)})
