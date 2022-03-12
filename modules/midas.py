@@ -106,77 +106,82 @@ class MidasModule(BaseModule):
 
     def train_preprocess(self, rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
+        depth = map(transforms.ToPILImage(), depth)
         # Random resize
         size = np.random.randint(384, 720)
         resize = transforms.Resize(int(size))
         rgb = resize(rgb)
-        depth = resize(depth)
+        depth = map(resize, depth)
         # Random crop
         i, j, h, w = transforms.RandomCrop.get_params(rgb, output_size=(384,384))
         rgb = TF.crop(rgb, i, j, h, w)
-        depth = TF.crop(depth, i, j, h, w)
+        depth = map(lambda d: TF.crop(d, i, j, h, w), depth)
         # Random horizontal flipping
         if np.random.uniform(0,1) > 0.5:
             rgb = TF.hflip(rgb)
-            depth = TF.hflip(depth)
+            depth = map(TF.hflip, depth)
         # Transform to tensor
         rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
-        depth = np.array(depth, dtype=np.float32) / 255.0
-        depth = TF.to_tensor(depth)
+        depth = map(lambda d: np.array(d, dtype=np.float32) / 255.0, depth)
+        depth = map(TF.to_tensor, depth)
         #mask = depth > 0
         #depth[mask] = 10. / depth[mask]
         #depth[~mask] = 0.
-        return rgb, depth
+        return rgb, torch.cat(list(depth), dim=0)
 
     def val_preprocess(self, rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
+        depth = map(transforms.ToPILImage(), depth)
         # Resize
         resize = transforms.Resize(384)
         rgb = resize(rgb)
-        depth = resize(depth)
+        depth = map(resize, depth)
         # center crop
         crop = transforms.CenterCrop((384, 384))
         rgb = crop(rgb)
-        depth = crop(depth)
+        depth = map(crop, depth)
         # Transform to tensor
         rgb = midas_transform(np.array(rgb, dtype=np.uint8)).squeeze(0)#TF.to_tensor(np.array(rgb)) #
-        depth = np.array(depth, dtype=np.float32)
-        depth = TF.to_tensor(depth) / 255.0
+        depth = map(lambda d: np.array(d, dtype=np.float32) / 255.0, depth)
+        depth = map(TF.to_tensor, depth)
         #mask = depth > 0
         #depth[mask] = 10. / depth[mask]
         #depth[~mask] = 0.
-        return rgb, depth
+        return rgb, torch.cat(list(depth), dim=0)
 
     def test_preprocess(self, rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
+        depth = map(transforms.ToPILImage(), depth)
         # Resize
         resize = transforms.Resize(500)
         rgb = resize(rgb)
-        depth = resize(depth)
+        depth = map(resize, depth)
         # Center crop
         crop = transforms.CenterCrop((480, 640))
         rgb_raw = crop(rgb)
-        depth_raw = crop(depth)
+        depth_raw = map(crop, depth)
         # to cv2
         rgb_raw = np.array(rgb_raw, dtype=np.uint8)
-        depth_raw = np.array(depth_raw, dtype=np.float32)
+        depth_raw = map(lambda d: np.array(d, dtype=np.float32), depth_raw)
         # pad
         rgb = cv2.copyMakeBorder(rgb_raw, 0, 160, 0, 0, cv2.BORDER_CONSTANT, value=[0,0,0])
-        depth = cv2.copyMakeBorder(depth_raw, 0, 160, 0, 0, cv2.BORDER_CONSTANT, value=[0])
+        depth = map(lambda d: cv2.copyMakeBorder(d, 0, 160, 0, 0, cv2.BORDER_CONSTANT, value=[0]), depth_raw)
         assert rgb.shape[0] == rgb.shape[1], "Not square!"
         # Resize
         rgb = cv2.resize(rgb, (384, 384))
-        depth = cv2.resize(depth, (384, 384))
+        depth = map(lambda d: cv2.resize(d, (384, 384)), depth)
         # Transform to tensor
         rgb = midas_transform(rgb).squeeze(0)#TF.to_tensor(np.array(rgb)) #
-        depth = TF.to_tensor(depth) / 255.0
+        depth = map(lambda d: TF.to_tensor(d) / 255.0, depth)
         rgb_raw = TF.to_tensor(rgb_raw)
-        depth_raw = TF.to_tensor(depth_raw)
+        depth_raw = map(TF.to_tensor, depth_raw)
 
-        return {'rgb_raw': rgb_raw, 'depth_raw': depth_raw, 'rgb': rgb, 'depth': depth}
+        return {
+            'rgb_raw': rgb_raw, 
+            'depth_raw': torch.cat(list(depth_raw), dim=0), 
+            'rgb': rgb, 
+            'depth': torch.cat(list(depth), dim=0)
+            }
 
     @staticmethod
     def add_model_specific_args(subparsers):

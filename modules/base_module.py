@@ -122,52 +122,52 @@ class BaseModule(pl.LightningModule):
 
     def train_preprocess(self, rgb, depth):
         s = np.random.uniform(1, 1.5)
-        depth = depth / s
+        depth = map(lambda d: d / s, depth)
 
         rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
+        depth = map(transforms.ToPILImage(), depth)
         # color jitter
         rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
         # Resize
         resize = transforms.Resize(self.resize())
         rgb = resize(rgb)
-        depth = resize(depth)
+        depth = map(resize, depth)
         # Random Rotation
         angle = np.random.uniform(-5,5)
         rgb = TF.rotate(rgb, angle)
-        depth = TF.rotate(depth, angle)
+        depth = map(lambda d: TF.rotate(d, angle), depth)
         # Resize
         resize = transforms.Resize(int(self.resize() * s))
         rgb = resize(rgb)
-        depth = resize(depth)
+        depth = map(resize, depth)
         # Center crop
         crop = transforms.CenterCrop(self.output_size())
         rgb = crop(rgb)
-        depth = crop(depth)
+        depth = map(crop, depth)
         # Random horizontal flipping
         if np.random.uniform(0,1) > 0.5:
             rgb = TF.hflip(rgb)
-            depth = TF.hflip(depth)
+            depth = map(TF.hflip, depth)
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
-        depth = TF.to_tensor(np.array(depth) / 255.0)
-        return rgb, depth
+        depth = map(lambda d: TF.to_tensor(np.array(d) / 255.0), depth)
+        return rgb, torch.cat(list(depth), dim=0)
 
     def val_preprocess(self, rgb, depth):
         rgb = transforms.ToPILImage()(rgb)
-        depth = transforms.ToPILImage()(depth)
+        depth = map(transforms.ToPILImage(), depth)
         # Resize
         resize = transforms.Resize(self.resize())
         rgb = resize(rgb)
-        depth = resize(depth)
+        depth = map(resize, depth)
         # Center crop
         crop = transforms.CenterCrop(self.output_size())
         rgb = crop(rgb)
-        depth = crop(depth)
+        depth = map(crop, depth)
         # Transform to tensor
         rgb = TF.to_tensor(np.array(rgb))
-        depth = TF.to_tensor(np.array(depth) / 255.0)
-        return rgb, depth
+        depth = map(lambda d: TF.to_tensor(np.array(d) / 255.0), depth)
+        return rgb, torch.cat(list(depth), dim=0)
 
     def test_preprocess(self, rgb, depth):
         return self.val_preprocess(rgb, depth)
