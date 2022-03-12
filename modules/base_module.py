@@ -176,9 +176,6 @@ class BaseModule(pl.LightningModule):
         x = x[0] if x.ndim == 4 else x
         y = y[0] if y.ndim == 4 else y
         y_hat = y_hat[0] if y_hat.ndim == 4 else y_hat
-        print(f'x.shape: {x.shape}')
-        print(f'y.shape: {y.shape}')
-        print(f'y_hat.shape: {y_hat.shape}')
 
         if batch_idx == 0:
             self.img_merge[nam] = [x] + [y[[i,i,i]] for i in range(7)] + \
