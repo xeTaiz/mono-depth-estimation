@@ -5,6 +5,7 @@ from network import Bts
 import numpy as np
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
+import torch.nn.functional as F
 from torchvision.utils import save_image
 from modules.base_module import BaseModule, freeze_params
 import visualize
@@ -88,7 +89,16 @@ class BtsModule(BaseModule):
         freeze_params(self.model.encoder)
 
     def setup_criterion(self):
-        return criteria.silog_loss(variance_focus=self.method.variance_focus)
+        silog_loss = criteria.silog_loss(variance_focus=self.method.variance_focus)
+        def _loss_fn(pred, targ):
+            loss = 0.0
+            loss += F.mse_loss(pred[:, :13], targ[:, :13]) # RGBAs
+            loss += silog_loss(pred[:, 13:], targ[:, 13:]) # Depths
+            return loss
+        def _masked_mse(pred, targ):
+            mask = targ > 1e-2
+            return F.mse_loss(pred[mask], targ[mask])
+        return _masked_mse
 
     def output_size(self):
         return (512, 512)
@@ -222,7 +232,7 @@ class BtsModule(BaseModule):
         parser.add_argument('--adam_eps', type=float, help='epsilon in Adam optimizer', default=1e-3)
         parser.add_argument('--weight_decay', type=float, help='weight decay factor for optimization', default=1e-2)
         parser.add_argument('--data_augmentation', default='bts', type=str, help='Choose data Augmentation Strategy: laina or bts')
-        parser.add_argument('--loss', default='bts', type=str, help='loss function')
+        parser.add_argument('--loss', default='silog', type=str, help='loss function')
         parser.add_argument('--fix_first_conv_blocks', help='if set, will fix the first two conv blocks', action='store_true')
         parser.add_argument('--fix_first_conv_block', help='if set, will fix the first conv block', action='store_true')
         parser.add_argument('--bn_no_track_stats', help='if set, will not track running stats in batch norm layers', action='store_true')

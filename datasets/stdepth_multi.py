@@ -74,12 +74,19 @@ class SemiTransparentMultiDepthDataset(BaseDataset):
     def get_raw(self, index):
         item = self.torch_ds[index]
         rgb = torch.clamp(item['rgba'][:3].float() * 255.0, 0.0, 255.0).byte()
-        gt = [
-            torch.cat([item['wysiwyp1'], item['wysiwyp2'], item['wysiwyp3']], dim=0).float(),
-            torch.cat([item['alpha1'], item['alpha2'], item['alpha3'], item['rgba'][[3]]], dim=0).float()
-        ]
+        full_alpha = item['rgba'][3].float()
+        l1, l2, l3 = item['layer1'].float(), item['layer2'].float(), item['layer3'].float()
         if self.set_bg_depth:
-            gt[:3][gt[:3] == 0.0] = 1.0
+            l1[4][l1[4] == 0.0] = 1.0
+            l2[4][l2[4] == 0.0] = 1.0
+            l3[4][l3[4] == 0.0] = 1.0
+
+        gt = [
+            l1[:3].float(), l2[:3].float(), l3[:3].float(),               # RGBs
+            torch.stack([l1[3], l2[3], l3[3], full_alpha], dim=0).float(),# Alphas
+            torch.stack([l1[4], l2[4], l3[4]], dim=0).float(),            # Depth
+        ]
+
         return rgb, gt
 
     def __len__(self):
@@ -89,5 +96,5 @@ class SemiTransparentMultiDepthDataset(BaseDataset):
     def add_dataset_specific_args(parent_parser):
         parser = parent_parser.add_parser('stdepthmulti')
         BaseDataset.add_dataset_specific_args(parser)
-        parser.add_argument('--depth-method', type=str, default='wysiwyp3', help='Depth method to use')
+        parser.add_argument('--depth-method', type=str, default='multi', help='Depth method to use')
         parser.add_argument('--background-depth-max', action='store_true', help='Whether to replace depth for background(0.0) with max depth (1.0)')
