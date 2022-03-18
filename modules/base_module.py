@@ -205,7 +205,7 @@ class BaseModule(pl.LightningModule):
 
         if(batch_idx < 4 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0):
             fig = visualize.create_stdepth_plot(y_hat, y, x, pred_full)
-            fig.savefig(f'visualization/{nam}_{batch_idx // self.skip[nam]}.png')
+            # fig.savefig(f'visualization/{nam}_{batch_idx // self.skip[nam]}.png')
             self.logger.experiment.log({f'{nam}_visualization_{batch_idx // self.skip[nam]}': fig})
 
 
