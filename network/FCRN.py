@@ -368,7 +368,7 @@ class ResNet(nn.Module):
         x = self.conv3(x)
         x = self.bilinear(x)
 
-        return x
+        return torch.sigmoid(x)
 
     def get_1x_lr_params(self):
         """

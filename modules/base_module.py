@@ -99,7 +99,9 @@ class BaseModule(pl.LightningModule):
     def setup_criterion(self):
         silog_loss = criteria.silog_loss(variance_focus=self.method.variance_focus)
         def _loss(pred, targ, rgb, return_composited=False):
-            mask = targ > 0.0
+            mask1 = targ[:, [19]] > 0.0
+            mask4 = mask1.expand(-1, 4, -1, -1)
+            maskN = mask1.expand(-1, targ.size(1), -1, -1)
             loss = 0.0
             # Composite for vis (and possibly loss)
             if return_composited or 'composite' in self.method.loss:
@@ -111,13 +113,14 @@ class BaseModule(pl.LightningModule):
                 pred_full = composite_layers(torch.cat([sorted_layers, back], dim=1))
 
             if 'silog' in self.method.loss:
-                loss += silog_loss(pred[mask], targ[mask])
+                loss += silog_loss(pred[maskN], targ[maskN])
             if 'mse' in self.method.loss:
-                loss += F.mse_loss(pred[mask], targ[mask])
+                loss += F.mse_loss(pred[maskN], targ[maskN])
             if 'mae' in self.method.loss:
-                loss += F.l1_loss(pred[mask], targ[mask])
+                loss += F.l1_loss(pred[maskN], targ[maskN])
             if 'composite' in self.method.loss:
-                loss += F.mse_loss(pred_full, torch.cat([rgb, targ[:, [19]]], dim=1))
+                targ_full = torch.cat([rgb, targ[:, [19]]], dim=1)
+                loss += F.mse_loss(pred_full[mask4], targ_full[mask4])
             if return_composited: 
                 return loss, pred_full
             else:
@@ -156,7 +159,7 @@ class BaseModule(pl.LightningModule):
         rgb = transforms.ToPILImage()(rgb)
         depth = map(transforms.ToPILImage(), depth)
         # color jitter
-        rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
+        #rgb = transforms.ColorJitter(0.4, 0.4, 0.4)(rgb)
         # Resize
         resize = transforms.Resize(self.resize())
         rgb = resize(rgb)
@@ -178,8 +181,8 @@ class BaseModule(pl.LightningModule):
             rgb = TF.hflip(rgb)
             depth = map(TF.hflip, depth)
         # Transform to tensor
-        rgb = TF.to_tensor(np.array(rgb))
-        depth = map(lambda d: TF.to_tensor(np.array(d) / 255.0), depth)
+        rgb = TF.to_tensor(np.array(rgb, dtype=np.float32) / 255.0)
+        depth = map(lambda d: TF.to_tensor(np.array(d, dtype=np.float32) / 255.0), depth)
         return rgb, torch.cat(list(depth), dim=0)
 
     def val_preprocess(self, rgb, depth):
@@ -194,8 +197,8 @@ class BaseModule(pl.LightningModule):
         rgb = crop(rgb)
         depth = map(crop, depth)
         # Transform to tensor
-        rgb = TF.to_tensor(np.array(rgb))
-        depth = map(lambda d: TF.to_tensor(np.array(d) / 255.0), depth)
+        rgb = TF.to_tensor(np.array(rgb, dtype=np.float32) / 255.0)
+        depth = map(lambda d: TF.to_tensor(np.array(d, dtype=np.float32) / 255.0), depth)
         return rgb, torch.cat(list(depth), dim=0)
 
     def test_preprocess(self, rgb, depth):
