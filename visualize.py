@@ -1,4 +1,6 @@
 import numpy as np
+import torch
+import matplotlib.pyplot as plt
 import cv2
 from pathlib import Path
 from metrics import MetricComputation
@@ -87,6 +89,67 @@ def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
         save_image(depth_gt, "{}/{}_gt.jpg".format(path, idx))
     
     
+def create_stdepth_plot(pred, targ, rgb, pred_full):
+    with torch.no_grad():
+        pred, targ = pred.cpu().float(), targ.cpu().float()
+        rgb, pred_full = rgb.cpu().float(), pred_full.cpu().float()
+    fig, ax = plt.subplot_mosaic(
+        [['Color (Input)', 'L1 Color (Targ)', 'L2 Color (Targ)', 'L3 Color (Targ)', 'Back Color (Targ)'], 
+        ['Alpha (Targ)',  'L1 Color (Pred)', 'L2 Color (Pred)', 'L3 Color (Pred)', 'Back Color (Pred)'],
+        ['Alpha (Pred)',  'L1 Alpha (Pred)', 'L2 Alpha (Pred)', 'L3 Alpha (Pred)', 'Back Alpha (Pred)'],
+        ['Color (Targ)', 'L1 Alpha (Targ)', 'L2 Alpha (Targ)', 'L3 Alpha (Targ)', 'Back Alpha (Targ)'],
+        ['Color (Pred)',  'L1 Depth (Targ)', 'L2 Depth (Targ)', 'L3 Depth (Targ)', 'Front Color'],
+        ['none1',         'L1 Depth (Pred)', 'L2 Depth (Pred)', 'L3 Depth (Pred)', 'Front Alpha']
+    ], figsize=(25,30), tight_layout=True)
+    for n in ax.keys():
+        ax[n].set_title(n)
+        ax[n].set_axis_off()
+    ax['Color (Input)'].imshow(rgb.permute(1,2,0))
+    ax['Color (Targ)'].imshow(rgb.permute(1,2,0))
+    ax['Color (Pred)'].imshow(pred_full[:3].permute(1,2,0))
+    ax['Back Color (Pred)'].imshow(pred[12:15].permute(1,2,0))
+    ax['Back Color (Targ)'].imshow(targ[12:15].permute(1,2,0))
+
+    ax['Alpha (Targ)'].imshow(targ[19], cmap='gray')
+    ax['Alpha (Pred)'].imshow(pred[19], cmap='gray')
+    ax['Back Alpha (Pred)'].imshow(pred[15], cmap='gray')
+    ax['Back Alpha (Targ)'].imshow(targ[15], cmap='gray')
+
+    ax['L1 Color (Pred)'].imshow(pred[ :3].permute(1,2,0))
+    ax['L2 Color (Pred)'].imshow(pred[4:7].permute(1,2,0))
+    ax['L3 Color (Pred)'].imshow(pred[8:11].permute(1,2,0))
+    ax['L1 Color (Targ)'].imshow(targ[ :3].permute(1,2,0))
+    ax['L2 Color (Targ)'].imshow(targ[4:7].permute(1,2,0))
+    ax['L3 Color (Targ)'].imshow(targ[8:11].permute(1,2,0))
+
+    ax['L1 Alpha (Pred)'].imshow(pred[3], cmap='gray')
+    ax['L2 Alpha (Pred)'].imshow(pred[7], cmap='gray')
+    ax['L3 Alpha (Pred)'].imshow(pred[11], cmap='gray')
+    ax['L1 Alpha (Targ)'].imshow(targ[3], cmap='gray')
+    ax['L2 Alpha (Targ)'].imshow(targ[7], cmap='gray')
+    ax['L3 Alpha (Targ)'].imshow(targ[11], cmap='gray')
+
+    ax['L1 Depth (Pred)'].imshow(pred[16], cmap='hot')
+    ax['L2 Depth (Pred)'].imshow(pred[17], cmap='hot')
+    ax['L3 Depth (Pred)'].imshow(pred[18], cmap='hot')
+    ax['L1 Depth (Targ)'].imshow(targ[16], cmap='hot')
+    ax['L2 Depth (Targ)'].imshow(targ[17], cmap='hot')
+    ax['L3 Depth (Targ)'].imshow(targ[18], cmap='hot')
+
+    # ax['Front Color'].imshow(targ[20:23].permute(1,2,0))
+    # ax['Front Alpha'].imshow(targ[23], cmap='gray')
+
+
+    return fig
+
+
+
+
+
+
+        
+
+
 
 def show_pred(depth_pred):
     depth_pred_cpu = np.squeeze(depth_pred.data.cpu().numpy())

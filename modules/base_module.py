@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import pytorch_lightning as pl
 from datasets.dataset import ConcatDataset
 from datasets.nyu_dataloader import get_nyu_dataset
@@ -8,6 +9,8 @@ from datasets.stdepth import get_stdepth_dataset
 from datasets.stdepth_multi import get_stdepthmulti_dataset
 from metrics import MetricLogger
 import visualize
+import criteria
+from stdepth_utils import depth_sort, composite_layers
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 from torchvision.utils import save_image, make_grid
@@ -94,7 +97,29 @@ class BaseModule(pl.LightningModule):
         raise NotImplementedError()
 
     def setup_criterion(self):
-        raise NotImplementedError()
+        silog_loss = criteria.silog_loss(variance_focus=self.method.variance_focus)
+        def _loss(pred, targ, rgb, return_composited=False):
+            mask = targ > 0.0
+            loss = 0.0
+            if 'silog' in self.method.loss:
+                loss += silog_loss(pred[mask], targ[mask])
+            if 'mse' in self.method.loss:
+                loss += F.mse_loss(pred[mask], targ[mask])
+            if 'mae' in self.method.loss:
+                loss += F.l1_loss(pred[mask], targ[mask])
+            if 'composite' in self.method.loss:
+                l1 = torch.cat([pred[:,  :4],  pred[:, [16]]], dim=1)
+                l2 = torch.cat([pred[:, 4:8],  pred[:, [17]]], dim=1)
+                l3 = torch.cat([pred[:, 8:12], pred[:, [18]]], dim=1)
+                back = pred[:, 12:16].unsqueeze(1) # Add Layer dim for concat
+                sorted_layers = depth_sort(torch.stack([l1, l2, l3], dim=1))[:, :, :4] # Discard depth from here
+
+                pred_full = composite_layers(torch.cat([sorted_layers, back], dim=1))
+                loss += F.mse_loss(pred_full, torch.cat([rgb, targ[:, [19]]], dim=1))
+                if return_composited: return loss, pred_full
+            return loss
+                
+        return _loss
 
     def forward(self, x):
         raise NotImplementedError()
@@ -172,20 +197,17 @@ class BaseModule(pl.LightningModule):
     def test_preprocess(self, rgb, depth):
         return self.val_preprocess(rgb, depth)
 
-    def save_visualization(self, x, y, y_hat, batch_idx, nam='val'):
+    def save_visualization(self, x, y, y_hat, pred_full, batch_idx, nam='val'):
         x = x[0] if x.ndim == 4 else x
         y = y[0] if y.ndim == 4 else y
         y_hat = y_hat[0] if y_hat.ndim == 4 else y_hat
+        pred_full = pred_full[0] if pred_full.ndim == 4 else y_hat
 
-        if batch_idx == 0:
-            self.img_merge[nam] = [x] + [y[[i,i,i]] for i in range(7)] + \
-                                  [x] + [y_hat[[i,i,i]] for i in range(7)]
-        elif (batch_idx < 4 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0):
-            self.img_merge[nam] += [x] + [y[[i,i,i]] for i in range(7)] + \
-                                   [x] + [y_hat[[i,i,i]] for i in range(7)]
-        elif batch_idx == 4 * self.skip[nam]:
-            merged = make_grid(self.img_merge[nam], nrow=8)
-            self.logger.experiment.log({f'{nam}_images': wandb.Image(merged)})
+        if(batch_idx < 4 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0):
+            fig = visualize.create_stdepth_plot(y_hat, y, x, pred_full)
+            fig.savefig(f'visualization/{nam}_{batch_idx // self.skip[nam]}.png')
+            self.logger.experiment.log({f'{nam}_visualization_{batch_idx // self.skip[nam]}': fig})
+
 
     def get_dataset(self):
         training_dataset = []

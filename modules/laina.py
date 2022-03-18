@@ -14,9 +14,6 @@ class FCRNModule(BaseModule):
     def setup_model(self):
         return FCRN.ResNet(output_size=self.output_size())
 
-    def setup_criterion(self):
-        return criteria.MaskedL1Loss()
-
     def forward(self, x):
         y_hat = self.model(x)
         return y_hat
@@ -25,25 +22,26 @@ class FCRNModule(BaseModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        loss = self.criterion(y_hat, y)
-        self.save_visualization(x, y, y_hat, batch_idx, nam='train')
+        loss, pred_full = self.criterion(y_hat, y, x, return_composited=True)
+        self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
 
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        self.save_visualization(x, y, y_hat, batch_idx, nam='val')
+        loss, pred_full = self.criterion(y_hat, y, x, return_composited=True)
+        self.logger.experiment.log({'val_loss': loss.detach()})
+        self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='val')
         return self.metric_logger.log_val(y_hat, y)
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x)
-        x = torch.nn.functional.interpolate(x, (480, 640), mode='bilinear')
-        y = torch.nn.functional.interpolate(y, (480, 640), mode='bilinear')
-        y_hat = torch.nn.functional.interpolate(y_hat, (480, 640), mode='bilinear')
-        self.save_visualization(x, y, y_hat, batch_idx, nam='test')
+        loss, pred_full = self.criterion(y_hat, y, x, return_composited=True)
+        self.logger.experiment.log({'test_loss': loss.detach()})
+        self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='test')
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):
@@ -65,5 +63,5 @@ class FCRNModule(BaseModule):
         BaseModule.add_default_args(parser, name="laina", learning_rate=0.0001, batch_size=16)
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or midas')
-        parser.add_argument('--loss', default='laina', type=str, help='loss function: [laina]')
+        parser.add_argument('--loss', default='mae+composite', type=str, help='loss function: [laina]')
         return parser

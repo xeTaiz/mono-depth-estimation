@@ -191,7 +191,7 @@ class bts(nn.Module):
         self.reduc1x1   = reduction_1x1(num_features // 16, num_features // 32, self.max_depth, is_final=True)
         self.conv1      = torch.nn.Sequential(nn.Conv2d(num_features // 16 + 4, num_features // 16, 3, 1, 1, bias=False),
                                               nn.ELU())
-        self.get_depth  = torch.nn.Sequential(nn.Conv2d(num_features // 16, 16, 3, 1, 1, bias=False),
+        self.get_depth  = torch.nn.Sequential(nn.Conv2d(num_features // 16, 20, 3, 1, 1, bias=False),
                                               nn.Sigmoid())
 
     def forward(self, features, focal):

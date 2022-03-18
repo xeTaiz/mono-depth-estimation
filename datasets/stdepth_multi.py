@@ -10,6 +10,7 @@ from torchvtk.datasets import TorchDataset
 from torchvtk.utils import make_3d
 
 from datasets.dataset import BaseDataset
+from stdepth_utils import depth_sort, composite_layers
 
 def get_stdepthmulti_dataset(args, split, output_size, resize):
     if split == 'train':
@@ -70,23 +71,26 @@ class SemiTransparentMultiDepthDataset(BaseDataset):
 
     def test_preprocess(self, rgb, depth):
         return TF.to_tensor(rgb), TF.to_tensor(depth)
-
     def get_raw(self, index):
         item = self.torch_ds[index]
-        rgb = torch.clamp(item['rgba'][:3].float() * 255.0, 0.0, 255.0).byte()
-        full_alpha = item['rgba'][3].float()
+        rgba = torch.clamp(item['rgba'].float(), 0.0, 1.0)
         l1, l2, l3 = item['layer1'].float(), item['layer2'].float(), item['layer3'].float()
         if self.set_bg_depth:
             l1[4][l1[4] == 0.0] = 1.0
             l2[4][l2[4] == 0.0] = 1.0
             l3[4][l3[4] == 0.0] = 1.0
 
+        sorted_layers = depth_sort(torch.stack([l1, l2, l3]))
+        front = composite_layers(sorted_layers)
+        back_a   = torch.clamp((rgba[[3]] - front[[3]]) / (1.0 - front[[3]]), 0.0, 1.0)
+        back_rgb = torch.clamp((rgba[:3]  - front[[3]]) / (1.0 - front[[3]]), 0.0, 1.0)
         gt = [
-            l1[:3].float(), l2[:3].float(), l3[:3].float(),               # RGBs
-            torch.stack([l1[3], l2[3], l3[3], full_alpha], dim=0).float(),# Alphas
-            torch.stack([l1[4], l2[4], l3[4]], dim=0).float(),            # Depth
-        ]
+            l1[:4], l2[:4], l3[:4],                            # RGBAs     (3x4 = 12 channels)
+            torch.cat([back_rgb, back_a], dim=0),              # Background Layer (4 channels)
+            torch.stack([l1[4], l2[4], l3[4], rgba[3]], dim=0),# Depths & Full a  (4 channels)
+        ]                                                      # Total Channels: 20
 
+        rgb = torch.clamp(rgba[:3] * 255.0, 0.0, 255.0).byte()
         return rgb, gt
 
     def __len__(self):
