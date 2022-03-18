@@ -64,4 +64,5 @@ class FCRNModule(BaseModule):
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--loss', default='mae+composite', type=str, help='loss function: [laina]')
+        parser.add_argument('--variance_focus', type=float, default=0.85, help='lambda in paper: [0, 1], higher value more focus on minimizing variance of error')
         return parser
