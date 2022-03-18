@@ -101,6 +101,15 @@ class BaseModule(pl.LightningModule):
         def _loss(pred, targ, rgb, return_composited=False):
             mask = targ > 0.0
             loss = 0.0
+            # Composite for vis (and possibly loss)
+            if return_composited or 'composite' in self.method.loss:
+                l1 = torch.cat([pred[:,  :4],  pred[:, [16]]], dim=1)
+                l2 = torch.cat([pred[:, 4:8],  pred[:, [17]]], dim=1)
+                l3 = torch.cat([pred[:, 8:12], pred[:, [18]]], dim=1)
+                back = pred[:, 12:16].unsqueeze(1) # Add Layer dim for concat
+                sorted_layers = depth_sort(torch.stack([l1, l2, l3], dim=1))[:, :, :4] # Discard depth from here
+                pred_full = composite_layers(torch.cat([sorted_layers, back], dim=1))
+
             if 'silog' in self.method.loss:
                 loss += silog_loss(pred[mask], targ[mask])
             if 'mse' in self.method.loss:
@@ -108,16 +117,11 @@ class BaseModule(pl.LightningModule):
             if 'mae' in self.method.loss:
                 loss += F.l1_loss(pred[mask], targ[mask])
             if 'composite' in self.method.loss:
-                l1 = torch.cat([pred[:,  :4],  pred[:, [16]]], dim=1)
-                l2 = torch.cat([pred[:, 4:8],  pred[:, [17]]], dim=1)
-                l3 = torch.cat([pred[:, 8:12], pred[:, [18]]], dim=1)
-                back = pred[:, 12:16].unsqueeze(1) # Add Layer dim for concat
-                sorted_layers = depth_sort(torch.stack([l1, l2, l3], dim=1))[:, :, :4] # Discard depth from here
-
-                pred_full = composite_layers(torch.cat([sorted_layers, back], dim=1))
                 loss += F.mse_loss(pred_full, torch.cat([rgb, targ[:, [19]]], dim=1))
-                if return_composited: return loss, pred_full
-            return loss
+            if return_composited: 
+                return loss, pred_full
+            else:
+                return loss
                 
         return _loss
 
