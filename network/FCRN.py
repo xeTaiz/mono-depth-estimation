@@ -295,7 +295,7 @@ def choose_decoder(decoder, in_channels):
 
 
 class ResNet(nn.Module):
-    def __init__(self, dataset = 'kitti', layers = 50, decoder = 'upproj', output_size=(228, 304), in_channels=3, pretrained=True):
+    def __init__(self, dataset = 'kitti', layers = 50, decoder = 'upproj', output_size=(228, 304), in_channels=3, out_channels=20, pretrained=True):
 
         if layers not in [18, 34, 50, 101, 152]:
             raise RuntimeError(
@@ -337,7 +337,7 @@ class ResNet(nn.Module):
         self.upSample = choose_decoder(decoder, num_channels // 2)
 
         # setting bias=true doesn't improve accuracy
-        self.conv3 = nn.Conv2d(num_channels // 32, 20, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv3 = nn.Conv2d(num_channels // 32, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
         self.bilinear = nn.Upsample(size=self.output_size, mode='bilinear', align_corners=True)
 
         # weight init

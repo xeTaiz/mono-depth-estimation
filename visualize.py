@@ -89,6 +89,42 @@ def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
         save_image(depth_gt, "{}/{}_gt.jpg".format(path, idx))
     
     
+def create_stdepth_plot_single(pred, targ, rgb, pred_full):
+    with torch.no_grad():
+        pred, targ = pred.cpu().float(), targ.cpu().float()
+        rgb, pred_full = rgb.cpu().float(), pred_full.cpu().float()
+    fig, ax = plt.subplot_mosaic(
+        [['Color (Input)', 'L1 Color (Targ)', 'L1 Depth (Targ)',   'Back Color (Targ)'], 
+        ['Alpha (Targ)',   'L1 Color (Pred)', 'L1 Depth (Pred)',   'Back Color (Pred)'],
+        ['Alpha (Pred)',   'L1 Alpha (Pred)', 'Back Alpha (Pred)', 'Color (Pred)'],
+        ['none',           'L1 Alpha (Targ)', 'Back Alpha (Targ)', 'Color (Targ)'],
+    ], figsize=(20,20), tight_layout=True)
+    for n in ax.keys():
+        ax[n].set_title(n)
+        ax[n].set_axis_off()
+    ax['Color (Input)'].imshow(rgb.permute(1,2,0))
+    ax['Color (Targ)'].imshow(rgb.permute(1,2,0))
+    ax['Color (Pred)'].imshow(pred_full[:3].permute(1,2,0))
+    ax['Back Color (Pred)'].imshow(pred[4:7].permute(1,2,0))
+    ax['Back Color (Targ)'].imshow(targ[4:7].permute(1,2,0))
+
+    ax['Alpha (Targ)'].imshow(targ[9], cmap='gray')
+    ax['Alpha (Pred)'].imshow(pred[9], cmap='gray')
+    ax['Back Alpha (Pred)'].imshow(pred[7], cmap='gray')
+    ax['Back Alpha (Targ)'].imshow(targ[7], cmap='gray')
+
+    ax['L1 Color (Pred)'].imshow(pred[ :3].permute(1,2,0))
+    ax['L1 Color (Targ)'].imshow(targ[ :3].permute(1,2,0))
+
+    ax['L1 Alpha (Pred)'].imshow(pred[3], cmap='gray')
+    ax['L1 Alpha (Targ)'].imshow(targ[3], cmap='gray')
+
+    ax['L1 Depth (Pred)'].imshow(pred[8], cmap='hot')
+    ax['L1 Depth (Targ)'].imshow(targ[8], cmap='hot')
+
+
+    return fig
+
 def create_stdepth_plot(pred, targ, rgb, pred_full):
     with torch.no_grad():
         pred, targ = pred.cpu().float(), targ.cpu().float()

@@ -146,7 +146,7 @@ class local_planar_guidance(nn.Module):
         return n4 / (n1 * u + n2 * v + n3)
 
 class bts(nn.Module):
-    def __init__(self, max_depth, feat_out_channels, num_features=512, dataset='nyu'):
+    def __init__(self, max_depth, feat_out_channels, out_channels=20, num_features=512, dataset='nyu'):
         super(bts, self).__init__()
         self.max_depth = max_depth
         self.dataset = dataset
@@ -191,7 +191,7 @@ class bts(nn.Module):
         self.reduc1x1   = reduction_1x1(num_features // 16, num_features // 32, self.max_depth, is_final=True)
         self.conv1      = torch.nn.Sequential(nn.Conv2d(num_features // 16 + 4, num_features // 16, 3, 1, 1, bias=False),
                                               nn.ELU())
-        self.get_depth  = torch.nn.Sequential(nn.Conv2d(num_features // 16, 20, 3, 1, 1, bias=False),
+        self.get_depth  = torch.nn.Sequential(nn.Conv2d(num_features // 16, out_channels, 3, 1, 1, bias=False),
                                               nn.Sigmoid())
 
     def forward(self, features, focal):
@@ -312,10 +312,10 @@ class encoder(nn.Module):
     
 
 class BtsModel(nn.Module):
-    def __init__(self, bts_size=512, max_depth=10, encoder_version='densenet161_bts'):
+    def __init__(self, bts_size=512, max_depth=10, out_channels=20, encoder_version='densenet161_bts'):
         super(BtsModel, self).__init__()
         self.encoder = encoder(encoder_version)
-        self.decoder = bts(max_depth, self.encoder.feat_out_channels, bts_size)
+        self.decoder = bts(max_depth, self.encoder.feat_out_channels, num_features=bts_size, out_channels=out_channels)
 
     def forward(self, x, focal=518.8579):
         skip_feat = self.encoder(x)

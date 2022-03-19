@@ -51,7 +51,7 @@ def augment_image(image):
 class BtsModule(BaseModule):
 
     def setup_model(self):
-        model = Bts.BtsModel(max_depth=self.method.max_depth, bts_size=self.method.bts_size, encoder_version=self.method.encoder)
+        model = Bts.BtsModel(max_depth=self.method.max_depth, bts_size=self.method.bts_size, encoder_version=self.method.encoder, out_channels=self.method.out_channels)
         model.decoder.apply(weights_init_xavier)
         if not('bn_no_track_stats' in self.method or 'fix_first_conv_blocks' in self.method): return model
         if self.method.bn_no_track_stats:
@@ -215,6 +215,7 @@ class BtsModule(BaseModule):
         BaseModule.add_default_args(parser, name="bts", learning_rate=0.0001, batch_size=8)
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
         parser.add_argument('--bts_size', type=int, default=512, help='initial num_filters in bts')
+        parser.add_argument('--out-channels', type=int, default=20, help='Number of out channels')
         parser.add_argument('--max_depth', type=int, default=1.0, help='Depth of decoder')
         parser.add_argument('--encoder', type=str, default='densenet161_bts', help='Type of encoder')
         parser.add_argument('--variance_focus', type=float, default=0.85, help='lambda in paper: [0, 1], higher value more focus on minimizing variance of error')

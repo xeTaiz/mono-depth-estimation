@@ -12,7 +12,7 @@ class FCRNModule(BaseModule):
         return 250
 
     def setup_model(self):
-        return FCRN.ResNet(output_size=self.output_size())
+        return FCRN.ResNet(output_size=self.output_size(), out_channels=self.method.out_channels)
 
     def forward(self, x):
         y_hat = self.model(x)
@@ -62,6 +62,7 @@ class FCRNModule(BaseModule):
         parser = subparsers.add_parser('laina', help='Laina specific parameters')
         BaseModule.add_default_args(parser, name="laina", learning_rate=0.0001, batch_size=16)
         parser.add_argument('--lr_patience', default=2, type=int, help='Patience of LR scheduler.')
+        parser.add_argument('--out-channels', default=20, type=int, help='Number of output channels.')
         parser.add_argument('--data_augmentation', default='laina', type=str, help='Choose data Augmentation Strategy: laina or midas')
         parser.add_argument('--loss', default='mae+composite', type=str, help='loss function: [laina]')
         parser.add_argument('--variance_focus', type=float, default=0.85, help='lambda in paper: [0, 1], higher value more focus on minimizing variance of error')

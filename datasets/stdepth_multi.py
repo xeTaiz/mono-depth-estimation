@@ -21,20 +21,21 @@ def get_stdepthmulti_dataset(args, split, output_size, resize):
         filter_fn = lambda fn: 450 <= int(fn.name.split('_')[0].split('-')[-1])
     else:
         raise Exception(f'Invalid split: {split}. Either train, val or test')
-    return SemiTransparentMultiDepthDataset(args.path, split=split, output_size=output_size, filter_fn=filter_fn, resize=resize, set_bg_depth=args.background_depth_max)
+    return SemiTransparentMultiDepthDataset(args.path, split=split, output_size=output_size, filter_fn=filter_fn, resize=resize, single_layer=args.single_layer, set_bg_depth=args.background_depth_max)
 
 
 class SemiTransparentMultiDepthDataset(BaseDataset):
     def __init__(self):
         super().__init__()
 
-    def __init__(self, path, resize, output_size, filter_fn=lambda _: True, set_bg_depth=False, *args, **kwargs):
+    def __init__(self, path, resize, output_size, filter_fn=lambda _: True, single_layer=False, set_bg_depth=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.resize = resize
         self.output_size = output_size
         self.path = path
         self.torch_ds = TorchDataset(path, filter_fn=filter_fn)
         self.set_bg_depth = set_bg_depth
+        self.single_layer = single_layer
 
     def training_preprocess(self, rgb, depth):
         #depth = transforms.ToPILImage()(depth)
@@ -79,16 +80,21 @@ class SemiTransparentMultiDepthDataset(BaseDataset):
             l1[4][l1[4] == 0.0] = 1.0
             l2[4][l2[4] == 0.0] = 1.0
             l3[4][l3[4] == 0.0] = 1.0
-
-        sorted_layers = depth_sort(torch.stack([l1, l2, l3]))
-        front = composite_layers(sorted_layers)
+        if self.single_layer:
+            front = l1[:4]
+        else:
+            sorted_layers = depth_sort(torch.stack([l1, l2, l3]))
+            front = composite_layers(sorted_layers)
         back_a   = torch.clamp((rgba[[3]] - front[[3]]) / (1.0 - front[[3]]), 0.0, 1.0)
         back_rgb = torch.clamp((rgba[:3]  - front[[3]]) / (1.0 - front[[3]]), 0.0, 1.0)
-        gt = [
-            l1[:4], l2[:4], l3[:4],                            # RGBAs     (3x4 = 12 channels)
-            torch.cat([back_rgb, back_a], dim=0),              # Background Layer (4 channels)
-            torch.stack([l1[4], l2[4], l3[4], rgba[3]], dim=0),# Depths & Full a  (4 channels)
-        ]                                                      # Total Channels: 20
+        if self.single_layer:
+            gt = [ l1[:4], torch.cat([back_rgb, back_a], dim=0), l1[[4]], rgba[[3]] ] # 10 Channels
+        else:
+            gt = [
+                l1[:4], l2[:4], l3[:4],                            # RGBAs     (3x4 = 12 channels)
+                torch.cat([back_rgb, back_a], dim=0),              # Background Layer (4 channels)
+                torch.stack([l1[4], l2[4], l3[4], rgba[3]], dim=0),# Depths & Full a  (4 channels)
+            ]                                                      # Total Channels: 20
 
         rgb = torch.clamp(rgba[:3] * 255.0, 0.0, 255.0).byte()
         return rgb, gt
@@ -101,4 +107,5 @@ class SemiTransparentMultiDepthDataset(BaseDataset):
         parser = parent_parser.add_parser('stdepthmulti')
         BaseDataset.add_dataset_specific_args(parser)
         parser.add_argument('--depth-method', type=str, default='multi', help='Depth method to use')
+        parser.add_argument('--single-layer', action='store_true', help='Do the multi thing but just with 1 layer')
         parser.add_argument('--background-depth-max', action='store_true', help='Whether to replace depth for background(0.0) with max depth (1.0)')

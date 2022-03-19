@@ -99,18 +99,24 @@ class BaseModule(pl.LightningModule):
     def setup_criterion(self):
         silog_loss = criteria.silog_loss(variance_focus=self.method.variance_focus)
         def _loss(pred, targ, rgb, return_composited=False):
-            mask1 = targ[:, [19]] > 0.0
+            mask1 = targ[:, [9]] > 0.0 if self.train_dataset.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
             maskN = mask1.expand(-1, targ.size(1), -1, -1)
             loss = 0.0
             # Composite for vis (and possibly loss)
             if return_composited or 'composite' in self.method.loss:
-                l1 = torch.cat([pred[:,  :4],  pred[:, [16]]], dim=1)
-                l2 = torch.cat([pred[:, 4:8],  pred[:, [17]]], dim=1)
-                l3 = torch.cat([pred[:, 8:12], pred[:, [18]]], dim=1)
-                back = pred[:, 12:16].unsqueeze(1) # Add Layer dim for concat
-                sorted_layers = depth_sort(torch.stack([l1, l2, l3], dim=1))[:, :, :4] # Discard depth from here
-                pred_full = composite_layers(torch.cat([sorted_layers, back], dim=1))
+                if self.train_dataset.single_layer: 
+                    targ_full = torch.cat([rgb, targ[:, [9]]], dim=1)
+                    l1, back = pred[:, :4], pred[:, 4:8]
+                    pred_full = composite_layers(torch.stack([l1, back], dim=1))
+                else:
+                    targ_full = torch.cat([rgb, targ[:, [19]]], dim=1)
+                    l1 = torch.cat([pred[:,  :4],  pred[:, [16]]], dim=1)
+                    l2 = torch.cat([pred[:, 4:8],  pred[:, [17]]], dim=1)
+                    l3 = torch.cat([pred[:, 8:12], pred[:, [18]]], dim=1)
+                    back = pred[:, 12:16].unsqueeze(1) # Add Layer dim for concat
+                    sorted_layers = depth_sort(torch.stack([l1, l2, l3], dim=1))[:, :, :4] # Discard depth from here
+                    pred_full = composite_layers(torch.cat([sorted_layers, back], dim=1))
 
             if 'silog' in self.method.loss:
                 loss += silog_loss(pred[maskN], targ[maskN])
@@ -119,7 +125,6 @@ class BaseModule(pl.LightningModule):
             if 'mae' in self.method.loss:
                 loss += F.l1_loss(pred[maskN], targ[maskN])
             if 'composite' in self.method.loss:
-                targ_full = torch.cat([rgb, targ[:, [19]]], dim=1)
                 loss += F.mse_loss(pred_full[mask4], targ_full[mask4])
             if return_composited: 
                 return loss, pred_full
@@ -211,8 +216,11 @@ class BaseModule(pl.LightningModule):
         pred_full = pred_full[0] if pred_full.ndim == 4 else y_hat
 
         if(batch_idx < 4 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0):
-            fig = visualize.create_stdepth_plot(y_hat, y, x, pred_full)
-            # fig.savefig(f'visualization/{nam}_{batch_idx // self.skip[nam]}.png')
+            if self.train_dataset.single_layer:
+                fig = visualize.create_stdepth_plot_single(y_hat, y, x, pred_full)
+            else:
+                fig = visualize.create_stdepth_plot(y_hat, y, x, pred_full)
+            fig.savefig(f'visualization/{nam}_{batch_idx // self.skip[nam]}.png')
             self.logger.experiment.log({f'{nam}_visualization_{batch_idx // self.skip[nam]}': fig})
 
 
