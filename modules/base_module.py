@@ -126,7 +126,11 @@ class BaseModule(pl.LightningModule):
             if 'mae' in self.method.loss:
                 loss += F.l1_loss(pred[maskN], targ[maskN])
             if 'composite' in self.method.loss:
-                loss += F.mse_loss(pred_full[mask4], targ_full[mask4])
+                comp_loss = F.mse_loss(pred_full[mask4], targ_full[mask4])
+                if torch.isnan(comp_loss).any(): 
+                    print(f'NaN in Composite loss! Replacing with 0.0')
+                else:
+                    loss += comp_loss
             if return_composited: 
                 return loss, pred_full
             else:

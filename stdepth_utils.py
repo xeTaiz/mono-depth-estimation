@@ -38,5 +38,6 @@ def composite_layers(layers):
         #                                   old acc       +           (1 - a)              *          Alpha           *          Color
         acc_rgb[..., i, :,:,:] = acc_rgb[..., i-1, :,:,:] + (1.0 - acc_a[..., i-1, :,:,:]) * layers[..., i, [3], :,:] * layers[..., i, :3, :,:]
         acc_a[  ..., i, :,:,:]   = acc_a[..., i-1, :,:,:] + (1.0 - acc_a[..., i-1, :,:,:]) * layers[..., i, [3], :,:]
+    acc_rgba = torch.cat([acc_rgb[..., -1, :,:,:], acc_a[..., -1, :,:,:]], dim=c_dim-1) # Layer dim is removed, thus c_dim -1
+    return torch.clamp(acc_rgba, 0.0, 1.0) 
     
-    return torch.cat([acc_rgb[..., -1, :,:,:], acc_a[..., -1, :,:,:]], dim=c_dim-1) # Layer dim is removed, thus c_dim -1
