@@ -99,10 +99,13 @@ class BaseModule(pl.LightningModule):
 
     def setup_criterion(self):
         silog_loss = criteria.silog_loss(variance_focus=self.method.variance_focus)
+        depth_w = self.method.depth_loss_weight
         def _loss(pred, targ, rgb, return_composited=False):
             mask1 = targ[:, [9]] > 0.0 if self.train_dataset.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
             maskN = mask1.expand(-1, targ.size(1), -1, -1)
+            depth_idx = (slice(None), slice(8)) if self.train_dataset.single_layer else (slice(None), slice(16, 19))
+            maskD = targ[depth_idx] > 0.0
             loss = 0.0
             # Composite for vis (and possibly loss)
             if return_composited or 'composite' in self.method.loss:
@@ -121,10 +124,13 @@ class BaseModule(pl.LightningModule):
 
             if 'silog' in self.method.loss:
                 loss += silog_loss(pred[maskN], targ[maskN])
+                loss += depth_w * silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
             if 'mse' in self.method.loss:
                 loss += F.mse_loss(pred[maskN], targ[maskN])
+                loss += depth_w * F.mse_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
             if 'mae' in self.method.loss:
                 loss += F.l1_loss(pred[maskN], targ[maskN])
+                loss += depth_w * F.l1_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
             if 'composite' in self.method.loss:
                 comp_loss = F.mse_loss(pred_full[mask4], targ_full[mask4])
                 if torch.isnan(comp_loss).any(): 
@@ -257,7 +263,7 @@ class BaseModule(pl.LightningModule):
         parser.add_argument('--batch_size',    default=batch_size,     type=int,   help='Batch Size')
         parser.add_argument('--ckpt',    default=ckpt,     type=str,   help='Load checkpoint')
         parser.add_argument('--freeze_encoder', action='store_true', help='Freeze encoder')
-
+        parser.add_argument('--depth-loss-weight', type=float, default=5.0, help='Extra loss weighting for depth layer(s)')
     @staticmethod
     def add_model_specific_args(parser):
         raise NotImplementedError()
