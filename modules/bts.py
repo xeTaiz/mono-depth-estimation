@@ -122,7 +122,11 @@ class BtsModule(BaseModule):
         y_hat = self(x)
         loss, pred_full = self.criterion(y_hat, y, x, return_composited=True)
         self.logger.experiment.log({'test_loss': loss.detach()})
-        self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='test')
+        if self.pred_path:
+            self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='test', write_predictions=True)
+            torch.save({'batch': batch, 'prediction': y_hat, 'composited': pred_full}, self.pred_path/f'pred_{batch_idx:04d}.pt')
+        else:
+            self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='test')
         return self.metric_logger.log_test(y_hat, y)
 
     def configure_optimizers(self):

@@ -54,6 +54,7 @@ def parse_args_into_namespaces(parser, commands):
 if __name__ == "__main__":
     parser = ArgumentParser('Trains mono depth estimation models', formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--seed', default=None, type=int, help='Random Seed')
+    parser.add_argument('--name', default=None, help='Name of the run')
     parser.add_argument('--precision', default=16,   type=int, help='16 to use Mixed precision (AMP O2), 32 for standard 32 bit float training')
     parser.add_argument('--gpus', type=int, default=1, help='Number of GPUs')
     parser.add_argument('--dev', action='store_true', help='Activate Lightning Fast Dev Run for debugging')
@@ -90,12 +91,14 @@ if __name__ == "__main__":
         args.globals.seed = random.randrange(4294967295) # Make sure it's logged
     pl.seed_everything(args.globals.seed)
 
+    wandb_logger = pl.loggers.WandbLogger(project="stdepth", name=args.global.name, log_model=True)
+
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         verbose=True,
         #save_weights_only=True,
         save_top_k=1,
         dirpath=f'checkpoints/{args.method.name}-{args.ds_name}/{args.depth_method}',
-        filename='{epoch}-{val_delta1}',
+        filename=f'{args.globals.name}_' + '{epoch}-{val_delta1}',
         monitor='val_delta1',
         mode='max'
     )
@@ -119,7 +122,7 @@ if __name__ == "__main__":
         amp_level='O2' if use_gpu else None,
         min_epochs=args.globals.min_epochs,
         max_epochs=args.globals.max_epochs,
-        logger=pl.loggers.WandbLogger(project="stdepth", log_model=True),
+        logger=wandb_logger,
         callbacks=[pl.callbacks.lr_monitor.LearningRateMonitor(), checkpoint_callback, early_stop_callback]
     )
 

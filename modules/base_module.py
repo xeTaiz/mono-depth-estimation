@@ -51,6 +51,7 @@ class BaseModule(pl.LightningModule):
                                                         shuffle=True,
                                                         num_workers=self.globals.worker,
                                                         pin_memory=True)
+            self.single_layer = self.train_dataset.single_layer
         else: self.train_loader = None
         if self.val_dataset:
             self.val_dataset.transform = self.val_preprocess
@@ -59,6 +60,7 @@ class BaseModule(pl.LightningModule):
                                                         shuffle=False,
                                                         num_workers=self.globals.worker,
                                                         pin_memory=True)
+            self.single_layer = self.val_dataset.single_layer
         else: self.val_loader = None
         if self.test_dataset:
             self.test_dataset.transform = self.test_preprocess
@@ -67,6 +69,7 @@ class BaseModule(pl.LightningModule):
                                                         shuffle=False,
                                                         num_workers=self.globals.worker,
                                                         pin_memory=True)
+            self.single_layer = self.test_dataset.single_layer
         else: self.test_loader = None
         print("=> creating Model")
         self.model = self.setup_model()
@@ -101,15 +104,15 @@ class BaseModule(pl.LightningModule):
         silog_loss = criteria.silog_loss(variance_focus=self.method.variance_focus)
         depth_w = self.method.depth_loss_weight
         def _loss(pred, targ, rgb, return_composited=False):
-            mask1 = targ[:, [9]] > 0.0 if self.train_dataset.single_layer else targ[:, [19]] > 0.0
+            mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
             maskN = mask1.expand(-1, targ.size(1), -1, -1)
-            depth_idx = (slice(None), slice(8)) if self.train_dataset.single_layer else (slice(None), slice(16, 19))
+            depth_idx = (slice(None), slice(8)) if self.single_layer else (slice(None), slice(16, 19))
             maskD = targ[depth_idx] > 0.0
             loss = 0.0
             # Composite for vis (and possibly loss)
             if return_composited or 'composite' in self.method.loss:
-                if self.train_dataset.single_layer: 
+                if self.single_layer: 
                     targ_full = torch.cat([rgb, targ[:, [9]]], dim=1)
                     l1, back = pred[:, :4], pred[:, 4:8]
                     pred_full = composite_layers(torch.stack([l1, back], dim=1))
@@ -220,19 +223,21 @@ class BaseModule(pl.LightningModule):
     def test_preprocess(self, rgb, depth):
         return self.val_preprocess(rgb, depth)
 
-    def save_visualization(self, x, y, y_hat, pred_full, batch_idx, nam='val'):
+    def save_visualization(self, x, y, y_hat, pred_full, batch_idx, nam='val', write_predictions=False):
         x = x[0] if x.ndim == 4 else x
         y = y[0] if y.ndim == 4 else y
         y_hat = y_hat[0] if y_hat.ndim == 4 else y_hat
         pred_full = pred_full[0] if pred_full.ndim == 4 else y_hat
 
-        if(batch_idx < 4 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0):
-            if self.train_dataset.single_layer:
+        if(batch_idx < 4 * self.skip[nam]) and (batch_idx % self.skip[nam] == 0) or write_predictions:
+            if self.single_layer:
                 fig = visualize.create_stdepth_plot_single(y_hat, y, x, pred_full)
             else:
                 fig = visualize.create_stdepth_plot(y_hat, y, x, pred_full)
-            # fig.savefig(f'visualization/{nam}_{batch_idx // self.skip[nam]}.png')
-            self.logger.experiment.log({f'{nam}_visualization_{batch_idx // self.skip[nam]}': fig})
+            if write_predictions:
+                fig.savefig(self.pred_path/f'pred_{batch_idx:04d}.png')
+            else:
+                self.logger.experiment.log({f'{nam}_visualization_{batch_idx // self.skip[nam]}': fig})
             plt.close(fig)
 
 
