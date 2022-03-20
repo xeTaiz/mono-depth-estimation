@@ -91,7 +91,7 @@ if __name__ == "__main__":
         args.globals.seed = random.randrange(4294967295) # Make sure it's logged
     pl.seed_everything(args.globals.seed)
 
-    wandb_logger = pl.loggers.WandbLogger(project="stdepth", name=args.global.name, log_model=True)
+    wandb_logger = pl.loggers.WandbLogger(project="stdepth", name=args.globals.name, log_model=True)
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         verbose=True,
