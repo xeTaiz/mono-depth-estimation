@@ -14,6 +14,7 @@ from stdepth_utils import depth_sort, composite_layers
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 from torchvision.utils import save_image, make_grid
+import matplotlib.pyplot as plt
 import numpy as np
 import wandb
 
@@ -220,8 +221,9 @@ class BaseModule(pl.LightningModule):
                 fig = visualize.create_stdepth_plot_single(y_hat, y, x, pred_full)
             else:
                 fig = visualize.create_stdepth_plot(y_hat, y, x, pred_full)
-            fig.savefig(f'visualization/{nam}_{batch_idx // self.skip[nam]}.png')
+            # fig.savefig(f'visualization/{nam}_{batch_idx // self.skip[nam]}.png')
             self.logger.experiment.log({f'{nam}_visualization_{batch_idx // self.skip[nam]}': fig})
+            plt.close(fig)
 
 
     def get_dataset(self):
