@@ -97,7 +97,7 @@ if __name__ == "__main__":
         verbose=True,
         #save_weights_only=True,
         save_top_k=1,
-        dirpath=f'checkpoints/{args.method.name}-{args.ds_name}/{args.depth_method}',
+        dirpath=f'checkpoints/{args.globals.name}',
         filename=f'{args.globals.name}_' + '{epoch}-{val_delta1}',
         monitor='val_delta1',
         mode='max'
