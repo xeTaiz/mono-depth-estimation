@@ -3,10 +3,12 @@ from modules import get_module, register_module_specific_arguments
 from datasets import register_dataset_specific_arguments
 import pytorch_lightning as pl
 from argparse import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
+from pathlib import Path
 import random
 import torch
 
-def parse_args_into_namespaces(parser, commands):        
+
+def parse_args_into_namespaces(parser, commands):
     '''
     Split all command arguments (without prefix, like --) in
     own namespaces. Each command accepts extra options for
@@ -71,7 +73,7 @@ if __name__ == "__main__":
     commands = parser.add_subparsers(title='Commands')
     register_dataset_specific_arguments(commands)
     register_module_specific_arguments(commands)
-    
+
     args = parse_args_into_namespaces(parser, commands)
     assert args.training and args.validation, "Please provide data training AND validation dataset"
 
@@ -81,7 +83,7 @@ if __name__ == "__main__":
     if args.globals.detect_anomaly:
         print("Enabling anomaly detection")
         torch.autograd.set_detect_anomaly(True)
-    
+
     # windows safe
     if sys.platform in ["win32"]:
         args.globals.worker = 0
@@ -92,16 +94,25 @@ if __name__ == "__main__":
     pl.seed_everything(args.globals.seed)
 
     wandb_logger = pl.loggers.WandbLogger(project="stdepth", name=args.globals.name, log_model=True)
-
+    
+    ckpt_dir = f'checkpoints/{args.globals.name}'
+    ckpt_nam = '{epoch}-{val_delta1}'
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         verbose=True,
         #save_weights_only=True,
         save_top_k=1,
-        dirpath=f'checkpoints/{args.globals.name}',
-        filename=f'{args.globals.name}_' + '{epoch}-{val_delta1}',
+        dirpath=ckpt_dir,
+        filename=ckpt_nam,
         monitor='val_delta1',
         mode='max'
     )
+
+    ckpts = [(fn, float(fn.name.split('val_delta1=')[-1][:-5])) for fn in Path(ckpt_dir).rglob('*.ckpt')]
+    if len(ckpts) > 0: 
+        best_ckpt = sorted(ckpts, key=lambda tup: tup[1], reverse=True)[0]
+        print(f'Found existing checkpoint for this run with val_delta1={best_ckpt[1]:.2f}: {best_ckpt[0]}')
+        args.method.ckpt = str(best_ckpt[0])
+
 
     early_stop_callback = pl.callbacks.EarlyStopping(
         monitor='val_delta1',
@@ -132,9 +143,9 @@ if __name__ == "__main__":
             'gpu_name': torch.cuda.get_device_name(0) if use_gpu else None,
             'gpu_capability': torch.cuda.get_device_capability(0) if use_gpu else None
             })
-    
+
     #if hasattr(trainer, 'logger'):
-    
+
     trainer.logger.log_hyperparams(args) # Log Hyper parameters
     torch.autograd.set_detect_anomaly(True)
     # Fit model

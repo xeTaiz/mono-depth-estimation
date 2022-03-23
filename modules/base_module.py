@@ -101,7 +101,9 @@ class BaseModule(pl.LightningModule):
         raise NotImplementedError()
 
     def setup_criterion(self):
-        silog_loss = criteria.silog_loss(variance_focus=self.method.variance_focus)
+        _silog_loss = criteria.silog_loss(variance_focus=self.method.variance_focus)
+        def silog_loss(pred, targ):
+            return torch.nan_to_num(_silog_loss(pred, targ))
         depth_w = self.method.depth_loss_weight
         def _loss(pred, targ, rgb, return_composited=False):
             mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
@@ -134,6 +136,10 @@ class BaseModule(pl.LightningModule):
             if 'mae' in self.method.loss:
                 loss += F.l1_loss(pred[maskN], targ[maskN])
                 loss += depth_w * F.l1_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
+            if 'allssim' in self.method.loss:
+                loss += criteria.dssim2d(pred, targ, reduction='none')[mask1].mean()
+            if 'colorssim' in self.method.loss:
+                loss += criteria.dssim2d(pred[:8], targ[:8], reduction='none')[mask1].mean()
             if 'composite' in self.method.loss:
                 comp_loss = F.mse_loss(pred_full[mask4], targ_full[mask4])
                 if torch.isnan(comp_loss).any(): 
