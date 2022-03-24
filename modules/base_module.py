@@ -10,7 +10,7 @@ from datasets.stdepth_multi import get_stdepthmulti_dataset
 from metrics import MetricLogger
 import visualize
 import criteria
-from stdepth_utils import depth_sort, composite_layers
+from stdepth_utils import depth_sort, composite_layers, dssim2d
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 from torchvision.utils import save_image, make_grid
@@ -137,9 +137,9 @@ class BaseModule(pl.LightningModule):
                 loss += F.l1_loss(pred[maskN], targ[maskN])
                 loss += depth_w * F.l1_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
             if 'allssim' in self.method.loss:
-                loss += criteria.dssim2d(pred, targ, reduction='none')[mask1].mean()
+                loss += dssim2d(pred, targ, reduction='none')[mask1].mean()
             if 'colorssim' in self.method.loss:
-                loss += criteria.dssim2d(pred[:8], targ[:8], reduction='none')[mask1].mean()
+                loss += dssim2d(pred[:8], targ[:8], reduction='none')[mask1].mean()
             if 'composite' in self.method.loss:
                 comp_loss = F.mse_loss(pred_full[mask4], targ_full[mask4])
                 if torch.isnan(comp_loss).any(): 
