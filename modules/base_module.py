@@ -139,7 +139,8 @@ class BaseModule(pl.LightningModule):
             if 'allssim' in self.method.loss:
                 loss += dssim2d(pred, targ, reduction='none')[mask1].mean()
             if 'colorssim' in self.method.loss:
-                loss += dssim2d(pred[:8], targ[:8], reduction='none')[mask1].mean()
+                mask8 = mask1.expand(-1, 8, -1, -1)
+                loss += dssim2d(pred[:, :8], targ[:, :8], reduction='none')[mask8].mean()
             if 'composite' in self.method.loss:
                 comp_loss = F.mse_loss(pred_full[mask4], targ_full[mask4])
                 if torch.isnan(comp_loss).any(): 
