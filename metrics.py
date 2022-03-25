@@ -108,13 +108,13 @@ def RelativeMeanSquareError(pred, target):
 
 
 METRICS = {}
-METRICS['mse'] = torchmetrics.functional.regression.mean_squared_error
-METRICS['msle'] = torchmetrics.functional.regression.mean_squared_log_error
-METRICS['mae'] = torchmetrics.functional.regression.mean_absolute_error
 METRICS['delta1'] = Delta1_multi_gpu  # Delta(exp=1, name="delta1")
 METRICS['delta2'] = Delta2_multi_gpu  # Delta(exp=2, name="delta2")
 METRICS['delta3'] = Delta3_multi_gpu  # Delta(exp=3, name="delta3")
+METRICS['mae'] = torchmetrics.functional.regression.mean_absolute_error
 METRICS['log10'] = Log10_multi_gpu    # Log10(name="log10")
+METRICS['msle'] = torchmetrics.functional.regression.mean_squared_log_error
+METRICS['mse'] = torchmetrics.functional.regression.mean_squared_error
 METRICS['absrel'] = AbsoluteRelativeError
 METRICS['sqrel'] = RelativeSquareError
 METRICS['rmse'] = RelativeMeanSquareError

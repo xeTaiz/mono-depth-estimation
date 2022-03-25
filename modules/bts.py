@@ -102,7 +102,8 @@ class BtsModule(BaseModule):
     def training_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
-        y_hat = self(x)
+        y_hat = self(x[:, :3])
+        print(x.max(), y.max(), y_hat.max())
         loss, pred_full = self.criterion(y_hat, y, x, return_composited=True)
         self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
@@ -110,7 +111,7 @@ class BtsModule(BaseModule):
     def validation_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
-        y_hat = self(x)
+        y_hat = self(x[:, :3])
         loss, pred_full = self.criterion(y_hat, y, x, return_composited=True)
         self.logger.experiment.log({'val_loss': loss.detach()})
         self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='val')
@@ -119,7 +120,7 @@ class BtsModule(BaseModule):
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
-        y_hat = self(x)
+        y_hat = self(x[:, :3])
         loss, pred_full = self.criterion(y_hat, y, x, return_composited=True)
         self.logger.experiment.log({'test_loss': loss.detach()})
         if self.pred_path:

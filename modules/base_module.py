@@ -7,6 +7,7 @@ from datasets.floorplan3d_dataloader import get_floorplan3d_dataset
 from datasets.structured3d_dataset import get_structured3d_dataset
 from datasets.stdepth import get_stdepth_dataset
 from datasets.stdepth_multi import get_stdepthmulti_dataset
+from datasets.stdepth_multi2 import get_stdepthmulti2_dataset
 from metrics import MetricLogger
 import visualize
 import criteria
@@ -23,7 +24,8 @@ NAME2FUNC = {
     "structured3d": get_structured3d_dataset,
     "floorplan3d": get_floorplan3d_dataset,
     "stdepth": get_stdepth_dataset,
-    "stdepthmulti": get_stdepthmulti_dataset
+    "stdepthmulti": get_stdepthmulti_dataset,
+    "stdepthmulti2": get_stdepthmulti2_dataset
 }
 
 def freeze_params(m):
@@ -33,6 +35,7 @@ def freeze_params(m):
 class BaseModule(pl.LightningModule):
     def __init__(self, globals, training, validation, test, method=None, *args, **kwargs):
         super().__init__()
+        print(training)
         self.img_merge = {}
         self.save_hyperparameters()
         if method is None:
@@ -51,7 +54,7 @@ class BaseModule(pl.LightningModule):
                                                         shuffle=True,
                                                         num_workers=self.globals.worker,
                                                         pin_memory=True)
-            self.single_layer = self.train_dataset.single_layer
+            self.single_layer = training.single_layer if 'single_layer' in training else True
         else: self.train_loader = None
         if self.val_dataset:
             self.val_dataset.transform = self.val_preprocess
@@ -60,7 +63,7 @@ class BaseModule(pl.LightningModule):
                                                         shuffle=False,
                                                         num_workers=self.globals.worker,
                                                         pin_memory=True)
-            self.single_layer = self.val_dataset.single_layer
+            self.single_layer = validation.single_layer if 'single_layer' in validation else True
         else: self.val_loader = None
         if self.test_dataset:
             self.test_dataset.transform = self.test_preprocess
@@ -69,7 +72,7 @@ class BaseModule(pl.LightningModule):
                                                         shuffle=False,
                                                         num_workers=self.globals.worker,
                                                         pin_memory=True)
-            self.single_layer = self.test_dataset.single_layer
+            self.single_layer = test.single_layer if 'single_layer' in test else True
         else: self.test_loader = None
         print("=> creating Model")
         self.model = self.setup_model()
@@ -105,21 +108,21 @@ class BaseModule(pl.LightningModule):
         def silog_loss(pred, targ):
             return torch.nan_to_num(_silog_loss(pred, targ))
         depth_w = self.method.depth_loss_weight
-        def _loss(pred, targ, rgb, return_composited=False):
+        def _loss(pred, targ, rgba, return_composited=False):
             mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
             maskN = mask1.expand(-1, targ.size(1), -1, -1)
-            depth_idx = (slice(None), slice(8)) if self.single_layer else (slice(None), slice(16, 19))
+            depth_idx = (slice(None), slice(8,9)) if self.single_layer else (slice(None), slice(16, 19))
             maskD = targ[depth_idx] > 0.0
             loss = 0.0
             # Composite for vis (and possibly loss)
             if return_composited or 'composite' in self.method.loss:
                 if self.single_layer: 
-                    targ_full = torch.cat([rgb, targ[:, [9]]], dim=1)
+                    targ_full = rgba
                     l1, back = pred[:, :4], pred[:, 4:8]
                     pred_full = composite_layers(torch.stack([l1, back], dim=1))
                 else:
-                    targ_full = torch.cat([rgb, targ[:, [19]]], dim=1)
+                    targ_full = torch.cat([rgba, targ[:, [19]]], dim=1)
                     l1 = torch.cat([pred[:,  :4],  pred[:, [16]]], dim=1)
                     l2 = torch.cat([pred[:, 4:8],  pred[:, [17]]], dim=1)
                     l3 = torch.cat([pred[:, 8:12], pred[:, [18]]], dim=1)
@@ -149,6 +152,7 @@ class BaseModule(pl.LightningModule):
                     print(f'NaN in Composite loss! Replacing with 0.0')
                 else:
                     loss += comp_loss
+            print(f'Loss: {loss.detach()}      Comp Loss: {comp_loss.detach()}')
             if return_composited: 
                 return loss, pred_full
             else:

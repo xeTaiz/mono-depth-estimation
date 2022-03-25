@@ -85,14 +85,15 @@ class SemiTransparentMultiDepthDataset(BaseDataset):
         else:
             sorted_layers = depth_sort(torch.stack([l1, l2, l3]))
             front = composite_layers(sorted_layers)
-        back_a   = torch.clamp((rgba[[3]] - front[[3]]) / (1.0 - front[[3]]), 0.0, 1.0)
-        back_rgb = torch.clamp((rgba[:3]  - front[[3]]) / (1.0 - front[[3]]), 0.0, 1.0)
+        back_a   = (rgba[[3]] - front[[3]]) / (1.0 - front[[3]])
+        back_rgb = (rgba[:3]  - front[:3]) / ( (1.0 - front[[3]]) * back_a)
+        back = torch.nan_to_num(torch.clamp(torch.cat([back_rgb, back_a], dim=0), 0.0, 1.0))
         if self.single_layer:
-            gt = [ l1[:4], torch.cat([back_rgb, back_a], dim=0), l1[[4]], rgba[[3]] ] # 10 Channels
+            gt = [ l1[:4], back, l1[[4]], rgba[[3]] ] # 10 Channels
         else:
             gt = [
                 l1[:4], l2[:4], l3[:4],                            # RGBAs     (3x4 = 12 channels)
-                torch.cat([back_rgb, back_a], dim=0),              # Background Layer (4 channels)
+                back,                                              # Background Layer (4 channels)
                 torch.stack([l1[4], l2[4], l3[4], rgba[3]], dim=0),# Depths & Full a  (4 channels)
             ]                                                      # Total Channels: 20
 

@@ -10,8 +10,9 @@ from torchvtk.datasets import TorchDataset
 from torchvtk.utils import make_3d
 
 from datasets.dataset import BaseDataset
+from stdepth_utils import depth_sort, composite_layers
 
-def get_stdepth_dataset(args, split, output_size, resize):
+def get_stdepthmulti2_dataset(args, split, output_size, resize):
     if split == 'train':
         filter_fn = lambda fn: int(fn.name.split('_')[0].split('-')[-1]) < 400
     elif split == 'val':
@@ -20,25 +21,21 @@ def get_stdepth_dataset(args, split, output_size, resize):
         filter_fn = lambda fn: 450 <= int(fn.name.split('_')[0].split('-')[-1])
     else:
         raise Exception(f'Invalid split: {split}. Either train, val or test')
-    kwargs = {}
-    if hasattr(args, 'background_depth_max'):
-        kwargs['set_bg_depth'] = args.background_depth_max
-    return SemiTransparentDepthDataset(args.path, split=split, output_size=output_size, 
-    filter_fn=filter_fn, resize=resize, depth_method=args.depth_method, **kwargs)
+    return SemiTransparentMulti2DepthDataset(args.path, split=split, output_size=output_size, filter_fn=filter_fn, resize=resize, single_layer=args.single_layer, set_bg_depth=args.background_depth_max)
 
 
-class SemiTransparentDepthDataset(BaseDataset):
+class SemiTransparentMulti2DepthDataset(BaseDataset):
     def __init__(self):
         super().__init__()
 
-    def __init__(self, path, resize, output_size, filter_fn=lambda _: True, depth_method='first_hit', set_bg_depth=False, *args, **kwargs):
+    def __init__(self, path, resize, output_size, filter_fn=lambda _: True, single_layer=False, set_bg_depth=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.resize = resize
         self.output_size = output_size
         self.path = path
         self.torch_ds = TorchDataset(path, filter_fn=filter_fn)
-        self.depth_method = depth_method
         self.set_bg_depth = set_bg_depth
+        self.single_layer = single_layer
 
     def training_preprocess(self, rgb, depth):
         #depth = transforms.ToPILImage()(depth)
@@ -75,21 +72,28 @@ class SemiTransparentDepthDataset(BaseDataset):
 
     def test_preprocess(self, rgb, depth):
         return TF.to_tensor(rgb), TF.to_tensor(depth)
-
     def get_raw(self, index):
         item = self.torch_ds[index]
-        rgb = torch.clamp(item['rgba'][:3].float() * 255.0, 0.0, 255.0).byte()
-        depth = item[self.depth_method].float()
+        rgba = torch.clamp(item['rgba'].float(), 0.0, 1.0)
+        l1, l2, l3 = item['layer1'].float(), item['layer2'].float(), item['layer3'].float()
         if self.set_bg_depth:
-            depth[depth == 0.0] = 1.0
-        return rgb, depth
+            l1[4][l1[4] == 0.0] = 1.0
+            l2[4][l2[4] == 0.0] = 1.0
+            l3[4][l3[4] == 0.0] = 1.0
+
+        back = item['back'].float()
+        gt = [ l1[:4], back, l1[[4]], l3[[4]] ] # 10 Channels RGBAf RGBAb Dw Dfh
+
+        rgba = torch.clamp(rgba * 255.0, 0.0, 255.0).byte()
+        return rgba, gt
 
     def __len__(self):
         return len(self.torch_ds)
 
     @staticmethod
     def add_dataset_specific_args(parent_parser):
-        parser = parent_parser.add_parser('stdepth')
+        parser = parent_parser.add_parser('stdepthmulti2')
         BaseDataset.add_dataset_specific_args(parser)
-        parser.add_argument('--depth-method', type=str, default='first_hit', help='Depth method. first_hit, max_opacity, max_gradient, wysiwyg')
+        parser.add_argument('--depth-method', type=str, default='multi2', help='Depth method to use')
+        parser.add_argument('--single-layer', action='store_true', help='Do the multi thing but just with 1 layer')
         parser.add_argument('--background-depth-max', action='store_true', help='Whether to replace depth for background(0.0) with max depth (1.0)')
