@@ -148,11 +148,12 @@ class BaseModule(pl.LightningModule):
                                 torch.clamp(targ[:, :8], 0.0, 1.0), reduction='none')[mask8].mean()
             if 'composite' in self.method.loss:
                 comp_loss = F.mse_loss(pred_full[mask4], targ_full[mask4])
+                print(f'Comp Loss: {comp_loss.detach()}')
                 if torch.isnan(comp_loss).any(): 
                     print(f'NaN in Composite loss! Replacing with 0.0')
                 else:
                     loss += comp_loss
-            print(f'Loss: {loss.detach()}      Comp Loss: {comp_loss.detach()}')
+            print(f'Loss: {loss.detach()}')
             if return_composited: 
                 return loss, pred_full
             else:
