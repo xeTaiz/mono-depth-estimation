@@ -35,7 +35,6 @@ def freeze_params(m):
 class BaseModule(pl.LightningModule):
     def __init__(self, globals, training, validation, test, method=None, *args, **kwargs):
         super().__init__()
-        print(training)
         self.img_merge = {}
         self.save_hyperparameters()
         if method is None:

@@ -103,7 +103,6 @@ class BtsModule(BaseModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x[:, :3])
-        print(x.max(), y.max(), y_hat.max())
         loss, pred_full = self.criterion(y_hat, y, x, return_composited=True)
         self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='train')
         return self.metric_logger.log_train(y_hat, y, loss)
