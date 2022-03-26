@@ -107,6 +107,7 @@ class BaseModule(pl.LightningModule):
         def silog_loss(pred, targ):
             return torch.nan_to_num(_silog_loss(pred, targ))
         depth_w = self.method.depth_loss_weight
+        comp_w = self.method.comp_loss_weight
         def _loss(pred, targ, rgba, return_composited=False):
             mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
@@ -130,8 +131,8 @@ class BaseModule(pl.LightningModule):
                     pred_full = composite_layers(torch.cat([sorted_layers, back], dim=1))
 
             if 'silog' in self.method.loss:
-                loss += silog_loss(pred[maskN], targ[maskN])
-                loss += depth_w * silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
+                loss += torch.nan_to_num(silog_loss(pred[maskN], targ[maskN]))
+                loss += depth_w * torch.nan_to_num(silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD]))
             if 'mse' in self.method.loss:
                 loss += F.mse_loss(pred[maskN], targ[maskN])
                 loss += depth_w * F.mse_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
@@ -146,7 +147,7 @@ class BaseModule(pl.LightningModule):
                 loss += dssim2d(torch.clamp(pred[:, :8], 0.0, 1.0), 
                                 torch.clamp(targ[:, :8], 0.0, 1.0), reduction='none')[mask8].mean()
             if 'composite' in self.method.loss:
-                comp_loss = F.mse_loss(pred_full[mask4], targ_full[mask4])
+                comp_loss = comp_w * F.mse_loss(pred_full[mask4], targ_full[mask4])
                 print(f'Comp Loss: {comp_loss.detach()}')
                 if torch.isnan(comp_loss).any(): 
                     print(f'NaN in Composite loss! Replacing with 0.0')
@@ -282,6 +283,7 @@ class BaseModule(pl.LightningModule):
         parser.add_argument('--ckpt',    default=ckpt,     type=str,   help='Load checkpoint')
         parser.add_argument('--freeze_encoder', action='store_true', help='Freeze encoder')
         parser.add_argument('--depth-loss-weight', type=float, default=5.0, help='Extra loss weighting for depth layer(s)')
+        parser.add_argument('--comp-loss-weight', type=float, default=10.0, help='Loss weighting for composite loss')
     @staticmethod
     def add_model_specific_args(parser):
         raise NotImplementedError()

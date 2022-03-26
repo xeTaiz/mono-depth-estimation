@@ -93,7 +93,7 @@ class BtsModule(BaseModule):
         return (512, 512)
 
     def resize(self):
-        return 450
+        return 512
 
     def forward(self, x):
         _, _, _, _, y_hat = self.model(x)
