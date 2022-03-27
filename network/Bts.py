@@ -146,10 +146,12 @@ class local_planar_guidance(nn.Module):
         return n4 / (n1 * u + n2 * v + n3)
 
 class bts(nn.Module):
-    def __init__(self, max_depth, feat_out_channels, out_channels=20, num_features=512, dataset='nyu'):
+    def __init__(self, max_depth, feat_out_channels, out_channels=20, image_residuals=False, num_features=512, dataset='nyu'):
         super(bts, self).__init__()
         self.max_depth = max_depth
+        self.image_residuals = image_residuals
         self.dataset = dataset
+        self.out_channels = out_channels
 
         self.upconv5    = upconv(feat_out_channels[4], num_features)
         self.bn5        = nn.BatchNorm2d(num_features, momentum=0.01, affine=True, eps=1.1e-5)
@@ -194,7 +196,7 @@ class bts(nn.Module):
         self.get_depth  = torch.nn.Sequential(nn.Conv2d(num_features // 16, out_channels, 3, 1, 1, bias=False),
                                               nn.Sigmoid())
 
-    def forward(self, features, focal):
+    def forward(self, features, focal, input=None):
         skip0, skip1, skip2, skip3 = features[1], features[2], features[3], features[4]
         dense_features = torch.nn.ReLU()(features[5])
         upconv5 = self.upconv5(dense_features) # H/16
@@ -260,7 +262,16 @@ class bts(nn.Module):
         reduc1x1 = self.reduc1x1(upconv1)
         concat1 = torch.cat([upconv1, reduc1x1, depth_2x2_scaled, depth_4x4_scaled, depth_8x8_scaled], dim=1)
         iconv1 = self.conv1(concat1)
-        final_depth = self.max_depth * self.get_depth(iconv1)
+        if hasattr(self, 'out_channels') and input is not None and self.out_channels == 10 and self.image_residuals:
+            depth = self.get_depth(iconv1)
+            inp_mean = input.mean(dim=1)
+            front  = torch.clamp((depth[:,  :3] * 2.0 - 1.0) + input, 0.0, 1.0)
+            back   = torch.clamp((depth[:, 4:7] * 2.0 - 1.0) + input, 0.0, 1.0)
+            fronta = torch.clamp((depth[:,  3 ] * 2.0 - 1.0) + inp_mean, 0.0, 1.0).unsqueeze(1)
+            backa  = torch.clamp((depth[:,  7 ] * 2.0 - 1.0) + inp_mean, 0.0, 1.0).unsqueeze(1)
+            final_depth = torch.cat([front, fronta, back, backa, depth[:, 8:]], dim=1)
+        else:
+            final_depth = self.max_depth * self.get_depth(iconv1)
         if self.dataset == 'kitti':
             final_depth = final_depth * focal.view(-1, 1, 1, 1).float() / 715.0873
         
@@ -312,14 +323,14 @@ class encoder(nn.Module):
     
 
 class BtsModel(nn.Module):
-    def __init__(self, bts_size=512, max_depth=10, out_channels=20, encoder_version='densenet161_bts'):
+    def __init__(self, bts_size=512, max_depth=10, out_channels=20, image_residuals=False, encoder_version='densenet161_bts'):
         super(BtsModel, self).__init__()
         self.encoder = encoder(encoder_version)
-        self.decoder = bts(max_depth, self.encoder.feat_out_channels, num_features=bts_size, out_channels=out_channels)
+        self.decoder = bts(max_depth, self.encoder.feat_out_channels, num_features=bts_size, out_channels=out_channels, image_residuals=image_residuals)
 
     def forward(self, x, focal=518.8579):
         skip_feat = self.encoder(x)
-        return self.decoder(skip_feat, focal)
+        return self.decoder(skip_feat, focal, x)
 
 
 if __name__ == "__main__":

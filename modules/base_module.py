@@ -111,6 +111,7 @@ class BaseModule(pl.LightningModule):
         def _loss(pred, targ, rgba, return_composited=False):
             mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
+            mask8 = mask1.expand(-1, 8, -1, -1)
             maskN = mask1.expand(-1, targ.size(1), -1, -1)
             depth_idx = (slice(None), slice(8,9)) if self.single_layer else (slice(None), slice(16, 19))
             maskD = targ[depth_idx] > 0.0
@@ -130,6 +131,9 @@ class BaseModule(pl.LightningModule):
                     sorted_layers = depth_sort(torch.stack([l1, l2, l3], dim=1))[:, :, :4] # Discard depth from here
                     pred_full = composite_layers(torch.cat([sorted_layers, back], dim=1))
 
+            if 'silma' in self.method.loss:
+                loss += depth_w * torch.nan_to_num(silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD]))
+                loss += F.l1_loss(pred[:, :8][mask8], targ[:, :8][mask8])
             if 'silog' in self.method.loss:
                 loss += torch.nan_to_num(silog_loss(pred[maskN], targ[maskN]))
                 loss += depth_w * torch.nan_to_num(silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD]))
