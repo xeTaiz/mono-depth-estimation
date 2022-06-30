@@ -23,13 +23,13 @@ class MetricLogger(object):
             result[name] = value
         return result
 
-    def log_val(self, pred, target):
+    def log_val(self, pred, target, prefix=''):
         values = self.computer.compute(pred, target)
         result = {}
         for name, value in zip(self.computer.names, values):
-            self.context.log("val_{}".format(name), value, logger=True, on_epoch=True)
-            self.context.log("val_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
-            result[name] = value
+            self.context.log("val_{}{}".format(prefix, name), value, logger=True, on_epoch=True)
+            self.context.log("val_{}{}(AVG)".format(prefix, name), self.computer.avg(name), logger=False, prog_bar=True)
+            result[f'{prefix}{name}'] = value
         return result
 
     def log_test(self, pred, target):

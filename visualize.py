@@ -57,7 +57,7 @@ def show_item(item):
 
 def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
     if path is None:return
-    
+
     path=Path(path)
     path.mkdir(parents=True, exist_ok=True)
     path = path.as_posix()
@@ -73,13 +73,13 @@ def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
         if depth_gt.ndim == 3: depth_gt = depth_gt.squeeze(0)
         depth_gt = depth_gt.cpu().numpy()
         min_, max_ = min(np.min(depth_gt), min_), max(np.max(depth_gt), max_)
-        
+
     if not depth_pred is None:
         if depth_pred.ndim == 4: depth_pred = depth_pred.squeeze(0)
         if depth_pred.ndim == 3: depth_pred = depth_pred.squeeze(0)
         depth_pred = depth_pred.cpu().numpy()
         min_, max_ = min(np.min(depth_pred), min_), max(np.max(depth_pred), max_)
-        
+
     if not depth_pred is None:
         depth_pred = colored_depthmap(depth_pred, min_, max_)
         save_image(depth_pred, "{}/{}_pred.jpg".format(path, idx))
@@ -87,29 +87,28 @@ def save_images(path, idx, rgb=None, depth_gt=None, depth_pred=None):
     if not depth_gt is None:
         depth_gt = colored_depthmap(depth_gt, min_, max_)
         save_image(depth_gt, "{}/{}_gt.jpg".format(path, idx))
-    
-    
+
+
 def create_stdepth_plot_single(pred, targ, rgb, pred_full):
     with torch.no_grad():
         pred, targ = pred.cpu().float(), targ.cpu().float()
         rgb, pred_full = rgb.cpu().float(), pred_full.cpu().float()
     fig, ax = plt.subplot_mosaic(
-        [['Color (Input)', 'L1 Color (Targ)', 'L1 Depth (Targ)',   'Back Color (Targ)'], 
-        ['Alpha (Targ)',   'L1 Color (Pred)', 'L1 Depth (Pred)',   'Back Color (Pred)'],
-        ['Alpha (Pred)',   'L1 Alpha (Pred)', 'Back Alpha (Pred)', 'Color (Pred)'],
-        ['none',           'L1 Alpha (Targ)', 'Back Alpha (Targ)', 'Color (Targ)'],
+        [['Color (Input)', 'L1 Color (Targ)', 'L1 Depth (Targ)',   'Back Color (Targ)'],
+        ['Color (Pred)',   'L1 Color (Pred)', 'L1 Depth (Pred)',   'Back Color (Pred)'],
+        ['Alpha (Pred)',   'L1 Alpha (Pred)', 'Back Alpha (Pred)', 'FH Depth (Pred)'],
+        ['Alpha (Targ)',   'L1 Alpha (Targ)', 'Back Alpha (Targ)', 'FH Depth (Targ)'],
     ], figsize=(20,20), tight_layout=True)
     for n in ax.keys():
         ax[n].set_title(n)
         ax[n].set_axis_off()
     ax['Color (Input)'].imshow(rgb.permute(1,2,0))
-    ax['Color (Targ)'].imshow(rgb.permute(1,2,0))
     ax['Color (Pred)'].imshow(pred_full[:3].permute(1,2,0))
     ax['Back Color (Pred)'].imshow(pred[4:7].permute(1,2,0))
     ax['Back Color (Targ)'].imshow(targ[4:7].permute(1,2,0))
 
-    ax['Alpha (Targ)'].imshow(targ[9], cmap='gray')
-    ax['Alpha (Pred)'].imshow(pred[9], cmap='gray')
+    ax['Alpha (Targ)'].imshow(rgb[3], cmap='gray')
+    ax['Alpha (Pred)'].imshow(pred_full[3], cmap='gray')
     ax['Back Alpha (Pred)'].imshow(pred[7], cmap='gray')
     ax['Back Alpha (Targ)'].imshow(targ[7], cmap='gray')
 
@@ -122,6 +121,9 @@ def create_stdepth_plot_single(pred, targ, rgb, pred_full):
     ax['L1 Depth (Pred)'].imshow(pred[8], cmap='hot')
     ax['L1 Depth (Targ)'].imshow(targ[8], cmap='hot')
 
+    ax['FH Depth (Pred)'].imshow(pred[9], cmap='hot')
+    ax['FH Depth (Targ)'].imshow(targ[9], cmap='hot')
+
 
     return fig
 
@@ -130,7 +132,7 @@ def create_stdepth_plot(pred, targ, rgb, pred_full):
         pred, targ = pred.cpu().float(), targ.cpu().float()
         rgb, pred_full = rgb.cpu().float(), pred_full.cpu().float()
     fig, ax = plt.subplot_mosaic(
-        [['Color (Input)', 'L1 Color (Targ)', 'L2 Color (Targ)', 'L3 Color (Targ)', 'Back Color (Targ)'], 
+        [['Color (Input)', 'L1 Color (Targ)', 'L2 Color (Targ)', 'L3 Color (Targ)', 'Back Color (Targ)'],
         ['Alpha (Targ)',  'L1 Color (Pred)', 'L2 Color (Pred)', 'L3 Color (Pred)', 'Back Color (Pred)'],
         ['Alpha (Pred)',  'L1 Alpha (Pred)', 'L2 Alpha (Pred)', 'L3 Alpha (Pred)', 'Back Alpha (Pred)'],
         ['Color (Targ)', 'L1 Alpha (Targ)', 'L2 Alpha (Targ)', 'L3 Alpha (Targ)', 'Back Alpha (Targ)'],
@@ -183,7 +185,7 @@ def create_stdepth_plot(pred, targ, rgb, pred_full):
 
 
 
-        
+
 
 
 

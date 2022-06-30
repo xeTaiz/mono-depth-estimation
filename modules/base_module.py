@@ -108,7 +108,7 @@ class BaseModule(pl.LightningModule):
             return torch.nan_to_num(_silog_loss(pred, targ))
         depth_w = self.method.depth_loss_weight
         comp_w = self.method.comp_loss_weight
-        def _loss(pred, targ, rgba, return_composited=False):
+        def _loss(pred, targ, rgba, return_composited=False, return_loss_dict=False):
             mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
             mask8 = mask1.expand(-1, 8, -1, -1)
@@ -116,6 +116,7 @@ class BaseModule(pl.LightningModule):
             depth_idx = (slice(None), slice(8,9)) if self.single_layer else (slice(None), slice(16, 19))
             maskD = targ[depth_idx] > 0.0
             loss = 0.0
+            loss_dict = {}
             # Composite for vis (and possibly loss)
             if return_composited or 'composite' in self.method.loss:
                 if self.single_layer: 
@@ -132,36 +133,35 @@ class BaseModule(pl.LightningModule):
                     pred_full = composite_layers(torch.cat([sorted_layers, back], dim=1))
 
             if 'silma' in self.method.loss:
-                loss += depth_w * torch.nan_to_num(silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD]))
-                loss += F.l1_loss(pred[:, :8][mask8], targ[:, :8][mask8])
-            if 'silog' in self.method.loss:
-                loss += torch.nan_to_num(silog_loss(pred[maskN], targ[maskN]))
-                loss += depth_w * torch.nan_to_num(silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD]))
+                loss_dict['depth_silog'] = depth_w * torch.nan_to_num(silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD]))
+                loss_dict['depth_mae']   = F.l1_loss(pred[:, :8][mask8], targ[:, :8][mask8])
             if 'mse' in self.method.loss:
-                loss += F.mse_loss(pred[maskN], targ[maskN])
-                loss += depth_w * F.mse_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
+                loss_dict['all_mse'] = F.mse_loss(pred[maskN], targ[maskN])
+                loss_dict['all_mse'] += depth_w * F.mse_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
             if 'mae' in self.method.loss:
-                loss += F.l1_loss(pred[maskN], targ[maskN])
-                loss += depth_w * F.l1_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
+                loss_dict['all_mae'] = F.l1_loss(pred[maskN], targ[maskN])
+                loss_dict['all_mae'] += depth_w * F.l1_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
             if 'allssim' in self.method.loss:
-                loss += dssim2d(torch.clamp(pred, 0.0, 1.0), 
-                                torch.clamp(targ, 0.0, 1.0), reduction='none')[mask1].mean()
+                loss_dict['all_ssim'] = dssim2d(
+                    torch.clamp(pred, 0.0, 1.0), 
+                    torch.clamp(targ, 0.0, 1.0), reduction='none')[maskN].mean()
             if 'colorssim' in self.method.loss:
                 mask8 = mask1.expand(-1, 8, -1, -1)
-                loss += dssim2d(torch.clamp(pred[:, :8], 0.0, 1.0), 
-                                torch.clamp(targ[:, :8], 0.0, 1.0), reduction='none')[mask8].mean()
+                loss_dict['color_ssim'] = dssim2d(
+                    torch.clamp(pred[:, :8], 0.0, 1.0), 
+                    torch.clamp(targ[:, :8], 0.0, 1.0), reduction='none')[mask8].mean()
             if 'composite' in self.method.loss:
-                comp_loss = comp_w * F.mse_loss(pred_full[mask4], targ_full[mask4])
-                print(f'Comp Loss: {comp_loss.detach()}')
-                if torch.isnan(comp_loss).any(): 
-                    print(f'NaN in Composite loss! Replacing with 0.0')
-                else:
-                    loss += comp_loss
-            print(f'Loss: {loss.detach()}')
+                comp_loss = comp_w * F.mse_loss(pred_full[mask4], targ_full[mask4], reduction='none')
+                loss_dict['composite_loss'] = torch.mean(torch.nan_to_num(comp_loss))
+            loss = torch.stack(list(loss_dict.values())).sum()
+            # Assemble tuple to return
+            ret = [loss]
             if return_composited: 
-                return loss, pred_full
-            else:
-                return loss
+                ret.append(pred_full)
+            if return_loss_dict:
+                ret.append({k: v.detach() for k,v in loss_dict.items()})
+
+            return tuple(ret)
                 
         return _loss
 

@@ -111,10 +111,14 @@ class BtsModule(BaseModule):
         if batch_idx == 0: self.metric_logger.reset()
         x, y = batch
         y_hat = self(x[:, :3])
-        loss, pred_full = self.criterion(y_hat, y, x, return_composited=True)
+        loss, pred_full, loss_dict = self.criterion(y_hat, y, x, return_composited=True, return_loss_dict=True)
         self.logger.experiment.log({'val_loss': loss.detach()})
+        self.logger.experiment.log({f'val_{k}': v for k,v in loss_dict.items()})
         self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='val')
-        return self.metric_logger.log_val(y_hat, y)
+        metrics = self.metric_logger.log_val(y_hat[:, [8,9]], y[:, [8,9]])
+        metrics.update(self.metric_logger.log_val(y_hat[:, [8]], y[:, [8]], prefix='depth_'))
+        metrics.update(self.metric_logger.log_val(y_hat[:, [9]], y[:, [9]], prefix='fh_depth_'))
+        return metrics
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0: self.metric_logger.reset()
