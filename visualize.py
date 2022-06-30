@@ -94,16 +94,16 @@ def create_stdepth_plot_single(pred, targ, rgb, pred_full):
         pred, targ = pred.cpu().float(), targ.cpu().float()
         rgb, pred_full = rgb.cpu().float(), pred_full.cpu().float()
     fig, ax = plt.subplot_mosaic(
-        [['Color (Input)', 'L1 Color (Targ)', 'L1 Depth (Targ)',   'Back Color (Targ)'],
-        ['Color (Pred)',   'L1 Color (Pred)', 'L1 Depth (Pred)',   'Back Color (Pred)'],
+        [['RGBA (Input+Alpha)', 'L1 Color (Targ)', 'L1 Depth (Targ)',   'Back Color (Targ)'],
+        ['RGBA Recomp (Pred)',   'L1 Color (Pred)', 'L1 Depth (Pred)',   'Back Color (Pred)'],
         ['Alpha (Pred)',   'L1 Alpha (Pred)', 'Back Alpha (Pred)', 'FH Depth (Pred)'],
         ['Alpha (Targ)',   'L1 Alpha (Targ)', 'Back Alpha (Targ)', 'FH Depth (Targ)'],
     ], figsize=(20,20), tight_layout=True)
     for n in ax.keys():
         ax[n].set_title(n)
         ax[n].set_axis_off()
-    ax['Color (Input)'].imshow(rgb.permute(1,2,0))
-    ax['Color (Pred)'].imshow(pred_full[:3].permute(1,2,0))
+    ax['RGBA (Input+Alpha)'].imshow(rgb.permute(1,2,0))
+    ax['RGBA Recomp (Pred)'].imshow(pred_full[:4].permute(1,2,0))
     ax['Back Color (Pred)'].imshow(pred[4:7].permute(1,2,0))
     ax['Back Color (Targ)'].imshow(targ[4:7].permute(1,2,0))
 
