@@ -52,6 +52,7 @@ class BaseModule(pl.LightningModule):
                                                         batch_size=self.method.batch_size,
                                                         shuffle=True,
                                                         num_workers=self.globals.worker,
+                                                        prefetch_factor=4,
                                                         pin_memory=True)
             self.single_layer = training.single_layer if 'single_layer' in training else True
         else: self.train_loader = None
@@ -61,6 +62,7 @@ class BaseModule(pl.LightningModule):
                                                         batch_size=1,
                                                         shuffle=False,
                                                         num_workers=self.globals.worker,
+                                                        prefetch_factor=4,
                                                         pin_memory=True)
             self.single_layer = validation.single_layer if 'single_layer' in validation else True
         else: self.val_loader = None
@@ -69,6 +71,7 @@ class BaseModule(pl.LightningModule):
             self.test_loader = torch.utils.data.DataLoader(self.test_dataset,
                                                         batch_size=1,
                                                         shuffle=False,
+                                                        prefetch_factor=4,
                                                         num_workers=self.globals.worker,
                                                         pin_memory=True)
             self.single_layer = test.single_layer if 'single_layer' in test else True
