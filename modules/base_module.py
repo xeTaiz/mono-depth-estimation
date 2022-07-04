@@ -111,6 +111,7 @@ class BaseModule(pl.LightningModule):
         def _loss(pred, targ, rgba, return_composited=False, return_loss_dict=False):
             mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
+            mask3 = mask1.expand(-1, 3, -1, -1)
             mask8 = mask1.expand(-1, 8, -1, -1)
             maskN = mask1.expand(-1, targ.size(1), -1, -1)
             depth_idx = (slice(None), slice(8,9)) if self.single_layer else (slice(None), slice(16, 19))
@@ -119,7 +120,7 @@ class BaseModule(pl.LightningModule):
             loss_dict = {}
             # Composite for vis (and possibly loss)
             if return_composited or 'composite' in self.method.loss:
-                if self.single_layer: 
+                if self.single_layer:
                     targ_full = rgba
                     l1, back = pred[:, :4], pred[:, 4:8]
                     pred_full = composite_layers(torch.stack([l1, back], dim=1))
@@ -143,26 +144,38 @@ class BaseModule(pl.LightningModule):
                 loss_dict['all_mae'] += depth_w * F.l1_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
             if 'allssim' in self.method.loss:
                 loss_dict['all_ssim'] = dssim2d(
-                    torch.clamp(pred, 0.0, 1.0), 
+                    torch.clamp(pred, 0.0, 1.0),
                     torch.clamp(targ, 0.0, 1.0), reduction='none')[maskN].mean()
             if 'colorssim' in self.method.loss:
                 mask8 = mask1.expand(-1, 8, -1, -1)
                 loss_dict['color_ssim'] = dssim2d(
-                    torch.clamp(pred[:, :8], 0.0, 1.0), 
+                    torch.clamp(pred[:, :8], 0.0, 1.0),
                     torch.clamp(targ[:, :8], 0.0, 1.0), reduction='none')[mask8].mean()
             if 'composite' in self.method.loss:
                 comp_loss = comp_w * F.mse_loss(pred_full[mask4], targ_full[mask4], reduction='none')
                 loss_dict['composite_loss'] = torch.mean(torch.nan_to_num(comp_loss))
+            if 'fbdivergence':
+                # implements cosine similarity between fronts and backs
+                # "front pred back gt" / "front gt back pred"  magnitudes
+                fpbg_mag = (torch.linalg.vector_norm(pred[:,  :3], dim=1, keepdim=True) * 
+                            torch.linalg.vector_norm(targ[:, 4:7], dim=1, keepdim=True)) + 1e-3
+                fgbp_mag = (torch.linalg.vector_norm(pred[:, 4:7], dim=1, keepdim=True) * 
+                            torch.linalg.vector_norm(targ[:,  :3], dim=1, keepdim=True)) + 1e-3
+                # manual dot products, divided by magnitude cos_sim = dot(A, B) / (|A|*|B|)
+                fb_div_loss = ((pred[:,  :3] * targ[:, 4:7] / fpbg_mag).sum(dim=1) +
+                               (pred[:, 4:7] * targ[:,  :3] / fgbp_mag).sum(dim=1))[mask1.squeeze(1)]
+                loss_dict['fb_divergence'] = fb_div_loss.mean()
+
             loss = torch.stack(list(loss_dict.values())).sum()
             # Assemble tuple to return
             ret = [loss]
-            if return_composited: 
+            if return_composited:
                 ret.append(pred_full)
             if return_loss_dict:
                 ret.append({k: v.detach() for k,v in loss_dict.items()})
 
             return tuple(ret)
-                
+
         return _loss
 
     def forward(self, x):
