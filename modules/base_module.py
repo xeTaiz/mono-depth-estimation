@@ -116,7 +116,6 @@ class BaseModule(pl.LightningModule):
         def _loss(pred, targ, rgba, return_composited=False, return_loss_dict=False):
             mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
-            mask3 = mask1.expand(-1, 3, -1, -1)
             mask8 = mask1.expand(-1, 8, -1, -1)
             maskN = mask1.expand(-1, targ.size(1), -1, -1)
             depth_idx = (slice(None), slice(8,9)) if self.single_layer else (slice(None), slice(16, 19))
