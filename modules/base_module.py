@@ -111,6 +111,8 @@ class BaseModule(pl.LightningModule):
             return torch.nan_to_num(_silog_loss(pred, targ))
         depth_w = self.method.depth_loss_weight
         comp_w = self.method.comp_loss_weight
+        fbdiv_w = self.method.fbdiv_loss_weight
+        ssim_w = self.method.ssim_loss_weight
         def _loss(pred, targ, rgba, return_composited=False, return_loss_dict=False):
             mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
@@ -146,17 +148,21 @@ class BaseModule(pl.LightningModule):
                 loss_dict['all_mae'] = F.l1_loss(pred[maskN], targ[maskN])
                 loss_dict['all_mae'] += depth_w * F.l1_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
             if 'allssim' in self.method.loss:
-                loss_dict['all_ssim'] = dssim2d(
+                loss_dict['all_ssim'] = ssim_w * dssim2d(
                     torch.clamp(pred, 0.0, 1.0),
                     torch.clamp(targ, 0.0, 1.0), reduction='none')[maskN].mean()
             if 'colorssim' in self.method.loss:
                 mask8 = mask1.expand(-1, 8, -1, -1)
-                loss_dict['color_ssim'] = dssim2d(
+                loss_dict['color_ssim'] = ssim_w * dssim2d(
                     torch.clamp(pred[:, :8], 0.0, 1.0),
                     torch.clamp(targ[:, :8], 0.0, 1.0), reduction='none')[mask8].mean()
             if 'composite' in self.method.loss:
                 comp_loss = comp_w * F.mse_loss(pred_full[mask4], targ_full[mask4], reduction='none')
-                loss_dict['composite_loss'] = torch.mean(torch.nan_to_num(comp_loss))
+                loss_dict['composite_mse'] = torch.mean(torch.nan_to_num(comp_loss))
+                if 'ssim' in self.method.loss:
+                    loss_dict['composite_ssim'] = ssim_w * comp_w * dssim2d(
+                        torch.clamp(pred_full, 0.0, 1.0),
+                        torch.clamp(targ_full, 0.0, 1.0), reduction='none')[mask4].mean()
             if 'fbdivergence':
                 # implements cosine similarity between fronts and backs
                 # "front pred back gt" / "front gt back pred"  magnitudes
@@ -167,7 +173,7 @@ class BaseModule(pl.LightningModule):
                 # manual dot products, divided by magnitude cos_sim = dot(A, B) / (|A|*|B|)
                 fb_div_loss = ((pred[:,  :3] * targ[:, 4:7] / fpbg_mag).sum(dim=1) +
                                (pred[:, 4:7] * targ[:,  :3] / fgbp_mag).sum(dim=1))[mask1.squeeze(1)]
-                loss_dict['fb_divergence'] = fb_div_loss.mean()
+                loss_dict['fb_divergence'] = fbdiv_w * fb_div_loss.mean()
 
             loss = torch.stack(list(loss_dict.values())).sum()
             # Assemble tuple to return
@@ -302,8 +308,10 @@ class BaseModule(pl.LightningModule):
         parser.add_argument('--batch_size',    default=batch_size,     type=int,   help='Batch Size')
         parser.add_argument('--ckpt',    default=ckpt,     type=str,   help='Load checkpoint')
         parser.add_argument('--freeze_encoder', action='store_true', help='Freeze encoder')
-        parser.add_argument('--depth-loss-weight', type=float, default=5.0, help='Extra loss weighting for depth layer(s)')
-        parser.add_argument('--comp-loss-weight', type=float, default=10.0, help='Loss weighting for composite loss')
+        parser.add_argument('--depth-loss-weight', type=float, default=10.0, help='Extra loss weighting for depth layer(s)')
+        parser.add_argument('--comp-loss-weight', type=float, default=2.0, help='Loss weighting for composite loss')
+        parser.add_argument('--fbdiv-loss-weight', type=float, default=1.0, help='Loss weight for foreground/background divergence loss')
+        parser.add_argument('--ssim-loss-weight', type=float, default=2.0)
     @staticmethod
     def add_model_specific_args(parser):
         raise NotImplementedError()
