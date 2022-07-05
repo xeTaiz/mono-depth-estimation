@@ -65,7 +65,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_epochs', default=25, type=int, help='Maximum number ob epochs to train')
     parser.add_argument('--max-train-batches', default=1.0, type=float, help='Limit train dataset to percentage/amount')
     parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
-    parser.add_argument('--worker', default=6, type=int, help='Number of workers for data loader')
+    parser.add_argument('--worker', default=8, type=int, help='Number of workers for data loader')
     parser.add_argument('--find_learning_rate', action='store_true', help="Finding learning rate.")
     parser.add_argument('--detect_anomaly', action='store_true', help='Enables pytorch anomaly detection')
 
