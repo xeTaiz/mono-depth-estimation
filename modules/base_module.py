@@ -114,11 +114,11 @@ class BaseModule(pl.LightningModule):
         fbdiv_w = self.method.fbdiv_loss_weight
         ssim_w = self.method.ssim_loss_weight
         def _loss(pred, targ, rgba, return_composited=False, return_loss_dict=False):
-            mask1 = targ[:, [9]] > 0.0 if self.single_layer else targ[:, [19]] > 0.0
+            mask1 = rgba[:, [3]] > 0.0 #if self.single_layer else targ[:, [19]] > 0.0
             mask4 = mask1.expand(-1, 4, -1, -1)
             mask8 = mask1.expand(-1, 8, -1, -1)
             maskN = mask1.expand(-1, targ.size(1), -1, -1)
-            depth_idx = (slice(None), slice(8,9)) if self.single_layer else (slice(None), slice(16, 19))
+            depth_idx = (slice(None), slice(8,10)) if self.single_layer else (slice(None), slice(16, 20))
             maskD = targ[depth_idx] > 0.0
             loss = 0.0
             loss_dict = {}
