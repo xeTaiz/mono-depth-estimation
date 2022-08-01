@@ -139,7 +139,10 @@ class BaseModule(pl.LightningModule):
 
             if 'silma' in self.method.loss:
                 loss_dict['depth_silog'] = depth_w * torch.nan_to_num(silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD]))
-                loss_dict['depth_mae']   = F.l1_loss(pred[:, :8][mask8], targ[:, :8][mask8])
+                loss_dict['color_mae']   = F.l1_loss(pred[:, :8][mask8], targ[:, :8][mask8])
+            if 'silms' in self.method.loss:
+                loss_dict['depth_silog'] = depth_w * torch.nan_to_num(silog_loss(pred[depth_idx][maskD], targ[depth_idx][maskD]))
+                loss_dict['color_mse']   = F.mse_loss(pred[:, :8][mask8], targ[:, :8][mask8])
             if 'mse' in self.method.loss:
                 loss_dict['all_mse'] = F.mse_loss(pred[maskN], targ[maskN])
                 loss_dict['all_mse'] += depth_w * F.mse_loss(pred[depth_idx][maskD], targ[depth_idx][maskD])
