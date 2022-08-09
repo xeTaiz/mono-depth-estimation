@@ -115,8 +115,8 @@ if __name__ == "__main__":
 
 
     early_stop_callback = pl.callbacks.EarlyStopping(
-        monitor='val_delta1',
-        mode='max',
+        monitor='val_loss',
+        mode='min',
         patience=5
     )
 

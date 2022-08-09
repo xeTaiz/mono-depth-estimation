@@ -105,6 +105,22 @@ class BaseModule(pl.LightningModule):
     def setup_model_from_ckpt(self):
         raise NotImplementedError()
 
+    def adjust_loss_dict(self, loss_dict):
+        ret = {}
+        for k, v in loss_dict.items():
+            if k == 'composite_ssim':
+                ret[k] = 1 - (v / (self.method.ssim_loss_weight *
+                                   self.method.comp_loss_weight))
+            elif 'ssim' in k:
+                ret[k] = 1 - (v / self.method.ssim_loss_weight)
+            elif 'depth' in k:
+                ret[k] = v / self.method.depth_loss_weight
+            elif k == 'fb_divergence':
+                ret[k] = v / self.method.fbdiv_loss_weight
+            else:
+                ret[k] = v
+        return ret
+
     def setup_criterion(self):
         _silog_loss = criteria.silog_loss(variance_focus=self.method.variance_focus)
         def silog_loss(pred, targ):
@@ -154,10 +170,12 @@ class BaseModule(pl.LightningModule):
                     torch.clamp(pred, 0.0, 1.0),
                     torch.clamp(targ, 0.0, 1.0), reduction='none')[maskN].mean()
             if 'colorssim' in self.method.loss:
-                mask8 = mask1.expand(-1, 8, -1, -1)
-                loss_dict['color_ssim'] = ssim_w * dssim2d(
-                    torch.clamp(pred[:, :8], 0.0, 1.0),
-                    torch.clamp(targ[:, :8], 0.0, 1.0), reduction='none')[mask8].mean()
+                loss_dict['front_ssim'] = ssim_w * dssim2d(
+                    torch.clamp(pred[:, :4], 0.0, 1.0),
+                    torch.clamp(targ[:, :4], 0.0, 1.0), reduction='none')[mask4].mean()
+                loss_dict['back_ssim'] = ssim_w * dssim2d(
+                    torch.clamp(pred[:, 4:8], 0.0, 1.0),
+                    torch.clamp(targ[:, 4:8], 0.0, 1.0), reduction='none')[mask4].mean()
             if 'composite' in self.method.loss:
                 comp_loss = comp_w * F.mse_loss(pred_full[mask4], targ_full[mask4], reduction='none')
                 loss_dict['composite_mse'] = torch.mean(torch.nan_to_num(comp_loss))
@@ -165,12 +183,12 @@ class BaseModule(pl.LightningModule):
                     loss_dict['composite_ssim'] = ssim_w * comp_w * dssim2d(
                         torch.clamp(pred_full, 0.0, 1.0),
                         torch.clamp(targ_full, 0.0, 1.0), reduction='none')[mask4].mean()
-            if 'fbdivergence':
+            if 'fbdivergence' in self.method.loss:
                 # implements cosine similarity between fronts and backs
                 # "front pred back gt" / "front gt back pred"  magnitudes
-                fpbg_mag = (torch.linalg.vector_norm(pred[:,  :3], dim=1, keepdim=True) * 
+                fpbg_mag = (torch.linalg.vector_norm(pred[:,  :3], dim=1, keepdim=True) *
                             torch.linalg.vector_norm(targ[:, 4:7], dim=1, keepdim=True)) + 1e-3
-                fgbp_mag = (torch.linalg.vector_norm(pred[:, 4:7], dim=1, keepdim=True) * 
+                fgbp_mag = (torch.linalg.vector_norm(pred[:, 4:7], dim=1, keepdim=True) *
                             torch.linalg.vector_norm(targ[:,  :3], dim=1, keepdim=True)) + 1e-3
                 # manual dot products, divided by magnitude cos_sim = dot(A, B) / (|A|*|B|)
                 fb_div_loss = ((pred[:,  :3] * targ[:, 4:7] / fpbg_mag).sum(dim=1) +
@@ -312,7 +330,7 @@ class BaseModule(pl.LightningModule):
         parser.add_argument('--freeze_encoder', action='store_true', help='Freeze encoder')
         parser.add_argument('--depth-loss-weight', type=float, default=10.0, help='Extra loss weighting for depth layer(s)')
         parser.add_argument('--comp-loss-weight', type=float, default=2.0, help='Loss weighting for composite loss')
-        parser.add_argument('--fbdiv-loss-weight', type=float, default=1.0, help='Loss weight for foreground/background divergence loss')
+        parser.add_argument('--fbdiv-loss-weight', type=float, default=0.2, help='Loss weight for foreground/background divergence loss')
         parser.add_argument('--ssim-loss-weight', type=float, default=2.0)
     @staticmethod
     def add_model_specific_args(parser):
