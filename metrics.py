@@ -118,3 +118,4 @@ METRICS['mse'] = torchmetrics.functional.regression.mean_squared_error
 METRICS['absrel'] = AbsoluteRelativeError
 METRICS['sqrel'] = RelativeSquareError
 METRICS['rmse'] = RelativeMeanSquareError
+METRICS['ssim'] = torchmetrics.functional.structural_similarity_index_measure

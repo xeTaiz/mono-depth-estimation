@@ -113,9 +113,12 @@ class BtsModule(BaseModule):
         y_hat = self(x[:, :3])
         loss, pred_full, loss_dict = self.criterion(y_hat, y, x, return_composited=True, return_loss_dict=True)
         self.metric_logger.context.log('val_loss', loss.detach())
-        self.logger.experiment.log({f'val_{k}': v for k,v in self.adjust_loss_dict(loss_dict).items()})
+        # self.logger.experiment.log({f'val_{k}': v for k,v in self.adjust_loss_dict(loss_dict).items()})
         self.save_visualization(x, y, y_hat, pred_full, batch_idx, nam='val')
         metrics = self.metric_logger.log_val(y_hat[:, [8,9]], y[:, [8,9]])
+        metrics.update(self.metric_logger.log_val(y_hat[:,  :4], y[:,  :4], prefix='front_'))
+        metrics.update(self.metric_logger.log_val(y_hat[:, 4:8], y[:, 4:8], prefix='back_'))
+        metrics.update(self.metric_logger.log_val(pred_full, x[:, :4], prefix='comp_'))
         metrics.update(self.metric_logger.log_val(y_hat[:, [8]], y[:, [8]], prefix='depth_'))
         metrics.update(self.metric_logger.log_val(y_hat[:, [9]], y[:, [9]], prefix='fh_depth_'))
         return metrics
