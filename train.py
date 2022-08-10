@@ -107,7 +107,7 @@ if __name__ == "__main__":
         amp_level='O2' if use_gpu else None,
         min_epochs=args.globals.min_epochs,
         max_epochs=args.globals.max_epochs,
-        logger=None if args.name is None else pl.loggers.WandbLogger(project="MirrorDepth", name=args.name),
+        logger=None if args.globals.name is None else pl.loggers.WandbLogger(project="MirrorDepth", name=args.globals.name),
         callbacks=[pl.callbacks.lr_monitor.LearningRateMonitor(), checkpoint_callback]
     )
 
