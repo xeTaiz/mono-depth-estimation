@@ -19,7 +19,6 @@ class MetricLogger(object):
         self.context.log("loss", loss)
         for name, value in zip(self.computer.names, values):
             self.context.log("train_{}".format(name), value, logger=True, on_epoch=True)
-            self.context.log("train_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
             result[name] = value
         return result
 
@@ -28,7 +27,6 @@ class MetricLogger(object):
         result = {}
         for name, value in zip(self.computer.names, values):
             self.context.log("val_{}".format(name), value, logger=True, on_epoch=True)
-            self.context.log("val_{}(AVG)".format(name), self.computer.avg(name), logger=False, prog_bar=True)
             result[name] = value
         return result
 
