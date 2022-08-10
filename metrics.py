@@ -48,6 +48,7 @@ class MetricComputation(object):
     def __init__(self, metrics):
         self.names = metrics
         self.metrics = [METRICS[m] for m in metrics]
+        self.metric_names = metrics
         self.reset()
 
     def reset(self):
@@ -58,7 +59,7 @@ class MetricComputation(object):
         pred = torch.clamp_min(pred, 1e-07)
         valid_mask = target > 0
         assert torch.sum(valid_mask) > 0, "invalid target!"
-        current_values = [metric(pred[valid_mask].data, target[valid_mask].data) for metric in self.metrics]
+        current_values = [metric(pred[valid_mask].data, target[valid_mask].data) if n != 'ssim' else metric(pred, target) for n, metric in zip(self.metric_names ,self.metrics)]
         self.count += 1
         for i, value in enumerate(current_values):
             self.sum[i] += value
