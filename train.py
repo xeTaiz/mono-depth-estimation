@@ -54,7 +54,7 @@ def parse_args_into_namespaces(parser, commands):
 if __name__ == "__main__":
     parser = ArgumentParser('Trains mono depth estimation models', formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--seed', default=None, type=int, help='Random Seed')
-    parser.add_argument('--precision', default=16,   type=int, help='16 to use Mixed precision (AMP O2), 32 for standard 32 bit float training')
+    parser.add_argument('--precision', default=32,   type=int, help='16 to use Mixed precision (AMP O2), 32 for standard 32 bit float training')
     parser.add_argument('--gpus', type=int, default=1, help='Number of GPUs')
     parser.add_argument('--dev', action='store_true', help='Activate Lightning Fast Dev Run for debugging')
     parser.add_argument('--overfit', action='store_true', help='If this flag is set the network is overfit to 1 batch')
@@ -87,28 +87,32 @@ if __name__ == "__main__":
         args.globals.seed = random.randrange(4294967295) # Make sure it's logged
     pl.seed_everything(args.globals.seed)
 
-    checkpoint_callback = pl.callbacks.ModelCheckpoint(
+    callbacks = []
+
+    if args.globals.name:
+        callbacks += [pl.callbacks.lr_monitor.LearningRateMonitor()]
+
+    callbacks += [pl.callbacks.ModelCheckpoint(
         verbose=True,
         #save_weights_only=True,
         save_top_k=1,
         filename='{epoch}-{val_delta1}',
         monitor='val_delta1',
         mode='max'
-    )
+    )]
 
     use_gpu = not args.globals.gpus == 0
 
     trainer = pl.Trainer(
-        log_gpu_memory=False,
         fast_dev_run=args.globals.dev,
-        gpus=args.globals.gpus,
+        accelerator='gpu' if use_gpu else 'cpu',
+        devices=args.globals.gpus,
         overfit_batches=1 if args.globals.overfit else 0,
         precision=args.globals.precision if use_gpu else 32,
-        amp_level='O2' if use_gpu else None,
         min_epochs=args.globals.min_epochs,
         max_epochs=args.globals.max_epochs,
         logger=None if args.globals.name is None else pl.loggers.WandbLogger(project="MirrorDepth", name=args.globals.name),
-        callbacks=[pl.callbacks.lr_monitor.LearningRateMonitor(), checkpoint_callback]
+        callbacks=callbacks
     )
 
     yaml = args.__dict__
