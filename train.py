@@ -64,7 +64,7 @@ if __name__ == "__main__":
     parser.add_argument('--min_epochs', default=5, type=int, help='Minimum number of epochs.')
     parser.add_argument('--max_epochs', default=25, type=int, help='Maximum number ob epochs to train')
     parser.add_argument('--max-train-batches', default=1.0, type=float, help='Limit train dataset to percentage/amount')
-    parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse'], nargs='+', help='which metrics to evaluate')
+    parser.add_argument('--metrics', default=['delta1', 'delta2', 'delta3', 'mse', 'mae', 'log10', 'rmse', 'ssim'], nargs='+', help='which metrics to evaluate')
     parser.add_argument('--worker', default=8, type=int, help='Number of workers for data loader')
     parser.add_argument('--find_learning_rate', action='store_true', help="Finding learning rate.")
     parser.add_argument('--detect_anomaly', action='store_true', help='Enables pytorch anomaly detection')
@@ -96,15 +96,15 @@ if __name__ == "__main__":
     wandb_logger = pl.loggers.WandbLogger(project="stdepth", name=args.globals.name, log_model=True)
     
     ckpt_dir = f'checkpoints/{args.globals.name}'
-    ckpt_nam = '{epoch}-{val_delta1}'
+    ckpt_nam = '{epoch}-{val_loss}'
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         verbose=True,
         #save_weights_only=True,
         save_top_k=1,
         dirpath=ckpt_dir,
         filename=ckpt_nam,
-        monitor='val_delta1',
-        mode='max'
+        monitor='val_loss',
+        mode='min'
     )
 
     ckpts = [(fn, float(fn.name.split('val_delta1=')[-1][:-5])) for fn in Path(ckpt_dir).rglob('*.ckpt')]
