@@ -64,6 +64,7 @@ if __name__ == "__main__":
     parser.add_argument('--worker', default=6, type=int, help='Number of workers for data loader')
     parser.add_argument('--find_learning_rate', action='store_true', help="Finding learning rate.")
     parser.add_argument('--detect_anomaly', action='store_true', help='Enables pytorch anomaly detection')
+    parser.add_argument('--name', default=None, type=str, help="Name of training run.")
 
 
     commands = parser.add_subparsers(title='Commands')
@@ -106,7 +107,7 @@ if __name__ == "__main__":
         amp_level='O2' if use_gpu else None,
         min_epochs=args.globals.min_epochs,
         max_epochs=args.globals.max_epochs,
-        logger=pl.loggers.TensorBoardLogger("result", name=args.method.name),
+        logger=None if args.name is None else pl.loggers.WandbLogger(project="MirrorDepth", name=args.name),
         callbacks=[pl.callbacks.lr_monitor.LearningRateMonitor(), checkpoint_callback]
     )
 

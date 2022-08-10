@@ -4,3 +4,4 @@ opencv-python
 h5py
 scipy
 timm
+wandb
