@@ -59,7 +59,8 @@ class MetricComputation(object):
         pred = torch.clamp_min(pred, 1e-07)
         valid_mask = target > 0
         assert torch.sum(valid_mask) > 0, "invalid target!"
-        current_values = [metric(pred[valid_mask].data, target[valid_mask].data) if n != 'ssim' else metric(pred.cpu(), target.cpu()) for n, metric in zip(self.metric_names ,self.metrics)]
+        with torch.no_grad():
+            current_values = [metric(pred[valid_mask].data, target[valid_mask].data) if n != 'ssim' else metric(pred.cpu(), target.cpu()) for n, metric in zip(self.metric_names ,self.metrics)]
         self.count += 1
         for i, value in enumerate(current_values):
             self.sum[i] += value
