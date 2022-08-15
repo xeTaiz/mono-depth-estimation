@@ -48,11 +48,12 @@ class Mirror3DDataset(BaseDataset):
         img_path = self.get_rgb_path(index)
         assert depth_path.exists(), depth_path.as_posix()
         assert Path(img_path).exists(), img_path
-        rgb = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        depth = cv2.imread(depth_path.as_posix(), cv2.IMREAD_ANYDEPTH).astype(np.float64)
-        depth /= 1000
+        rgb = Image.open(img_path).convert('RGB')
+        depth = Image.open(depth_path)
+        depth = np.array(depth, dtype=np.float32)
+        depth /= 1000 
         depth = np.clip(depth, 0, 10)
-        depth /= 10
+        return rgb, depth
 
     @staticmethod
     def add_dataset_specific_args(parent_parser):

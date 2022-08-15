@@ -1,10 +1,12 @@
 import sys
 from modules import get_module, register_module_specific_arguments
 from datasets import register_dataset_specific_arguments
+import torch
+print("CUDA devices: ",torch.cuda.device_count())
 import pytorch_lightning as pl
 from argparse import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
 import random
-import torch
+
 
 def parse_args_into_namespaces(parser, commands):        
     '''

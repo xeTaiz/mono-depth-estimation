@@ -161,7 +161,8 @@ class BtsModule(BaseModule):
         depth = TF.rotate(depth, angle)
 
         # Resize
-        h = int(np.random.choice([416, 452, 489, 507, 518, 550, 600, 650, 720]))
+        h = int(np.random.choice([452, 489, 507, 518, 550, 600, 650, 720]))
+        #h = int(np.random.choice([416, 452, 489, 507, 518, 550, 600, 650, 720]))
         resize = transforms.Resize(h)
         rgb = resize(rgb)
         depth = resize(depth)
