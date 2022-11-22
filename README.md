@@ -1,2 +1,2 @@
 ### Pretrained Weights
-Download [weights](https://cloudstore.uni-ulm.de/s/cSiDmti3Dg5EjDt) and put them into network/pretrained_models
+Download [weights](https://cloudstore.uni-ulm.de/s/ssjQXwn8y2MLtjq) and put them into network/pretrained_models
