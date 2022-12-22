@@ -75,10 +75,14 @@ if __name__ == "__main__":
     register_module_specific_arguments(commands)
 
     args = parse_args_into_namespaces(parser, commands)
-    assert args.training and args.validation, "Please provide data training AND validation dataset"
+    if args.globals.name.startswith('VALIDATE'):
+        VALIDATE_ONLY = True
+    else:
+        assert args.training and args.validation, "Please provide data training AND validation dataset"
+        VALIDATE_ONLY = False
 
-    args.ds_name = args.training[0][1].path.split('/')[-1]
-    args.depth_method = args.training[0][1].depth_method
+    args.ds_name = args.validation[0][1].path.split('/')[-1]
+    args.depth_method = args.validation[0][1].depth_method
 
     if args.globals.detect_anomaly:
         print("Enabling anomaly detection")
@@ -95,7 +99,10 @@ if __name__ == "__main__":
 
     wandb_logger = pl.loggers.WandbLogger(project="stdepth", name=args.globals.name, log_model=True)
     
-    ckpt_dir = f'checkpoints/{args.globals.name}'
+    if VALIDATE_ONLY:
+        ckpt_dir = f'checkpoints/{args.globals.name.replace("VALIDATE", "")}'
+    else:
+        ckpt_dir = f'checkpoints/{args.globals.name}'
     ckpt_nam = '{epoch}-{val_loss}'
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         verbose=True,
@@ -158,6 +165,8 @@ if __name__ == "__main__":
         args.method.learning_rate = suggested_lr
         print("Suggested learning rate: ", args.method.learning_rate)
     else:
+        if VALIDATE_ONLY:
+            trainer.validate(module)
         trainer.fit(module)
         if args.test:
             trainer.test(module)
