@@ -5,6 +5,7 @@ opencv-python
 h5py
 scipy
 timm
-wandb
+protobuf==3.14.0
+wandb==0.12.10
 git+https://github.com/aliutkus/torchinterp1d@master#egg=torchinterp1d
 git+https://github.com/xeTaiz/torchvtk@master#egg=torchvtk
