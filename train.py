@@ -114,7 +114,7 @@ if __name__ == "__main__":
         mode='min'
     )
 
-    ckpts = [(fn, float(fn.name.split('val_delta1=')[-1][:-5])) for fn in Path(ckpt_dir).rglob('*.ckpt')]
+    ckpts = [(fn, float(fn.name.split('val_loss=')[-1][:-5])) for fn in Path(ckpt_dir).rglob('*.ckpt')]
     if len(ckpts) > 0: 
         best_ckpt = sorted(ckpts, key=lambda tup: tup[1], reverse=True)[0]
         print(f'Found existing checkpoint for this run with val_delta1={best_ckpt[1]:.2f}: {best_ckpt[0]}')
